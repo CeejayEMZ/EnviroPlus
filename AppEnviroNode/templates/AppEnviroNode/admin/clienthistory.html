@@ -1,0 +1,270 @@
+{% extends 'AppEnviroNode/index.html' %}
+{% load static %}
+
+{% block title %}Admin - History - Environode{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-jQnRdNOI0zG3p1I8MMwndw5XNUlM3hfXV+20j0mgZZm+ljYQyP9B1b5Y3jU8KPg/7GB22T8JKK6lewi7N7b3kg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+{% endblock %}
+
+{% block content %}
+<div class="overlay">
+    <section class="grid-4" style="margin-top: 20px; gap: 16px; margin-bottom: 24px; width: min(1550px, 98%); margin-left: auto; margin-right: auto;">
+        <div class="metric-card">
+            <div class="metric-top"><small>Total Events</small></div>
+            <div class="metric-value">{{ metrics.total_events }}</div>
+            <div class="metric-note">in selected range</div>
+        </div>
+        
+        <div class="metric-card">
+            <div class="metric-top"><small>Normal Readings</small></div>
+            <div class="metric-value">{{ metrics.normal_readings }}</div>
+            <div class="metric-note" style="color:#0a9d42;">Good status</div>
+        </div>
+        
+        <div class="metric-card">
+            <div class="metric-top"><small>Warnings</small></div>
+            <div class="metric-value">{{ metrics.warnings }}</div>
+            <div class="metric-note" style="color:#cb8200;">Moderate/Warning</div>
+        </div>
+        
+        <div class="metric-card">
+            <div class="metric-top"><small>System Events</small></div>
+            <div class="metric-value">{{ metrics.system_events }}</div>
+            <div class="metric-note">Operational</div>
+        </div>
+        
+        <div class="metric-card">
+            <div class="metric-top"><small>Highest AQI</small></div>
+            <div class="metric-value" style="{% if metrics.highest_aqi >= 151 %}color: #c62828;{% elif metrics.highest_aqi >= 101 %}color: #f57c00;{% elif metrics.highest_aqi >= 51 %}color: #fbc02d;{% else %}color: #0a9d42;{% endif %}">{{ metrics.highest_aqi }}</div>
+            <div class="metric-note">Peak recorded</div>
+        </div>
+        
+        <div class="metric-card">
+            <div class="metric-top"><small>Most Active Node</small></div>
+            <div class="metric-value" style="font-size:1.4rem;">{{ metrics.most_active_node }}</div>
+            <div class="metric-note">Top contributor</div>
+        </div>
+    </section>
+
+    <section class="history-panel">
+        <div class="history-filter-title"><i class="fa-solid fa-filter"></i> Filters</div>
+        
+        <form method="GET" id="historyFilterForm">
+            <div class="history-filter-grid">
+                <div class="history-filter-group">
+                    <label for="eventType">Event Type</label>
+                    <select id="eventType" name="event_type">
+                        <option value="all">All Events</option>
+                        {% for key, label in event_types %}
+                            <option value="{{ key }}" {% if selected_event_type == key %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="history-filter-group">
+                    <label for="nodeFilter">Node</label>
+                    <select id="nodeFilter" name="node">
+                        <option value="all">All Nodes</option>
+                        {% for node in nodes %}
+                            <option value="{{ node.id }}" {% if selected_node|stringformat:"s" == node.id|stringformat:"s" %}selected{% endif %}>{{ node.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="history-filter-group">
+                    <label for="sensorType">Sensor Type</label>
+                    <select id="sensorType" name="sensor_type">
+                        <option value="all">All Sensors</option>
+                        {% for key, label in sensor_types %}
+                            <option value="{{ key }}" {% if selected_sensor_type == key %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="history-filter-group">
+                    <label for="severityLevel">Severity</label>
+                    <select id="severityLevel" name="severity">
+                        <option value="all">All Levels</option>
+                        {% for key, label in severity_levels %}
+                            <option value="{{ key }}" {% if selected_severity == key %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="history-filter-group">
+                    <label for="dateRange">Date Range</label>
+                    <select id="dateRange" name="date_range">
+                        <option value="today" {% if selected_date_range == "today" %}selected{% endif %}>Today</option>
+                        <option value="last7" {% if selected_date_range == "last7" %}selected{% endif %}>Last 7 Days</option>
+                        <option value="last30" {% if selected_date_range == "last30" %}selected{% endif %}>Last 30 Days</option>
+                        <option value="custom" {% if selected_date_range == "custom" %}selected{% endif %}>Custom Range</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="history-panel-actions">
+                <button type="submit" class="history-export-btn"><i class="fa-solid fa-search"></i> Apply Filters</button>
+                <a href="?export=csv&event_type={{ selected_event_type }}&node={{ selected_node }}&date_range={{ selected_date_range }}&sensor_type={{ selected_sensor_type }}&severity={{ selected_severity }}" class="history-export-btn" style="background: #16a34a;"><i class="fa-solid fa-download"></i> Export Data CSV</a>
+            </div>
+            
+            <div class="date-range-modal" id="historyDateModal" aria-hidden="true" style="display:none;">
+                <div class="date-picker-content">
+                    <div class="date-picker-title">Select Date Range</div>
+                    <div class="date-input-group">
+                        <div>
+                            <label for="historyStartDate">Start Date:</label>
+                            <input type="date" id="historyStartDate" name="start_date" />
+                        </div>
+                        <div>
+                            <label for="historyEndDate">End Date:</label>
+                            <input type="date" id="historyEndDate" name="end_date" />
+                        </div>
+                    </div>
+                    <div class="date-picker-buttons">
+                        <button class="cancel" type="button" id="historyCancelDate">Cancel</button>
+                        <button class="apply" type="submit" id="historyApplyDate">Apply</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <section class="chart-container" style="padding: 0; overflow: hidden;">
+        <div class="chart-title" style="padding: 16px 20px; border-bottom: 1px solid #e4ebf3; margin: 0; background: #fdfdfe;">System Event History</div>
+        
+        {% if logs %}
+            <div style="overflow-x: auto;">
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Event Type</th>
+                            <th>Node</th>
+                            <th>Severity</th>
+                            <th>Sensor Type</th>
+                            <th>Value</th>
+                            <th>Message</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                            <tr>
+                                <td style="font-weight: 500; color: #4b5563;">
+                                    <i class="far fa-clock" style="margin-right: 6px; color:#889ab5;"></i>
+                                    {{ log.created_at|date:"M d, g:i A" }}
+                                </td>
+                                <td style="font-weight: 600;">
+                                    {% if log.event_type == 'reading' %}
+                                        <span style="background: #dbeafe; color: #0369a1; padding: 4px 8px; border-radius: 4px;">📊 Reading</span>
+                                    {% elif log.event_type == 'warning' %}
+                                        <span style="background: #fef3c7; color: #92400e; padding: 4px 8px; border-radius: 4px;">⚠️ Warning</span>
+                                    {% elif log.event_type == 'device_online' %}
+                                        <span style="background: #dcfce7; color: #15803d; padding: 4px 8px; border-radius: 4px;">🟢 Online</span>
+                                    {% elif log.event_type == 'device_offline' %}
+                                        <span style="background: #fee2e2; color: #991b1b; padding: 4px 8px; border-radius: 4px;">🔴 Offline</span>
+                                    {% elif log.event_type == 'system' %}
+                                        <span style="background: #f3e8ff; color: #6b21a8; padding: 4px 8px; border-radius: 4px;">⚙️ System</span>
+                                    {% elif log.event_type == 'admin' %}
+                                        <span style="background: #e0e7ff; color: #3730a3; padding: 4px 8px; border-radius: 4px;">👤 Admin</span>
+                                    {% endif %}
+                                </td>
+                                <td style="color: #1a3260;">{{ log.node.name|default:"System" }}</td>
+                                <td>
+                                    {% if log.severity == 'good' %}
+                                        <span style="background: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 4px;">✓ Good</span>
+                                    {% elif log.severity == 'moderate' %}
+                                        <span style="background: #fef3c7; color: #92400e; padding: 4px 8px; border-radius: 4px;">⚠ Moderate</span>
+                                    {% elif log.severity == 'unhealthy_sensitive' %}
+                                        <span style="background: #fed7aa; color: #7c2d12; padding: 4px 8px; border-radius: 4px;">⚠ Sensitive</span>
+                                    {% elif log.severity == 'unhealthy' %}
+                                        <span style="background: #fecaca; color: #7f1d1d; padding: 4px 8px; border-radius: 4px;">✕ Unhealthy</span>
+                                    {% elif log.severity == 'hazardous' %}
+                                        <span style="background: #f3e8ff; color: #6b21a8; padding: 4px 8px; border-radius: 4px;">✕ Hazardous</span>
+                                    {% else %}
+                                        <span style="background: #e5e7eb; color: #374151; padding: 4px 8px; border-radius: 4px;">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ log.get_sensor_type_display|default:"—" }}</td>
+                                <td style="font-weight: 600;">{{ log.value|default:"—" }}</td>
+                                <td style="color: #4b5563; max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ log.message }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div style="display: flex; justify-content: center; align-items: center; gap: 8px; padding: 20px; background: white; border-top: 1px solid #e4ebf3; flex-wrap: wrap;">
+                {% if page_obj.has_previous %}
+                    <a href="?page=1&event_type={{ selected_event_type }}&node={{ selected_node }}&date_range={{ selected_date_range }}&sensor_type={{ selected_sensor_type }}&severity={{ selected_severity }}" class="device-btn neutral" style="text-decoration: none;">« First</a>
+                    <a href="?page={{ page_obj.previous_page_number }}&event_type={{ selected_event_type }}&node={{ selected_node }}&date_range={{ selected_date_range }}&sensor_type={{ selected_sensor_type }}&severity={{ selected_severity }}" class="device-btn neutral" style="text-decoration: none;">‹ Prev</a>
+                {% endif %}
+                
+                <span style="font-weight: 600; color: #4b5563; padding: 0 12px;">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}&event_type={{ selected_event_type }}&node={{ selected_node }}&date_range={{ selected_date_range }}&sensor_type={{ selected_sensor_type }}&severity={{ selected_severity }}" class="device-btn neutral" style="text-decoration: none;">Next ›</a>
+                    <a href="?page={{ page_obj.paginator.num_pages }}&event_type={{ selected_event_type }}&node={{ selected_node }}&date_range={{ selected_date_range }}&sensor_type={{ selected_sensor_type }}&severity={{ selected_severity }}" class="device-btn neutral" style="text-decoration: none;">Last »</a>
+                {% endif %}
+            </div>
+        {% else %}
+            <div style="text-align: center; padding: 60px 20px; color: #889ab5; font-size: 1.1rem; background: white;">
+                <i class="fas fa-folder-open" style="font-size: 3rem; margin-bottom: 12px; opacity: 0.5;"></i><br>
+                No logs available for this filter criteria.
+            </div>
+        {% endif %}
+    </section>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // --- FILTER & MODAL LOGIC ---
+  const dateRangeSelect = document.getElementById('dateRange');
+  const historyDateModal = document.getElementById('historyDateModal');
+  const historyStartDate = document.getElementById('historyStartDate');
+  const historyCancelDateBtn = document.getElementById('historyCancelDate');
+  const filterForm = document.getElementById('historyFilterForm');
+
+  function formatDateForLabel(isoDate) {
+    const date = new Date(isoDate + 'T00:00:00');
+    return date.toLocaleDateString('en-US');
+  }
+
+  function openHistoryDateModal() {
+    historyDateModal.style.display = 'flex';
+    historyDateModal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeHistoryDateModal() {
+    historyDateModal.style.display = 'none';
+    historyDateModal.setAttribute('aria-hidden', 'true');
+  }
+
+  if (dateRangeSelect) {
+    dateRangeSelect.addEventListener('change', () => {
+      if (dateRangeSelect.value === 'custom') {
+        openHistoryDateModal();
+      }
+    });
+  }
+
+  if(historyCancelDateBtn) {
+    historyCancelDateBtn.addEventListener('click', () => {
+      closeHistoryDateModal();
+      if (dateRangeSelect.value === 'custom') dateRangeSelect.value = 'today';
+    });
+  }
+
+  // Close modal clicking outside
+  if(historyDateModal) {
+    historyDateModal.addEventListener('click', (event) => {
+      if (event.target === historyDateModal) {
+        closeHistoryDateModal();
+        if (dateRangeSelect.value === 'custom') dateRangeSelect.value = 'today';
+      }
+    });
+  }
+</script>
+{% endblock %}

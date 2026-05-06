@@ -1,0 +1,112 @@
+{% extends 'AppEnviroNode/index.html' %}
+{% load static %}
+
+{% block title %}Admin - System Alerts - Environode{% endblock %}
+
+{% block content %}
+<div class="overlay">
+  <main class="container" style="width: min(1550px, 98%); margin: 0 auto; padding-top: 20px;">
+    
+    <div style="background: #fff; border: 1px solid #d7dde4; border-radius: 12px; padding: 20px; margin-bottom: 24px; box-shadow: 0 6px 16px rgba(8, 29, 65, 0.09); display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <h1 style="margin: 0 0 6px 0; font-size: 1.8rem; font-weight: 800; color: #1a3352;">System Alerts</h1>
+        <p style="margin: 0; color: #576371; font-size: 0.95rem;">Monitor critical warnings, hardware status, and environmental hazards.</p>
+      </div>
+      <div>
+        <button class="device-btn neutral" onclick="location.reload();" style="display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-arrows-rotate"></i> Refresh Alerts
+        </button>
+      </div>
+    </div>
+
+    <div class="alert-section critical">
+      <div class="alert-section-title"><i class="fa-solid fa-triangle-exclamation" style="color: #b31d28;"></i> Critical Alerts</div>
+      <div class="alert-section-content">
+        {% for alert in alerts %}
+          {% if alert.severity == 'critical' and alert.is_active %}
+            <div class="alert-item" style="background:#fff6f6; border-left: 4px solid #b31d28;">
+              <div class="alert-item-title" style="color:#b31d28; font-weight:700; font-size:0.97rem;">{{ alert.title }}</div>
+              <div class="alert-item-desc" style="color:#576371; font-size:0.89rem;">{{ alert.description }}</div>
+              <div class="alert-item-footer">
+                <span class="alert-item-time">{{ alert.triggered_at|timesince }} ago</span>
+                <span class="alert-item-reading">Node: {{ alert.node.name|default:"System" }}</span>
+              </div>
+            </div>
+          {% endif %}
+        {% empty %}
+          <div class="alerts-empty-state">
+            <span style="color: #8599ad; font-size: 0.95rem;">No active critical alerts. System is stable.</span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="alert-section warning">
+      <div class="alert-section-title"><i class="fa-solid fa-circle-exclamation" style="color: #c48c10;"></i> Warning Alerts</div>
+      <div class="alert-section-content">
+        {% for alert in alerts %}
+          {% if alert.severity == 'warning' and alert.is_active %}
+            <div class="alert-item" style="background:#fffaf0; border-left: 4px solid #c48c10;">
+              <div class="alert-item-title" style="color:#6f5b25; font-weight:700; font-size:0.97rem;">{{ alert.title }}</div>
+              <div class="alert-item-desc" style="color:#374151; font-size:0.89rem;">{{ alert.description }}</div>
+              <div class="alert-item-footer">
+                <span class="alert-item-time">{{ alert.triggered_at|timesince }} ago</span>
+                <span class="alert-item-reading">Node: {{ alert.node.name|default:"System" }}</span>
+              </div>
+            </div>
+          {% endif %}
+        {% empty %}
+          <div class="alerts-empty-state">
+            <span style="color: #8599ad; font-size: 0.95rem;">No active warnings.</span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="alert-section pending">
+      <div class="alert-section-title"><i class="fa-solid fa-circle-info" style="color: #1a3352;"></i> Information & Pending Actions</div>
+      <div class="alert-section-content">
+        {% for alert in alerts %}
+          {% if alert.severity == 'info' and alert.is_active %}
+            <div class="alert-item" style="background:#e3efff; border-left: 4px solid #1a3260;">
+              <div class="alert-item-title" style="color:#1a3352; font-weight:700; font-size:0.97rem;">{{ alert.title }}</div>
+              <div class="alert-item-desc" style="color:#3a4a5d; font-size:0.89rem;">{{ alert.description }}</div>
+              <div class="alert-item-footer">
+                <span class="alert-item-time">{{ alert.triggered_at|timesince }} ago</span>
+                <span class="alert-item-reading">Node: {{ alert.node.name|default:"System" }}</span>
+              </div>
+            </div>
+          {% endif %}
+        {% empty %}
+          <div class="alerts-empty-state">
+            <span style="color: #8599ad; font-size: 0.95rem;">No pending actions or informational alerts.</span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="alert-section resolved">
+      <div class="alert-section-title"><i class="fa-solid fa-check-circle" style="color: #16a34a;"></i> Recently Resolved Alerts</div>
+      <div class="alert-section-content">
+        {% for alert in alerts %}
+          {% if not alert.is_active or alert.severity == 'resolved' %}
+            <div class="alert-item" style="background:#f8fafc; border-left: 4px solid #cbd5e1; opacity: 0.8;">
+              <div class="alert-item-title" style="color:#475569; font-weight:700; font-size:0.97rem; text-decoration: line-through;">{{ alert.title }}</div>
+              <div class="alert-item-desc" style="color:#64748b; font-size:0.89rem;">{{ alert.description }}</div>
+              <div class="alert-item-footer">
+                <span class="alert-item-time" style="color: #16a34a;">Resolved: {{ alert.resolved_at|date:"M d, Y h:i A"|default:"Recently" }}</span>
+                <span class="alert-item-reading">Node: {{ alert.node.name|default:"System" }}</span>
+              </div>
+            </div>
+          {% endif %}
+        {% empty %}
+          <div class="alerts-empty-state">
+            <span style="color: #8599ad; font-size: 0.95rem;">No resolved alerts in recent history.</span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </main>
+</div>
+{% endblock %}

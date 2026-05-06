@@ -1,0 +1,122 @@
+{% extends 'AppEnviroNode/index.html' %}
+
+{% block title %}Admin - Health Recommendations - Environode{% endblock %}
+
+
+{% block content %}
+  <div class="overlay">
+    <!-- Overall Air Quality Score -->
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 32px; margin-top: 20px; margin-bottom: 20px; width: min(1550px, 98%); margin-left: auto; margin-right: auto; color: white; text-align: center;">
+      <small style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; opacity: 0.9;">Overall Air Quality</small>
+      <div style="font-size: 3.5rem; font-weight: 900; margin: 12px 0;">75/100</div>
+      <p style="margin: 0; opacity: 0.9; font-size: 0.95rem;">Good air quality across most monitoring stations</p>
+    </div>
+
+    <!-- Health Recommendations Grid -->
+    <div style="display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); width: min(1550px, 98%); margin: 0 auto 20px;">
+      <!-- Recommendation 1 -->
+      <div style="background: #fff; border: 1px solid #fbbf24; border-radius: 12px; padding: 16px; box-shadow: 0 6px 16px rgba(8, 29, 65, 0.09);">
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+          <div style="font-size: 1.8rem; flex-shrink: 0;">⚠️</div>
+          <div style="flex: 1;">
+            <h3 style="margin: 0 0 4px 0; font-size: 1rem; font-weight: 700; color: #b45309;">Monitor PM2.5 Levels</h3>
+            <p style="margin: 0; color: #576371; font-size: 0.9rem;">Particulate matter readings are trending upward in the residential zone. Consider increasing sensor frequency.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recommendation 2 -->
+      <div style="background: #fff; border: 1px solid #60a5fa; border-radius: 12px; padding: 16px; box-shadow: 0 6px 16px rgba(8, 29, 65, 0.09);">
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+          <div style="font-size: 1.8rem; flex-shrink: 0;">ℹ️</div>
+          <div style="flex: 1;">
+            <h3 style="margin: 0 0 4px 0; font-size: 1rem; font-weight: 700; color: #1e40af;">Scheduled Maintenance</h3>
+            <p style="margin: 0; color: #576371; font-size: 0.9rem;">Node 02 is showing calibration drift. Schedule recalibration for next week to ensure accuracy.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recommendation 3 -->
+      <div style="background: #fff; border: 1px solid #10b981; border-radius: 12px; padding: 16px; box-shadow: 0 6px 16px rgba(8, 29, 65, 0.09);">
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+          <div style="font-size: 1.8rem; flex-shrink: 0;">✓</div>
+          <div style="flex: 1;">
+            <h3 style="margin: 0 0 4px 0; font-size: 1rem; font-weight: 700; color: #065f46;">Excellent Coverage</h3>
+            <p style="margin: 0; color: #576371; font-size: 0.9rem;">All monitoring stations operational and properly calibrated. Data redundancy at 99.8%.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recommendation 4 -->
+      <div style="background: #fff; border: 1px solid #f87171; border-radius: 12px; padding: 16px; box-shadow: 0 6px 16px rgba(8, 29, 65, 0.09);">
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+          <div style="font-size: 1.8rem; flex-shrink: 0;">🔴</div>
+          <div style="flex: 1;">
+            <h3 style="margin: 0 0 4px 0; font-size: 1rem; font-weight: 700; color: #991b1b;">Network Issues Detected</h3>
+            <p style="margin: 0; color: #576371; font-size: 0.9rem;">Intermittent connection drops on Node 02. Check network configuration and router placement.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Health Metrics -->
+    <div style="display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); width: min(1550px, 98%); margin: 0 auto 20px;">
+      <div style="background: #fff; border: 1px solid #d7dde4; border-radius: 12px; padding: 16px; box-shadow: 0 6px 16px rgba(8, 29, 65, 0.09);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: #1a3352;">Device Uptime</h4>
+          <span style="font-size: 1.2rem; font-weight: 700; color: #1f7d3a;">99.8%</span>
+        </div>
+        <div style="width: 100%; height: 8px; background: #f0f0f0; border-radius: 4px; overflow: hidden;">
+          <div style="width: 99.8%; height: 100%; background: linear-gradient(90deg, #10b981, #06b6d4);"></div>
+        </div>
+      </div>
+
+      <div style="background: #fff; border: 1px solid #d7dde4; border-radius: 12px; padding: 16px; box-shadow: 0 6px 16px rgba(8, 29, 65, 0.09);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: #1a3352;">Data Accuracy</h4>
+          <span style="font-size: 1.2rem; font-weight: 700; color: #1769ff;">97.2%</span>
+        </div>
+        <div style="width: 100%; height: 8px; background: #f0f0f0; border-radius: 4px; overflow: hidden;">
+          <div style="width: 97.2%; height: 100%; background: linear-gradient(90deg, #1769ff, #0ea5e9);"></div>
+        </div>
+      </div>
+
+      <div style="background: #fff; border: 1px solid #d7dde4; border-radius: 12px; padding: 16px; box-shadow: 0 6px 16px rgba(8, 29, 65, 0.09);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: #1a3352;">System Response</h4>
+          <span style="font-size: 1.2rem; font-weight: 700; color: #8b5cf6;">145ms</span>
+        </div>
+        <div style="width: 100%; height: 8px; background: #f0f0f0; border-radius: 4px; overflow: hidden;">
+          <div style="width: 85%; height: 100%; background: linear-gradient(90deg, #a855f7, #d946ef);"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Observations -->
+    <div style="background: #fff; border: 1px solid #d7dde4; border-radius: 12px; overflow: hidden; width: min(1550px, 98%); margin: 0 auto; box-shadow: 0 6px 16px rgba(8, 29, 65, 0.09);">
+      <div style="background: #f5f7fb; border-bottom: 1px solid #d7dde4; padding: 16px;">
+        <h3 style="margin: 0; font-size: 1rem; font-weight: 700; color: #1a3352;">Recent System Observations</h3>
+      </div>
+      <div style="padding: 16px;">
+        <ul style="margin: 0; padding: 0; list-style: none;">
+          <li style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; display: flex; gap: 12px;">
+            <span style="flex-shrink: 0; font-size: 0.8rem; font-weight: 600; color: #0ea5e9; background: #e0f2fe; padding: 4px 8px; border-radius: 4px;">INFO</span>
+            <span style="color: #576371;">All sensors calibrated successfully at 09:30 AM</span>
+          </li>
+          <li style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; display: flex; gap: 12px;">
+            <span style="flex-shrink: 0; font-size: 0.8rem; font-weight: 600; color: #f59e0b; background: #fef3c7; padding: 4px 8px; border-radius: 4px;">WARN</span>
+            <span style="color: #576371;">PM2.5 spike detected: 62 µg/m³ in commercial area</span>
+          </li>
+          <li style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; display: flex; gap: 12px;">
+            <span style="flex-shrink: 0; font-size: 0.8rem; font-weight: 600; color: #10b981; background: #d1fae5; padding: 4px 8px; border-radius: 4px;">GOOD</span>
+            <span style="color: #576371;">System health check passed: All metrics within normal range</span>
+          </li>
+          <li style="padding: 12px 0; display: flex; gap: 12px;">
+            <span style="flex-shrink: 0; font-size: 0.8rem; font-weight: 600; color: #0ea5e9; background: #e0f2fe; padding: 4px 8px; border-radius: 4px;">INFO</span>
+            <span style="color: #576371;">Data sync completed: 1.2M readings uploaded to cloud storage</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+{% endblock %}

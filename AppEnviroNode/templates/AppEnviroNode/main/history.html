@@ -1,0 +1,174 @@
+{% extends 'AppEnviroNode/index.html' %}
+{% load static %}
+
+{% block title %}History - Environode{% endblock %}
+
+{% block content %}
+  <div class="date-range-modal" id="dateModal">
+    <div class="date-picker-content">
+      <div class="date-picker-title">Select Date Range</div>
+      <div class="date-input-group">
+        <div>
+          <label for="startDate">Start Date:</label>
+          <input type="date" id="startDate" />
+        </div>
+        <div>
+          <label for="endDate">End Date:</label>
+          <input type="date" id="endDate" />
+        </div>
+      </div>
+      <div class="date-picker-buttons">
+        <button class="cancel" onclick="closeDatePicker()">Cancel</button>
+        <button class="apply" onclick="applyDateRange()">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="time-range-container">
+    <div class="time-range-label" onclick="openDatePicker()" style="cursor: pointer;">📅 Select Time Range:</div>
+    <div class="time-buttons">
+      <button class="time-btn active" onclick="selectTimeRange('24h', this)">Last 24 Hours</button>
+      <button class="time-btn" onclick="selectTimeRange('7d', this)">Last 7 Days</button>
+      <button class="time-btn" onclick="selectTimeRange('30d', this)">Last 30 Days</button>
+    </div>
+  </div>
+
+  <section class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-label">Average AQI</div>
+      <div class="metric-value">{{ avg_aqi|default:"—" }}</div>
+      <div class="metric-unit">All-time average</div>
+    </div>
+    <div class="metric-card pm25">
+      <div class="metric-label">Total Readings</div>
+      <div class="metric-value">{{ total_readings }}</div>
+      <div class="metric-unit">sensor readings recorded</div>
+    </div>
+    <div class="metric-card trend">
+      <div class="metric-label">Current Page</div>
+      <div class="metric-value" style="font-size: 1.5rem;">{{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</div>
+      <div class="metric-unit">showing {{ page_obj.object_list|length }} readings</div>
+    </div>
+  </section>
+
+  <section class="chart-container">
+    <div class="chart-title">Reading History</div>
+    {% if page_obj.object_list %}
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+        <thead>
+          <tr style="border-bottom: 2px solid #d0d5e3;">
+            <th style="text-align: left; padding: 12px; color: #333; font-weight: 600;">Timestamp</th>
+            <th style="text-align: center; padding: 12px; color: #333; font-weight: 600;">Node</th>
+            <th style="text-align: center; padding: 12px; color: #333; font-weight: 600;">PM2.5</th>
+            <th style="text-align: center; padding: 12px; color: #333; font-weight: 600;">Temperature</th>
+            <th style="text-align: center; padding: 12px; color: #333; font-weight: 600;">Humidity</th>
+            <th style="text-align: center; padding: 12px; color: #333; font-weight: 600;">AQI</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for reading in page_obj.object_list %}
+            <tr style="border-bottom: 1px solid #e0e0e0;">
+              <td style="padding: 12px; color: #333;">{{ reading.timestamp|date:"M d, g:i A" }}</td>
+              <td style="padding: 12px; text-align: center; color: #666;">{{ reading.node.name }}</td>
+              <td style="padding: 12px; text-align: center; color: #666;">{{ reading.pm2_5|default:"—" }}</td>
+              <td style="padding: 12px; text-align: center; color: #666;">{{ reading.temperature|default:"—" }}°C</td>
+              <td style="padding: 12px; text-align: center; color: #666;">{{ reading.humidity|default:"—" }}%</td>
+              <td style="padding: 12px; text-align: center;">
+                <span style="padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 0.9rem; {% if reading.aqi_level == 'good' %}background: #d1fae5; color: #065f46;{% elif reading.aqi_level == 'moderate' %}background: #fef3c7; color: #92400e;{% elif reading.aqi_level == 'unhealthy_sensitive' %}background: #fed7aa; color: #92400e;{% elif reading.aqi_level == 'unhealthy' %}background: #fecaca; color: #991b1b;{% else %}background: #f3e8ff; color: #6b21a8;{% endif %}">
+                  {{ reading.aqi|default:"—" }}
+                </span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      
+      <!-- Pagination -->
+      <div style="display: flex; justify-content: center; gap: 8px; margin: 20px 0;">
+        {% if page_obj.has_previous %}
+          <a href="?page=1" style="padding: 8px 12px; background: #f0f0f0; text-decoration: none; color: #333; border-radius: 4px;">« First</a>
+          <a href="?page={{ page_obj.previous_page_number }}" style="padding: 8px 12px; background: #f0f0f0; text-decoration: none; color: #333; border-radius: 4px;">‹ Prev</a>
+        {% endif %}
+        
+        <span style="padding: 8px 12px; color: #666;">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        
+        {% if page_obj.has_next %}
+          <a href="?page={{ page_obj.next_page_number }}" style="padding: 8px 12px; background: #f0f0f0; text-decoration: none; color: #333; border-radius: 4px;">Next ›</a>
+          <a href="?page={{ page_obj.paginator.num_pages }}" style="padding: 8px 12px; background: #f0f0f0; text-decoration: none; color: #333; border-radius: 4px;">Last »</a>
+        {% endif %}
+      </div>
+    {% else %}
+      <div style="text-align: center; padding: 40px 20px; color: #889ab5; font-size: 1.1rem;">
+        No readings available
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="chart-container">
+    <div class="chart-title">Air Quality Index Trend</div>
+    <div class="chart-placeholder">AQI Trend Chart (0:00 - 23:00)</div>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-dot" style="background:#27ae60;"></span>Good (0-50)</div>
+      <div class="legend-item moderate"><span class="legend-dot"></span>Moderate (51-100)</div>
+      <div class="legend-item unsafe"><span class="legend-dot"></span>Unhealthy (SG) (101-150)</div>
+      <div class="legend-item unhealthy"><span class="legend-dot"></span>Unhealthy (151-200)</div>
+      <div class="legend-item hazardous"><span class="legend-dot"></span>Hazardous (200+)</div>
+    </div>
+  </section>
+
+  <section class="chart-container">
+    <div class="chart-title">Particulate Matter Levels</div>
+    <div class="chart-placeholder">PM2.5 & PM10 Bar Chart (0:00 - 23:00)</div>
+  </section>
+
+  <section class="chart-container">
+    <div class="chart-title">Temperature Trend</div>
+    <div class="chart-placeholder">Temperature Line Chart (0:00 - 23:00)</div>
+  </section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function openDatePicker() {
+    document.getElementById('dateModal').classList.add('active');
+  }
+
+  function closeDatePicker() {
+    document.getElementById('dateModal').classList.remove('active');
+  }
+
+  function applyDateRange() {
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    if (startDate && endDate) {
+      console.log('Date range selected:', startDate, 'to', endDate);
+      alert(`Date range selected: ${startDate} to ${endDate}`);
+      closeDatePicker();
+      // Remove active state from all time buttons
+      document.querySelectorAll('.time-btn').forEach(btn => btn.classList.remove('active'));
+    }
+  }
+
+  function selectTimeRange(range, button) {
+    // Remove active class from all buttons
+    document.querySelectorAll('.time-btn').forEach(btn => btn.classList.remove('active'));
+    // Add active class to clicked button
+    button.classList.add('active');
+    
+    let label = '';
+    switch(range) {
+      case '24h': label = 'Last 24 Hours'; break;
+      case '7d': label = 'Last 7 Days'; break;
+      case '30d': label = 'Last 30 Days'; break;
+    }
+    console.log('Time range selected:', label);
+  }
+
+  // Close modal when clicking outside
+  document.getElementById('dateModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+      closeDatePicker();
+    }
+  });
+</script>
+{% endblock %}

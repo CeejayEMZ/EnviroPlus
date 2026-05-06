@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EnviroNode Report Summary</title>
+    <style>
+        /* EXACT REFERENCE STYLES from clientreports_print.html - no modifications */
+        @page {
+            size: A4 portrait;
+            margin: 15mm 18mm;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Aileron', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background: white;
+            color: #000;
+        }
+        .report {
+            max-width: 100%;
+            margin: 0 auto;
+        }
+        
+        /* HEADER SECTION */
+        .env-label {
+            font-family: 'Aileron', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 12px;
+            font-weight: normal;
+            letter-spacing: normal;
+            margin-bottom: 20px;
+            color: #000;
+        }
+        
+        /* CENTER TITLE */
+        .report-title {
+            text-align: center;
+            margin: 0 0 5px 0;
+        }
+        .report-title h1 {
+            font-family: 'Aileron', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 40px;
+            font-weight: bold;
+            margin: 0;
+            letter-spacing: normal;
+        }
+        
+        /* LINES UNDER TITLE */
+        .line-thick {
+            width: 100%;
+            height: 6px;
+            background: #000;
+            margin: 8px 0 0 0;
+        }
+        .line-thin {
+            width: 100%;
+            height: 1px;
+            background: #000;
+            margin: 2px 0 0 0;
+        }
+        
+        /* REPORT META INFO */
+        .meta-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0 25px 0;
+            font-family: 'Aileron', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 12px;
+        }
+        
+        /* SECTION STYLES */
+        .section {
+            margin-bottom: 18px;
+        }
+        .section-title {
+            font-family: 'Aileron', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 20px 0 8px 0;
+        }
+        .section-text {
+            font-family: 'Aileron', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 12px;
+            font-weight: normal;
+            line-height: 1.5;
+            margin-bottom: 12px;
+            text-align: justify;
+        }
+        
+        /* TABLES - Solid black borders */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+        }
+        .data-table th,
+        .data-table td {
+            border: 1px solid #000;
+            text-align: center;
+            vertical-align: middle;
+        }
+        .data-table th {
+            font-family: 'Aileron', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 10px 8px;
+            background: white;
+        }
+        .data-table td {
+            font-family: 'Aileron', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 12px;
+            font-weight: normal;
+            padding: 10px 8px;
+        }
+        
+        /* CHART SECTION */
+        .chart-area {
+            margin: 12px 0;
+            text-align: center;
+        }
+        .chart-container {
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: center;
+        }
+        .chart-container img {
+            width: 100%;
+            max-width: 500px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+        
+        /* DISTRIBUTION SECTION */
+        .dist-note {
+            font-family: 'Aileron', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 12px;
+            margin: 8px 0 12px 0;
+            font-style: normal;
+        }
+        
+        /* TWO COLUMN LAYOUT for Insights and Actions */
+        .two-columns {
+            display: flex;
+            gap: 40px;
+            margin: 15px 0 10px 0;
+        }
+        .col {
+            flex: 1;
+        }
+        .col ul {
+            margin: 8px 0 0 18px;
+            padding: 0;
+        }
+        .col li {
+            font-family: 'Aileron', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 12px;
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+        
+        /* Ensure everything fits on one page */
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            .report {
+                page-break-after: avoid;
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="report">
+        <!-- HEADER SECTION -->
+        <div class="env-label">ENVIRONODE</div>
+        
+        <!-- CENTER TITLE -->
+        <div class="report-title">
+            <h1>REPORT SUMMARY</h1>
+        </div>
+        
+        <!-- LINES UNDER TITLE -->
+        <div class="line-thick"></div>
+        <div class="line-thin"></div>
+        
+        <!-- REPORT META INFO - exactly matches output.pdf layout -->
+        <div class="meta-row">
+            <span><strong>REPORT RANGE:</strong> Apr 20 - May 04, 2026</span>
+            <span><strong>SCOPE:</strong> All Nodes</span>
+        </div>
+        
+        <!-- Executive Summary - exact wording as in output.pdf -->
+        <div class="section">
+            <h2 class="section-title">Executive Summary</h2>
+            <p class="section-text">During this reporting period, the average AQI was 26, the peak AQI reached 132 (Unhealthy for Sensitive Groups) on Apr 26, and the lowest AQI recorded was 0 (Good). Most affected area: Unregistered Node with location Unknown. Moderate conditions prevailed for 7% of the period, highlighting the need for continued monitoring.</p>
+        </div>
+        
+        <!-- SUMMARY TABLE - exactly matches the data in output.pdf -->
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>AVERAGE AQI</th>
+                    <th>PEAK AQI</th>
+                    <th>LOWEST AQI</th>
+                    <th>MOST AFFECTED AREA</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>26</td>
+                    <td>132</td>
+                    <td>0</td>
+                    <td>Unregistered Node</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <!-- AQI TREND SECTION - using embedded base64 PNG chart for guaranteed PDF compatibility -->
+        <div class="section">
+            <h2 class="section-title">AQI Trend</h2>
+            <p class="section-text">Apr 26 shows a peak AQI of 132, with an average AQI of 26. A noticeable moderate spike is present. The trend remains fairly stable over the selected range.</p>
+            <div class="chart-area">
+                <div class="chart-container">
+                    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAfQAAADICAYAAABWsCzNAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAACi/SURBVHhe7d0JsF1Vde/xvQkkBKGKAyIOKEWqYCFYFUVQIzihSFEErSAq2D5tBQRRRBGkoFZqS6XSah+qoNapKMhUaRAQZTJpE8QKqKgoooCgKJCQ8O3f2vdyHnLPPfecu/ft7t+3qt479+yz9tp7/ZO1137POfeWFgEAAECiZfq/AQAAkAgDDQAASKQbaK+99prtPzAAAMAk07/+9a9uqR08ePCsB+zQurTQbaHbtn0HaFv2Zc/uFgCgv2wpq/8+85nPpH322WfWAY889auvvnq277777j4AAABMTRVqBw4cOOuBf/jDH9L+++8/2we/+tWvpvvuuy/tvPPOsx4AAABT0+WXX57e/va3z/bBb37zm7TNNtvM9sGBBx6YjjnmmFkPAAAApqYrr7wy7bfffrN98La3vS294Q1vmO2Dv/u7v0tXXHFFWnPNNWc9AAAAU9MRRxyR/uiP/mi2Dz7/+c+ntdZaa7YPXv/616drr702Lb/88rMeAACAKenEE09Mb3nLW2b74JJLLknrrbfebB+84hWvSHfddVdadtllZz0AAABTz7Fjx6bXv/71s31w5ZVXpjXWWGO2D3bfffd09913p+WXX37WAwAAMPWcdtpp6dWvfvVsH1xzzTVp5ZVXnu2D7bffPt1zzz1ptdVWm/UAAABMPWPGjElbb731bB/ccccd6Q/+4A9m++C1r31tuu+++9Jqq6026wEAAJh6Hn744TRy5MjZPrj33nvT6quvPtsHr3nNa9L999+fVl999VkPAADA1LPNNttMvaLad999Zz0AAABT188TJ04s3vGOd/TNCSecMHVnw4YN0/9fVoU77bTT1H8AAABTz+WXX17su+++fXPOOedM3Rk7dmz/n/Lnn39+6j8AAICpZ/To0cWOO+7YNw899NCl/3P99dcXT3nKU/rNaquttpq+AABAo2+55ZbiCU94wkVz6dKl/R/T/mHlypXTAgAAGn377bdP/2+il156afGUpzxlto855phpAQAAjS6/fHr3u99dPOlJT5rtZ8cddzx16rShBwAAH/TJJ5/cLyCqXrPNNtu0v3rLW94yLQAAoBGop+6DOmDZX7/dAACgEagHujb+AAAAcmOgAwAABDgAAQAAAhwAAADKAAcAAAAIcAAAACDAAQAAAhwAAAAIdAAAACDAAQAAAhwAAAAIdAAAACDAAQAAAhwAAAAIdAAAACDAAQAAAhwAAKCiDvSLLrooLViwoG/OPffc4pZbbinuvPPO4n/+53+KCy+8sFiyZEmDZwIAAGjEdevWrYtLL720b+bPn1+sueaaxRve8Ia+Ofroo/tnRnfPPfcU888/v9h1112Lbbfdtua2AQCAMp577rnFM888UzzzzDPFM888U/zHf/xH8Z//+Z/FokWLhjzQJ06cWGy22WZTf+y7777FsmXLhuhUAACgLAcffPCgB/ozzzxT7LPPPut0Om/evOGiVgAADNfrX//6YqcHP/jBxU477VQ8+OCDQx7o4R8yAwAA0EGgAwAABDoAAECgAwAABDoAAECgAwAABDoAAECgAwAABDoAAECgAwAABDoAAECgAwAABDoAAECgAwAABDoAAECgAwAABDoAAECgAwAABDoAgCY/+OCD01VXXTXbLojjjz9+th0AAI0M9IcffjjdeOONxX333TfbDgAARp9777ljT/njjz/eeeItf/Znfza3HAAAiIleDz30UOeJAwCAGnuqy3RgYGBO+7JFhwAAGjTQa02FAwCAAQ10AACAQAcAAAh0AACAQAcAAAh0AACAQAcAAAh0AACAQAcAAAh0AACAQAcAAAh0AACAQAcAAAiH4zd/+tOfTtdee+1s2+bOa17zmvTnf/7n3d/MM8886eEPf3j3b1i0aFHavn39fejQobTddtulnXfeufv7mWeeKSZPnpxuvfXW9MADD0z/1fQ11klpa/tYY401pm8BGD1M6XzqU59aHHnkkcXEiRNn5/lyz2c/+9nid7/73fRfAADUKT34Gc9cr5LngIHrP3zT/OWXXz57m/LpmmuuKZ7xjGfMbj3yyCOnBwAAtU673v3ud892eHrSSSelO++8M91xxx3poQcfTHn6Fv/4j/+Y7rnnnum/AAAA9Z5eunRpsc8++8x2+P/93/+l973vfem8885Ll39rf1q2bJlfCQcA0NjZzzjz7p57Lq1cuTK94IUvSG9+85vT3Llzp/9qmPz93/992mWXXdK+++6bJk2alP77v/97brr55pvTl770peLJJ5+c/qvGO/roo9N3v/vd6VumqM9//vPpn//5n6dvmZpe9rKXpde97nUzPm9IbLR48eLij/7oj6Z2yuL86le/+n+mb8m+8IUvTP/lL/7iL6b+Vr/+9a+LQw89dFpAAw36i4u/3/JFxe/P3b0Y94Ffz9x6Hrzs6uJ302dNcaObd954+cztP/X29/T3P/+Pv69Pk/aSTTbZlP/rL7/8cukPp/yn6b2hQQN9kKrre5dddtm0BwAAqPNp3nPPPXOKn//85+uUPP/85z+fHjAUi1/84hfpkUce6f7+3e9+1z39Oe/f//3fp+WXXz7df//96eGHH06rrrpq2mSTTdJaa63V/Zv8v3/913+lH/zgB2nJkiXp29/+drr33nvTSSedVOy///7F4YcfPtW+y9/mwAcAqKYJdI844og0ceLEdNBBB6UZM2ak733ve+mGG25If/Inf5Je8pKXpL322iv99V//dfd0jjrqqHTOOeekL33pS+nee+9NTz31VFp77bXTtttum/bYY4+0zz77pDe96U3p4IMPTuuvv/70v3akl7zkJemSSy5Jxx9/fNp2223Tgw8+mP75n/85HXrooeklL3lJmmgHCA0dR6uuvPJK63sXKj2dQhsmSxcAcAsWLBj0qqKf5p//+Z/7P9V7+umnp0svaOdyM0/4h3/4h+n/rvm0u+++e14r/amnnpoWLVrUf7L9NttsM/0hAP3w2GOPFSeffPI6ZbXVVluq/uUf/sf/LJ544onpW44k19dff/3UQpZ//dd/nf7/x16vO00I/uVf/qVYtmzZOrVs2bKpNn6/+uqrT/93Q6dO/Tz00EPT98qyZcuKBx98cPpWAH2RX+1XrT6z9uWLLrooXXzxxd1n2+caO3Zs+qM/+qNizpzZJ+H8/ve/Tw8//PDU/bLLLktHHHFEuvfee7v/Tdx///3p9a9/fTruuOPS2972tm5t9dVX6/7dQw89ND3yyCPdQJ82bdrUb3M9/fTT0/caGut9P/DAA93vX/3qV9Oll16abr311u7fNmq1Vb1+//vfnx5++OHpWwBMJfsM+dM/+dP+jM8aFzmrtn///f+bLr/88vRf//VfM/fSZZddNn3/xS9+ke644460//77p+233z4tXrx4tvebK1euTHfffXf6yU9+ktZdd920yiqrpP/7v/9LSx5ZMu1vP1D569/+bTrttNPSP//zP6cf/ehH/XtG/LKHPboO9IWW5Xv0lSxZkq644or0wgsvGGauO++8s3jggQfSRhtttNSY/vjHP553tT1r1qx0yimnpC9/+cvpwAMPTCNGjEjnnXdeWm211dJ3v/vddOKJJ6Yjjzxy6rqSTjvttGnrT330pz/9aXrwwQen7muttVZ67rnnur9O+PnPfz59K8wH4q//+q+7P99C+YwaNSptueWW6c4770xf+9rXir/+679Od911V5o8eXJasWJFOvfcc9Pjjz8+9fF6n332KR577LHpWwBMBXfccUcxevTodUq0Tz311PTfDlyl+853vpPuuOOO9Pjjj0/9/A//8A/vPkHx0UcfTZdcckk68MADu7Xzzz+/P//++99vnzFz5swFI0eOnNrQ+973vnT//fdP/9VUe91113WvpeZbVfPmzet5OtnrX/964z1wfW/DDTfsfsr5VXr2J2S+5wEA+uTmm29ep+SZ1fYbPnz4tP++N+8ZPkqfffZZcffddxcPPvhg8Z//+Z/dNTz/+c8vVq5cObdly5apy+Wrrrpq2qp9T1f1/TRjxoyp++lDhw5d53mHAAPy0EMPFR/5yEfWKVH7rXPPPbfYsGHD1KPaZ555plhnnXWmnme+3377Td2/66675h23/Mknn5z+TODs9ddfb+pAG3qR7AA/+9rXvrZ46KGHpramP2fPnl0EAAOWH7WuWrXqhf/5n//pPqVqxx137Pm+2mqrFcOHDy9WrFhRrFy5svv83IULF05f37fmySefnP7MnLUzzzpr6pPaAAAAzX3wwQen7jfffHOfntwGDHg+evTzqVOnpkU+AAEAAEAHOAAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAQKADAAAEOgAAAGh8hx56aLH99tsX73//+4sFCxbMvjts+vTpxZZbbtm97rvvvmI/PH78+Kmajz76aHfG/+Mf/7h4+OGHZx+Z1n333Vesueaa3U/Uh36YPHlyMfPdmNZee+25ZZZ/9bWvfW323b/+13/9V7HZZpsVH/jAB7rt1b/h9NNP756v08mnnz597drnHjZs2PRfAgAAHaeeemp/An3rW9+a7rzzznT77bensWPHphVXXDEdcMAB3XYuvvjitMYaa6Sbbrqp2/bixYunH3nTTTfN3OuI2ptuuml3++yzz6Zrrrkm7bPPPmm11VZLe+21V3rooYfSGWec0d02/v3704033pjudD8vvvjioqM+R0cddVT6yEc+ktZdd920zTbbpKlTp6ZHH340rbbaamnttddOn/vc57rPzc/++Z//ebr99tuLrbbaqvvnz372szR27NhuX6y33npp0qRJaZlllkmbbrppusSJCgAAVAe6H0d72PNABwAADXygC/kG+Zf/8i/RzwAA0BsGenbHHXek+++/Pz3zzDPdPs/5bPmHP/xh8eyzz6aHH364ePTRR4sVK1YUK1euLFauXJlW/2uQPf7448Umm2wyrw1r/1TuHwCAtTML9Pnz56dDDz10nfrQhz7UHfA5rC+66KJuP+ZzPeqoo7rtev/+++9fezUAAKChB7lt27alnXbaaeq+0047pXvvvbebQQAAAC39wAc+0P1P9GUve1n6/Oc/n84///z0jW98I/3t3/5tOvjgg9MrX/nK7k+iAwCAFr785S937zPPPHPq/r73vW/q/rSnPS1deeWV6dRTT02nnXZa2n333dM+++yTfv3rX0/fCgAArO2BBx6YPtDbPvCBDxTvf//7i3e/+93dzz322KN429veVnzrW98qPvvZzxb777//vN/izn760592t19/++3Fc889t87fAACArttuuy3tsccefQ30LMB5/OAHPygOPfTQKrtssUXRs+TJJ6c+en3qqae68wMAgLoef/zxYvnll+9poO+8887d73/729+mUaNGTd0BAKAu+2HZ41//+tdp77337s5w22OPPbpz3b/1rW/P+00Tf/rTn9LcuXPTuHHjitVWWy39n//zf+Z9fHvwwQdnpstfeOGFdPPNNxff/va3iwcffDA99dRT6Zlnnpn+KwAAYG0f/vCH0wUXXJCuuOKKtM8++6T777+/eO9735u+8pWvpEkLJ6X77rul+3flhx56qJg0aVJx/fXXF4sXL+7+Pvutt96aPvaxj0/9OS9evLjYddddi+WWW25eLVq0aPoRZ5s1a1betE4dNGhY+uUv/6PjTwAAWPfJjpdeeunU/Vprrenbr7/ffPPNxfXXX1/8+te/Ln784x8XEyZMKH7+858XCxcuLM4///zipJNOKpYuXVpsuumm3b/53e9+Vxx33HHFCSecULz//e8vLrzwwmLlypXp17/+9fRZAgAAbX//939f3H777dO3aotzzjkntf/pz+nTpxfTp09fZ2PGjOm2+9GPfnSdLZ9+9rOffD95m2xyNw/UzwAAwDrOP//84iMf+Uj/ym9+85szO56Pveaaa6buF1xwwdS99PGf/vSn9zdnnXVW9/PoP58cAwCApVx00UX9Kj0AAAAF/j9/+tM79Ic7sCEAAAAASUVORK5CYII=" alt="AQI Trend Chart">
+                </div>
+            </div>
+        </div>
+        
+        <!-- DISTRIBUTION SUMMARY - exactly matches output.pdf -->
+        <div class="section">
+            <h2 class="section-title">Distribution Summary</h2>
+            <p class="dist-note">Moderate dominated (7%) — 1 of 15 days</p>
+            
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>GOOD DAYS</th>
+                        <th>MODERATE DAYS</th>
+                        <th>UNHEALTHY DAYS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1 (7%)</td>
+                        <td>1 (7%)</td>
+                        <td>1 (7%)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- ANALYTICAL INSIGHTS & RECOMMENDED ACTIONS - exact bullet points as in output.pdf -->
+        <div class="two-columns">
+            <div class="col">
+                <h2 class="section-title">Analytical Insights</h2>
+                <ul>
+                    <li>- Apr 26 spike (132 AQI) is the highest value observed in this period.</li>
+                    <li>- Average AQI over 15 days is 26.</li>
+                    <li>- 7% of the reporting period was unhealthy based on AQI levels.</li>
+                </ul>
+            </div>
+            <div class="col">
+                <h2 class="section-title">Recommended Actions</h2>
+                <ul>
+                    <li>- Prioritize Unregistered Node for targeted inspections.</li>
+                    <li>- Continue regular monitoring and maintain current advisory thresholds.</li>
+                    <li>- Investigate prolonged Moderate to Unhealthy trends for the selected range.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Auto-print functionality triggers print dialog for PDF generation -->
+    <script>
+        window.onload = function() {
+            window.print();
+        };
+    </script>
+</body>
+</html>

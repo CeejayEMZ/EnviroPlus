@@ -1,0 +1,1021 @@
+{% extends 'AppEnviroNode/index.html' %}
+{% load static %}
+
+{% block title %}Admin - User Management - Environode{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-jQnRdNOI0zG3p1I8MMwndw5XNUlM3hfXV+20j0mgZZm+ljYQyP9B1b5Y3jU8KPg/7GB22T8JKK6lewi7N7b3kg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+{% endblock %}
+
+{% block content %}
+    <style>
+        /* ==========================================================================
+           CRUDUSER SCOPED STYLES (STRICT PREFIX: cruduser-*)
+           ========================================================================== */
+        .main-container {
+            width: 90% !important;
+            max-width: 90% !important;
+            margin: 0 auto !important;
+            margin-top: 10% !important;
+        }
+        :root {
+            --cruduser-primary: #2563eb;
+            --cruduser-primary-hover: #1d4ed8;
+            --cruduser-secondary: #f8fafc;
+            --cruduser-secondary-hover: #f1f5f9;
+            --cruduser-text-main: #0f172a;
+            --cruduser-text-muted: #64748b;
+            --cruduser-border: #e2e8f0;
+            --cruduser-bg: #ffffff;
+            --cruduser-bg-app: #f4f7fb;
+            --cruduser-danger: #ef4444;
+            --cruduser-success: #10b981;
+            --cruduser-warning: #f59e0b;
+            --cruduser-radius-md: 8px;
+            --cruduser-radius-lg: 12px;
+            --cruduser-shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+            --cruduser-shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+            --cruduser-shadow-modal: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+            --cruduser-font: 'Inter', sans-serif;
+        }
+
+        /* Base Wrapper Reset */
+        .cruduser-wrapper {
+            font-family: var(--cruduser-font);
+            color: var(--cruduser-text-main);
+            background-color: var(--cruduser-bg-app);
+            padding: 24px;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .cruduser-wrapper * {
+            box-sizing: border-box;
+        }
+
+        /* --- Header Section --- */
+        .cruduser-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+            background: var(--cruduser-bg);
+            border: 1px solid var(--cruduser-border);
+            border-radius: var(--cruduser-radius-lg);
+            padding: 20px 24px;
+            box-shadow: var(--cruduser-shadow-sm);
+        }
+
+        .cruduser-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--cruduser-text-main);
+            margin: 0 0 4px 0;
+        }
+
+        .cruduser-subtitle {
+            font-size: 0.9rem;
+            color: var(--cruduser-text-muted);
+            margin: 0;
+        }
+
+        .cruduser-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        /* --- Buttons --- */
+        .cruduser-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 16px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            border-radius: var(--cruduser-radius-md);
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: var(--cruduser-font);
+        }
+
+        .cruduser-btn-primary {
+            background-color: var(--cruduser-primary);
+            color: #ffffff;
+            box-shadow: var(--cruduser-shadow-sm);
+        }
+
+        .cruduser-btn-primary:hover {
+            background-color: var(--cruduser-primary-hover);
+        }
+
+        .cruduser-btn-secondary {
+            background-color: transparent;
+            color: var(--cruduser-text-main);
+            border: 1px solid var(--cruduser-border);
+            box-shadow: none;
+        }
+
+        .cruduser-btn-secondary:hover {
+            background-color: var(--cruduser-secondary-hover);
+        }
+
+        /* --- Metrics Grid --- */
+        .cruduser-metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .cruduser-metric-card {
+            background: var(--cruduser-bg);
+            border: 1px solid var(--cruduser-border);
+            border-radius: 9999px; /* Pill shape */
+            padding: 10px 16px;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            box-shadow: var(--cruduser-shadow-sm);
+        }
+
+        .cruduser-metric-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.875rem;
+            color: var(--cruduser-text-muted);
+            font-weight: 600;
+        }
+
+        .cruduser-metric-value {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--cruduser-text-main);
+            background-color: var(--cruduser-secondary);
+            padding: 4px 12px;
+            border-radius: 9999px;
+            border: 1px solid var(--cruduser-border);
+        }
+
+        .cruduser-icon-blue { color: var(--cruduser-primary); }
+        .cruduser-icon-green { color: var(--cruduser-success); }
+        .cruduser-icon-amber { color: var(--cruduser-warning); }
+        .cruduser-icon-purple { color: #8b5cf6; }
+
+        /* --- Pagination --- */
+        .cruduser-pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            border-top: 1px solid var(--cruduser-border);
+            background: var(--cruduser-bg);
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .cruduser-pagination-info {
+            font-size: 0.875rem;
+            color: var(--cruduser-text-muted);
+        }
+
+        .cruduser-pagination-info strong {
+            color: var(--cruduser-text-main);
+            font-weight: 600;
+        }
+
+        .cruduser-pagination-controls {
+            display: flex;
+            gap: 4px;
+        }
+
+        .cruduser-page-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 32px;
+            height: 32px;
+            padding: 0 6px;
+            border-radius: var(--cruduser-radius-md);
+            border: 1px solid var(--cruduser-border);
+            background: var(--cruduser-bg);
+            color: var(--cruduser-text-muted);
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: var(--cruduser-font);
+        }
+
+        .cruduser-page-btn:hover:not(:disabled) {
+            background: var(--cruduser-secondary-hover);
+            color: var(--cruduser-text-main);
+        }
+
+        .cruduser-page-btn.active {
+            background: var(--cruduser-primary);
+            color: white;
+            border-color: var(--cruduser-primary);
+        }
+
+        .cruduser-page-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* --- Controls (Search & Filters) --- */
+        .cruduser-controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .cruduser-search-wrapper {
+            position: relative;
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .cruduser-search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--cruduser-text-muted);
+        }
+
+        .cruduser-input-search {
+            width: 100%;
+            padding: 10px 10px 10px 36px;
+            border: 1px solid var(--cruduser-border);
+            border-radius: var(--cruduser-radius-md);
+            font-size: 0.875rem;
+            outline: none;
+            transition: border-color 0.2s;
+            font-family: var(--cruduser-font);
+        }
+
+        .cruduser-input-search:focus {
+            border-color: var(--cruduser-primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .cruduser-filter-select {
+            padding: 10px 36px 10px 12px;
+            border: 1px solid var(--cruduser-border);
+            border-radius: var(--cruduser-radius-md);
+            font-size: 0.875rem;
+            background-color: var(--cruduser-bg);
+            color: var(--cruduser-text-main);
+            outline: none;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            font-family: var(--cruduser-font);
+        }
+
+        /* --- Table System --- */
+        .cruduser-table-wrapper {
+            background: var(--cruduser-bg);
+            border: 1px solid var(--cruduser-border);
+            border-radius: var(--cruduser-radius-lg);
+            overflow-x: auto;
+            box-shadow: var(--cruduser-shadow-sm);
+        }
+
+        .cruduser-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .cruduser-th {
+            padding: 16px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--cruduser-text-muted);
+            font-weight: 600;
+            border-bottom: 1px solid var(--cruduser-border);
+            background-color: #f8fafc;
+            white-space: nowrap;
+        }
+
+        .cruduser-td {
+            padding: 16px;
+            font-size: 0.875rem;
+            border-bottom: 1px solid var(--cruduser-border);
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        .cruduser-table tr:last-child .cruduser-td {
+            border-bottom: none;
+        }
+
+        .cruduser-table tr:hover {
+            background-color: var(--cruduser-secondary-hover);
+        }
+
+        /* User Cell Layout */
+        .cruduser-user-cell {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .cruduser-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .cruduser-name {
+            font-weight: 600;
+            color: var(--cruduser-text-main);
+            display: block;
+        }
+
+        .cruduser-email {
+            font-size: 0.8rem;
+            color: var(--cruduser-text-muted);
+            display: block;
+            margin-top: 2px;
+            max-width: 220px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Checkboxes for Bulk Actions (Future) */
+        .cruduser-checkbox {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            border: 1px solid var(--cruduser-border);
+            cursor: pointer;
+            accent-color: var(--cruduser-primary);
+            margin: 0;
+            display: block;
+        }
+
+        /* Badges */
+        .cruduser-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            gap: 6px;
+        }
+
+        .cruduser-badge::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        /* Role Badges */
+        .cruduser-role-admin {
+            background-color: #ede9fe;
+            color: #6d28d9;
+        }
+        .cruduser-role-admin::before { background-color: #6d28d9; }
+
+        .cruduser-role-official {
+            background-color: #e0f2fe;
+            color: #0369a1;
+        }
+        .cruduser-role-official::before { background-color: #0369a1; }
+
+        /* Status Badges */
+        .cruduser-status-active {
+            background-color: #dcfce7;
+            color: #15803d;
+        }
+        .cruduser-status-active::before { background-color: #15803d; }
+
+        .cruduser-status-pending {
+            background-color: #fef3c7;
+            color: #b45309;
+        }
+        .cruduser-status-pending::before { background-color: #b45309; }
+
+        .cruduser-status-disabled {
+            background-color: #f1f5f9;
+            color: #475569;
+        }
+        .cruduser-status-disabled::before { background-color: #475569; }
+
+        /* Table Actions */
+        .cruduser-actions-cell {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .cruduser-action-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--cruduser-radius-md);
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--cruduser-text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .cruduser-action-btn:hover {
+            background: var(--cruduser-bg);
+            border-color: var(--cruduser-border);
+            color: var(--cruduser-text-main);
+            box-shadow: var(--cruduser-shadow-sm);
+        }
+
+        .cruduser-action-btn.danger:hover { color: var(--cruduser-danger); }
+        .cruduser-action-btn.primary:hover { color: var(--cruduser-primary); }
+        .cruduser-action-btn.warning:hover { color: var(--cruduser-warning); }
+
+        /* Tooltips */
+        .cruduser-tooltip {
+            position: relative;
+        }
+        .cruduser-tooltip::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(-4px);
+            background: #1e293b;
+            color: white;
+            padding: 4px 8px;
+            font-size: 0.7rem;
+            border-radius: 4px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .cruduser-tooltip:hover::after {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(-8px);
+        }
+
+        /* --- Modals System --- */
+        .cruduser-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(15, 23, 42, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(2px);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .cruduser-modal-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .cruduser-modal {
+            background: var(--cruduser-bg);
+            width: 100%;
+            max-width: 500px;
+            border-radius: var(--cruduser-radius-lg);
+            box-shadow: var(--cruduser-shadow-modal);
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+            overflow: hidden;
+        }
+
+        .cruduser-modal-overlay.active .cruduser-modal {
+            transform: translateY(0);
+        }
+
+        .cruduser-modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--cruduser-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .cruduser-modal-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .cruduser-modal-close {
+            background: none;
+            border: none;
+            color: var(--cruduser-text-muted);
+            font-size: 1.25rem;
+            cursor: pointer;
+            padding: 4px;
+            transition: color 0.2s;
+        }
+
+        .cruduser-modal-close:hover {
+            color: var(--cruduser-text-main);
+        }
+
+        .cruduser-modal-body {
+            padding: 24px;
+        }
+
+        .cruduser-modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--cruduser-border);
+            background: #f8fafc;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        /* --- Form Elements --- */
+        .cruduser-form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .cruduser-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .cruduser-form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .cruduser-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--cruduser-text-main);
+        }
+
+        .cruduser-input, .cruduser-select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--cruduser-border);
+            border-radius: var(--cruduser-radius-md);
+            font-size: 0.875rem;
+            outline: none;
+            transition: border-color 0.2s;
+            font-family: var(--cruduser-font);
+            background-color: var(--cruduser-bg);
+        }
+
+        .cruduser-input:focus, .cruduser-select:focus {
+            border-color: var(--cruduser-primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        /* --- Alerts (Indicators) --- */
+        .cruduser-alert {
+            padding: 12px 16px;
+            border-radius: var(--cruduser-radius-md);
+            font-size: 0.875rem;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+
+        .cruduser-alert-info {
+            background-color: #eff6ff;
+            color: #1e3a8a;
+            border: 1px solid #bfdbfe;
+        }
+        
+        .cruduser-alert-warning {
+            background-color: #fffbeb;
+            color: #92400e;
+            border: 1px solid #fde68a;
+        }
+
+        .cruduser-alert i {
+            margin-top: 2px;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .cruduser-form-grid { grid-template-columns: 1fr; }
+            .cruduser-header { flex-direction: column; align-items: flex-start; }
+            .cruduser-actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+    
+    <!-- HEADER -->
+    <header class="cruduser-header">
+        <div>
+            <h1 class="cruduser-title">User Management</h1>
+            <p class="cruduser-subtitle">Manage system users, roles, and access control</p>
+        </div>
+        <div class="cruduser-actions">
+            <!-- Action 1: Manual Creation -->
+            <button class="cruduser-btn cruduser-btn-secondary" id="cruduserManualBtn">
+                <i class="fa-solid fa-user-pen"></i> Create Manually
+            </button>
+            <!-- Action 2: Invite Creation -->
+            <button class="cruduser-btn cruduser-btn-primary" id="cruduserInviteBtn">
+                <i class="fa-solid fa-envelope-open-text"></i> Send Invite
+            </button>
+        </div>
+    </header>
+
+    <!-- METRICS -->
+    <section class="cruduser-metrics-grid">
+        <div class="cruduser-metric-card">
+            <div class="cruduser-metric-header">
+                <i class="fa-solid fa-users cruduser-icon-blue"></i> Total Users
+            </div>
+            <div class="cruduser-metric-value" id="cruduserMetricTotal">24</div>
+        </div>
+        <div class="cruduser-metric-card">
+            <div class="cruduser-metric-header">
+                <i class="fa-solid fa-circle-check cruduser-icon-green"></i> Active Users
+            </div>
+            <div class="cruduser-metric-value" id="cruduserMetricActive">18</div>
+        </div>
+        <div class="cruduser-metric-card">
+            <div class="cruduser-metric-header">
+                <i class="fa-solid fa-envelope-open cruduser-icon-amber"></i> Pending Invites
+            </div>
+            <div class="cruduser-metric-value" id="cruduserMetricPending">4</div>
+        </div>
+        <div class="cruduser-metric-card">
+            <div class="cruduser-metric-header">
+                <i class="fa-solid fa-shield-halved cruduser-icon-purple"></i> Administrators
+            </div>
+            <div class="cruduser-metric-value" id="cruduserMetricAdmins">3</div>
+        </div>
+    </section>
+
+    <!-- CONTROLS -->
+    <section class="cruduser-controls">
+        <div class="cruduser-search-wrapper">
+            <i class="fa-solid fa-search cruduser-search-icon"></i>
+            <input type="text" class="cruduser-input-search" placeholder="Search users by name or email...">
+        </div>
+        <select class="cruduser-filter-select">
+            <option>All Roles</option>
+            <option>Administrator</option>
+            <option>Barangay Official</option>
+        </select>
+        <select class="cruduser-filter-select">
+            <option>All Statuses</option>
+            <option>Active</option>
+            <option>Pending Invite</option>
+            <option>Disabled</option>
+        </select>
+    </section>
+
+    <!-- TABLE -->
+    <section class="cruduser-table-wrapper">
+        <table class="cruduser-table">
+            <thead>
+                <tr>
+                    <th class="cruduser-th" style="width: 40px; text-align: center;"><input type="checkbox" class="cruduser-checkbox"></th>
+                    <th class="cruduser-th">User Identity</th>
+                    <th class="cruduser-th">Role</th>
+                    <th class="cruduser-th">Account Status</th>
+                    <th class="cruduser-th">Last Active</th>
+                    <th class="cruduser-th">Created On</th>
+                    <th class="cruduser-th" style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="cruduserTableBody">
+                <!-- Dynamically populated by envirocrudusers.js -->
+            </tbody>
+        </table>
+
+        <!-- PAGINATION -->
+        <div class="cruduser-pagination">
+            <div class="cruduser-pagination-info">
+                Showing <strong>1</strong> to <strong>10</strong> of <strong>24</strong> users
+            </div>
+            <div class="cruduser-pagination-controls">
+                <!-- Dynamically populated by envirocrudusers.js -->
+            </div>
+        </div>
+    </section>
+
+    <!-- ======================================================= -->
+    <!-- MODAL 1: MANUAL USER CREATION (Refined existing modal) -->
+    <!-- ======================================================= -->
+    <div id="cruduserManualModal" class="cruduser-modal-overlay" onclick="cruduserCloseOnOutsideClick(event, 'cruduserManualModal')">
+        <div class="cruduser-modal">
+            <div class="cruduser-modal-header">
+                <h2 class="cruduser-modal-title">Create User Manually</h2>
+                <button class="cruduser-modal-close cruduserModalCloseBtn" data-modal="cruduserManualModal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <form id="cruduserManualForm">
+                <div class="cruduser-modal-body">
+                    <!-- Manual Creation Indicator -->
+                    <div class="cruduser-alert cruduser-alert-warning">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <div>
+                            <strong>Direct Provisioning</strong><br>
+                            This bypasses the email invite workflow. You must provide the password directly to the user securely. Superadmin creation is disabled here.
+                        </div>
+                    </div>
+
+                    <div class="cruduser-form-grid">
+                        <div class="cruduser-form-group">
+                            <label class="cruduser-label">Username</label>
+                            <input type="text" class="cruduser-input" name="username" placeholder="jdelacruz" required>
+                        </div>
+                        <div style="display: flex; gap: 16px;">
+                            <div class="cruduser-form-group" style="flex: 1;">
+                                <label class="cruduser-label">First Name</label>
+                                <input type="text" class="cruduser-input" name="first_name" placeholder="First Name (Optional)">
+                            </div>
+                            <div class="cruduser-form-group" style="flex: 1;">
+                                <label class="cruduser-label">Last Name</label>
+                                <input type="text" class="cruduser-input" name="last_name" placeholder="Last Name (Optional)">
+                            </div>
+                        </div>
+                        <div class="cruduser-form-group">
+                            <label class="cruduser-label">Email Address</label>
+                            <input type="email" class="cruduser-input" placeholder="name@environode.com" required>
+                        </div>
+                        <div class="cruduser-form-group">
+                            <label class="cruduser-label">Assign Role</label>
+                            <select class="cruduser-select" required>
+                                <option value="" disabled selected hidden>Select role...</option>
+                                <option value="admin">Administrator</option>
+                                <option value="official">Barangay Official</option>
+                                <!-- Superadmin purposefully omitted -->
+                            </select>
+                        </div>
+                        <div class="cruduser-form-group">
+                            <label class="cruduser-label">Temporary Password</label>
+                            <input type="password" class="cruduser-input" placeholder="Create a secure password" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="cruduser-modal-footer">
+                    <button type="button" class="cruduser-btn cruduser-btn-secondary cruduserModalCloseBtn" data-modal="cruduserManualModal">Cancel</button>
+                    <button type="submit" class="cruduser-btn cruduser-btn-primary"><i class="fa-solid fa-user-check"></i> Provision Account</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- MODAL 2: INVITE SYSTEM (Completely New)                 -->
+    <!-- ======================================================= -->
+    <div id="cruduserInviteModal" class="cruduser-modal-overlay" onclick="cruduserCloseOnOutsideClick(event, 'cruduserInviteModal')">
+        <div class="cruduser-modal">
+            <div class="cruduser-modal-header">
+                <h2 class="cruduser-modal-title">Send Email Invitation</h2>
+                <button class="cruduser-modal-close cruduserModalCloseBtn" data-modal="cruduserInviteModal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <form id="cruduserInviteForm">
+                <div class="cruduser-modal-body">
+                    <!-- Invite System Indicator -->
+                    <div class="cruduser-alert cruduser-alert-info">
+                        <i class="fa-solid fa-envelope-circle-check"></i>
+                        <div>
+                            <strong>Secure Onboarding</strong><br>
+                            The user will receive a secure token link to set up their own password. Account activates only after setup is completed.
+                        </div>
+                    </div>
+
+                    <div class="cruduser-form-grid">
+                        <div class="cruduser-form-group full-width">
+                            <label class="cruduser-label">Email Address (Recipient)</label>
+                            <input type="email" class="cruduser-input" placeholder="official@barangay.gov.ph" required>
+                        </div>
+                        <div class="cruduser-form-group">
+                            <label class="cruduser-label">Username</label>
+                            <input type="text" class="cruduser-input" name="username" placeholder="jdelacruz" required>
+                        </div>
+                        <div style="display: flex; gap: 16px;">
+                            <div class="cruduser-form-group" style="flex: 1;">
+                                <label class="cruduser-label">First Name</label>
+                                <input type="text" class="cruduser-input" name="first_name" placeholder="First Name (Optional)">
+                            </div>
+                            <div class="cruduser-form-group" style="flex: 1;">
+                                <label class="cruduser-label">Last Name</label>
+                                <input type="text" class="cruduser-input" name="last_name" placeholder="Last Name (Optional)">
+                            </div>
+                        </div>
+                        <div class="cruduser-form-group">
+                            <label class="cruduser-label">Target Role</label>
+                            <select class="cruduser-select" required>
+                                <option value="" disabled selected hidden>Select role...</option>
+                                <option value="admin">Administrator</option>
+                                <option value="official">Barangay Official</option>
+                                <!-- Superadmin purposefully omitted -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="cruduser-modal-footer">
+                    <button type="button" class="cruduser-btn cruduser-btn-secondary cruduserModalCloseBtn" data-modal="cruduserInviteModal">Cancel</button>
+                    <button type="submit" class="cruduser-btn cruduser-btn-primary"><i class="fa-solid fa-paper-plane"></i> Send Invite Link</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- MODAL 3A: EDIT USER (New)                               -->
+    <!-- ======================================================= -->
+    <div id="cruduserEditModal" class="cruduser-modal-overlay" onclick="cruduserCloseOnOutsideClick(event, 'cruduserEditModal')">
+        <div class="cruduser-modal">
+            <div class="cruduser-modal-header">
+                <h2 class="cruduser-modal-title">Edit User</h2>
+                <button class="cruduser-modal-close cruduserModalCloseBtn" data-modal="cruduserEditModal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <form id="cruduserEditForm">
+                <div class="cruduser-modal-body">
+                    <div class="cruduser-form-grid">
+                        <div class="cruduser-form-group">
+                            <label class="cruduser-label">Username</label>
+                            <input type="text" id="cruduserEditUsername" class="cruduser-input" readonly disabled style="background-color: #f8fafc;">
+                            <small style="color: var(--cruduser-text-muted); font-size: 0.75rem; margin-top: 2px; display: block;">Auto-generated - cannot change</small>
+                        </div>
+                        <div class="cruduser-form-group">
+                            <label class="cruduser-label">First Name *</label>
+                            <input type="text" id="cruduserEditFirstName" class="cruduser-input" placeholder="First name" required>
+                        </div>
+                        <div class="cruduser-form-group">
+                            <label class="cruduser-label">Last Name</label>
+                            <input type="text" id="cruduserEditLastName" class="cruduser-input" placeholder="Last name">
+                        </div>
+                        <div class="cruduser-form-group">
+                            <label class="cruduser-label">Email Address *</label>
+                            <input type="email" id="cruduserEditEmail" class="cruduser-input" placeholder="Email address" required>
+                        </div>
+                        <div class="cruduser-form-group full-width">
+                            <label class="cruduser-label">Organization/Barangay</label>
+                            <input type="text" id="cruduserEditOrganization" class="cruduser-input" placeholder="e.g., Barangay Pembo">
+                        </div>
+                        <div class="cruduser-form-group">
+                            <label class="cruduser-label">Role *</label>
+                            <select id="cruduserEditRole" class="cruduser-select" required>
+                                <option value="">Select role...</option>
+                                <option value="official">Barangay Official</option>
+                                <option value="admin">Administrator</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="cruduser-modal-footer">
+                    <button type="button" class="cruduser-btn cruduser-btn-secondary cruduserModalCloseBtn" data-modal="cruduserEditModal">Cancel</button>
+                    <button type="submit" class="cruduser-btn cruduser-btn-primary"><i class="fa-solid fa-check"></i> Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- MODAL 3B: CONFIRMATION DIALOG (Polished UX)              -->
+    <!-- ======================================================= -->
+    <div id="cruduserConfirmModal" class="cruduser-modal-overlay" onclick="cruduserCloseOnOutsideClick(event, 'cruduserConfirmModal')">
+        <div class="cruduser-modal" style="max-width: 400px; text-align: center;">
+            <div class="cruduser-modal-body" style="padding: 32px 24px 24px;">
+                <div style="width: 48px; height: 48px; border-radius: 50%; background: #fee2e2; color: #ef4444; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin: 0 auto 16px;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <h2 class="cruduser-modal-title" id="cruduserConfirmTitle" style="margin-bottom: 8px;">Are you sure?</h2>
+                <p id="cruduserConfirmMessage" style="color: var(--cruduser-text-muted); font-size: 0.9rem; line-height: 1.5; margin: 0;"></p>
+            </div>
+            <div class="cruduser-modal-footer" style="justify-content: center; background: transparent; border-top: none; padding-top: 0; padding-bottom: 24px;">
+                <button type="button" class="cruduser-btn cruduser-btn-secondary cruduserConfirmCancel">Cancel</button>
+                <button type="button" class="cruduser-btn cruduser-btn-primary cruduserConfirmConfirm" style="background-color: var(--cruduser-danger); color: white;">Confirm Action</button>
+            </div>
+        </div>
+    </div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'AppEnviroNode/js/envirocrudusers.js' %}"></script>
+<script>
+    // Setup header button handlers
+    document.addEventListener('DOMContentLoaded', () => {
+        const manualBtn = document.getElementById('cruduserManualBtn');
+        const inviteBtn = document.getElementById('cruduserInviteBtn');
+        const closeButtons = document.querySelectorAll('.cruduserModalCloseBtn');
+        
+        if (manualBtn) {
+            manualBtn.addEventListener('click', () => cruduserToggleModal('cruduserManualModal'));
+        }
+        
+        if (inviteBtn) {
+            inviteBtn.addEventListener('click', () => cruduserToggleModal('cruduserInviteModal'));
+        }
+        
+        // Handle all close buttons (X icons in headers)
+        closeButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const modalId = btn.dataset.modal;
+                cruduserToggleModal(modalId);
+            });
+        });
+        
+        // Handle confirmation modal buttons separately to avoid conflicts
+        const confirmCancel = document.querySelector('.cruduserConfirmCancel');
+        const confirmConfirm = document.querySelector('.cruduserConfirmConfirm');
+        
+        if (confirmCancel) {
+            confirmCancel.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                EnviroUserApp.pendingAction = null;
+                cruduserToggleModal('cruduserConfirmModal');
+            });
+        }
+        
+        if (confirmConfirm) {
+            confirmConfirm.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const action = EnviroUserApp.pendingAction;
+                EnviroUserApp.pendingAction = null;
+                
+                if (action && typeof action === 'function') {
+                    try {
+                        await action();
+                    } catch (err) {
+                        console.error('Confirm action error:', err);
+                    }
+                } else {
+                    cruduserToggleModal('cruduserConfirmModal');
+                }
+            });
+        }
+    });
+
+    // Toggle Modal function
+    function cruduserToggleModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (!modal) return;
+        
+        if (modal.classList.contains('active')) {
+            modal.classList.remove('active');
+            // Reset form if closing
+            const form = modal.querySelector('form');
+            if (form) form.reset();
+        } else {
+            modal.classList.add('active');
+        }
+    }
+
+    // Close when clicking outside modal box
+    function cruduserCloseOnOutsideClick(event, modalId) {
+        if (event.target.id === modalId) {
+            cruduserToggleModal(modalId);
+        }
+    }
+
+    // Show Confirmation Modal
+    function cruduserShowConfirm(title, message) {
+        document.getElementById('cruduserConfirmTitle').textContent = title;
+        document.getElementById('cruduserConfirmMessage').textContent = message;
+        cruduserToggleModal('cruduserConfirmModal');
+    }
+</script>
+{% endblock %}

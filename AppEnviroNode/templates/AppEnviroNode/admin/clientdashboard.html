@@ -1,0 +1,1053 @@
+{% extends 'AppEnviroNode/index.html' %}
+{% load static %}
+
+{% block title %}Admin - Dashboard - Environode{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+{% endblock %}
+
+{% block content %}
+    <style>
+        /* GLOBAL VARIABLES & LIGHT THEME */
+        :root {
+            --cd-bg: #f6f8fb;
+            --cd-card-bg: #ffffff;
+            --cd-card-hover: #f9fafb;
+            --cd-border: #e5e7eb;
+            --cd-text-main: #1f2937;
+            --cd-text-muted: #6b7280;
+            
+            /* Semantic Identity Colors */
+            --cd-green: #10b981;       
+            --cd-green-bg: rgba(16, 185, 129, 0.15);
+            --cd-yellow: #f59e0b;      
+            --cd-yellow-text: #b45309; 
+            --cd-yellow-bg: rgba(245, 158, 11, 0.15);
+            --cd-red: #ef4444;         
+            --cd-red-bg: rgba(239, 68, 68, 0.1);
+            --cd-blue: #3b82f6;        
+            --cd-blue-bg: rgba(59, 130, 246, 0.15);
+            --cd-purple: #8b5cf6;      
+            --cd-purple-bg: rgba(139, 92, 246, 0.15);
+            --cd-cyan: #0891b2;        
+            --cd-cyan-bg: rgba(6, 182, 212, 0.15);
+            --cd-orange: #ea580c;      
+            --cd-slate: #64748b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        /* GRID LAYOUT */
+        .cdashboard-wrapper {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 10px;
+            max-width: 100%;
+            margin: 0 auto;
+        }
+
+        /* 1. PRIMARY INCIDENT CARD */
+        .cd-incident-primary {
+            grid-column: span 12;
+            background: #fffcfc;
+            border: 1px solid var(--cd-red);
+            border-left: 5px solid var(--cd-red);
+            border-radius: 8px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            animation: pulse-critical-glow 3s infinite alternate;
+        }
+
+        /* Clear variant — no red, used when system is healthy */
+        .cd-incident-primary.clear {
+            background: #f0fdf4;
+            border-color: var(--cd-green);
+            border-left-color: var(--cd-green);
+            animation: none;
+        }
+
+        @keyframes pulse-critical-glow {
+            0% { box-shadow: 0 4px 12px rgba(239, 68, 68, 0.08); }
+            100% { box-shadow: 0 4px 20px rgba(239, 68, 68, 0.25); }
+        }
+
+        .cd-incident-col { display: flex; flex-direction: column; gap: 4px; }
+        .cd-incident-title { font-size: 14px; font-weight: 800; color: var(--cd-red); display: flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: 0.02em; }
+        .cd-incident-title.clear { color: var(--cd-green); }
+        .cd-incident-detail { font-size: 13px; font-weight: 600; color: var(--cd-text-main); }
+        .cd-incident-impact { display: flex; gap: 12px; font-size: 12px; font-weight: 500; color: var(--cd-text-muted); }
+        .cd-incident-impact span { color: var(--cd-text-main); font-weight: 700; }
+        
+        /* TIME CONTEXT BLOCK */
+        .cd-time-context-block {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px 12px;
+            background: var(--cd-red-bg);
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            font-size: 10px;
+            font-weight: 600;
+            color: #7f1d1d;
+        }
+        .cd-time-context-block.clear {
+            background: var(--cd-green-bg);
+            border-color: rgba(16, 185, 129, 0.2);
+            color: #064e3b;
+        }
+        .cd-time-context-block span { font-weight: 800; color: var(--cd-red); display: flex; align-items: center; gap: 4px;}
+        .cd-time-context-block.clear span { color: var(--cd-green); }
+
+        /* TIME CONTEXT TAGS */
+        .cd-time-tag { padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; display: inline-flex; align-items: center; }
+        .cd-time-tag.new { background: var(--cd-red); color: white; }
+        .cd-time-tag.ongoing { background: var(--cd-yellow); color: white; }
+        .cd-time-tag.stable { background: var(--cd-green); color: white; }
+
+        /* SECONDARY ISSUES STRIP */
+        .cd-secondary-issues {
+            grid-column: span 12;
+            display: flex;
+            gap: 8px;
+            margin-bottom: 2px;
+            flex-wrap: wrap;
+        }
+        .cd-secondary-pill {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--cd-card-bg);
+            border: 1px solid var(--cd-border);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .cd-secondary-pill:hover { transform: translateY(-1px); box-shadow: 0 3px 6px rgba(0,0,0,0.05); }
+        .cd-secondary-pill.yellow { border-left: 3px solid var(--cd-yellow); color: var(--cd-text-main); }
+        .cd-secondary-pill.orange { border-left: 3px solid var(--cd-orange); color: var(--cd-text-main); }
+        .cd-secondary-pill.green { border-left: 3px solid var(--cd-green); color: var(--cd-green); }
+        .cd-secondary-pill i { font-size: 14px; }
+
+        /* MODULE CARD BASE */
+        .cdashboard-card {
+            background: var(--cd-card-bg);
+            border: 1px solid var(--cd-border);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            transition: border-color 0.2s;
+        }
+
+        .cdashboard-card-header {
+            padding: 8px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--cd-text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--cd-border);
+            background: var(--cd-card-bg);
+        }
+        .cd-header-left { display: flex; align-items: center; gap: 6px; }
+
+        .cdashboard-card-body {
+            padding: 10px 12px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        /* DATA CONFIDENCE LAYER */
+        .cd-confidence-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--cd-bg);
+            padding: 6px 8px;
+            border-radius: 6px;
+            border: 1px dashed var(--cd-border);
+            margin-bottom: 4px;
+        }
+        .cd-confidence-text { font-size: 10px; font-weight: 600; color: var(--cd-text-muted); display: flex; align-items: center; gap: 4px;}
+        .cd-confidence-val { font-size: 11px; font-weight: 800; }
+        .cd-confidence-val.degraded { color: var(--cd-yellow-text); }
+        .cd-confidence-val.high { color: var(--cd-green); }
+
+        /* MICRO-ANIMATIONS */
+        .shimmer-text {
+            background: linear-gradient(90deg, var(--cd-text-main) 0%, #cbd5e1 50%, var(--cd-text-main) 100%);
+            background-size: 200% auto;
+            color: transparent;
+            -webkit-background-clip: text;
+            background-clip: text;
+            animation: shimmer 2s linear infinite;
+        }
+        @keyframes shimmer { to { background-position: 200% center; } }
+        
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* HOVER INTELLIGENCE (TOOLTIPS) */
+        [data-tooltip] { position: relative; cursor: help; border-bottom: 1px dotted currentColor; }
+        [data-tooltip]::after {
+            content: attr(data-tooltip);
+            position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%) translateY(4px);
+            background: #1f2937; color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 10px; font-weight: 600;
+            white-space: nowrap; opacity: 0; pointer-events: none; transition: 0.2s; z-index: 10; margin-bottom: 6px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 1px solid #374151; letter-spacing: normal; text-transform: none;
+        }
+        [data-tooltip]:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        /* QUICK ACCESS (TABS) */
+        .cdashboard-quick-access {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding: 6px 12px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--cd-slate);
+            background: transparent;
+            text-decoration: none;
+            transition: all 0.2s;
+            margin-top: -4px;
+        }
+        .cdashboard-quick-access:hover { color: var(--cd-text-main); }
+        .cdashboard-quick-access.urgent { color: var(--cd-red); }
+        .cdashboard-quick-access.urgent:hover { color: #b91c1c; }
+
+        /* CROSS-MODULE LINKING HINTS */
+        .cd-link-hint {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--cd-slate);
+            display: flex;
+            align-items: flex-start;
+            gap: 4px;
+            margin-top: auto;
+            padding-top: 6px;
+            border-top: 1px dashed var(--cd-border);
+        }
+        .cd-link-hint i { font-size: 12px; color: var(--cd-orange); margin-top: 1px; }
+
+        /* MICRO UI ELEMENTS */
+        .cd-metric-row { display: flex; justify-content: space-between; align-items: center; }
+        .cd-metric-label { color: var(--cd-text-muted); font-size: 11px; font-weight: 500; }
+        .cd-metric-val { font-weight: 700; display: flex; align-items: center; gap: 6px; font-size: 12px; }
+        
+        /* ESCALATION INDICATORS */
+        .cd-trend { font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 2px; }
+        .cd-trend.critical { color: var(--cd-red); background: var(--cd-red-bg); padding: 2px 4px; border-radius: 4px;}
+        .cd-trend.moderate { color: var(--cd-yellow-text); }
+        .cd-trend.slow { color: var(--cd-slate); }
+        .cd-trend.good { color: var(--cd-green); }
+
+        .cd-pill { padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+        .cd-pill.green { background: var(--cd-green-bg); color: var(--cd-green); }
+        .cd-pill.blue { background: var(--cd-blue-bg); color: var(--cd-blue); }
+        .cd-pill.red { background: var(--cd-red-bg); color: var(--cd-red); }
+
+        /* CARD IDENTITIES & SIZING */
+        .cdashboard-environment { grid-column: span 4; border-top: 3px solid var(--cd-yellow); }
+        .cdashboard-system-health { grid-column: span 4; border-top: 3px solid var(--cd-green); }
+        .cdashboard-devices { grid-column: span 4; border-top: 3px solid var(--cd-purple); }
+        
+        .cdashboard-map { grid-column: span 3; border-top: 3px solid var(--cd-slate); }
+        .cdashboard-network { grid-column: span 3; border-top: 3px solid var(--cd-blue); }
+        .cdashboard-pipeline { grid-column: span 3; border-top: 3px solid var(--cd-orange); }
+        .cdashboard-admin { grid-column: span 3; border-top: 3px solid var(--cd-slate); }
+
+        /* Buttons with Interaction */
+        .btn-solid { background: var(--cd-red); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; transition: 0.2s transform, 0.2s background; text-decoration: none; justify-content: center; }
+        .btn-solid:hover { background: #dc2626; }
+        .btn-solid:active { transform: scale(0.97); }
+        .btn-outline { background: white; color: var(--cd-text-main); border: 1px solid var(--cd-border); padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; transition: 0.2s transform, 0.2s background; text-decoration: none; justify-content: center; }
+        .btn-outline:hover { background: var(--cd-card-hover); }
+        .btn-outline:active { transform: scale(0.97); }
+
+        /* Environment & Progressive Disclosure */
+        .cd-aqi-highlight { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+        .cd-aqi-score { font-size: 28px; font-weight: 800; line-height: 1; }
+        
+        /* AQI score colour classes */
+        .aqi-good     { color: var(--cd-green); }
+        .aqi-moderate { color: var(--cd-yellow); }
+        .aqi-sensitive { color: var(--cd-orange); }
+        .aqi-unhealthy { color: var(--cd-red); }
+        .aqi-very-unhealthy { color: var(--cd-purple); }
+        .aqi-hazardous { color: #7f1d1d; }
+
+        /* Progress / Signal Bars */
+        .cd-progress-bar { width: 100%; height: 6px; background: var(--cd-border); border-radius: 4px; overflow: hidden; display: flex; }
+        .cd-progress-fill.good { background: var(--cd-purple); }
+        .cd-progress-fill.low { background: var(--cd-yellow); }
+        .cd-progress-fill.offline { background: var(--cd-red); }
+        .cd-signal-bars { display: flex; align-items: flex-end; gap: 2px; height: 14px; }
+        .cd-signal-bar { width: 3px; background: var(--cd-blue); border-radius: 1px; }
+
+        /* Map & Ripple Alert */
+        .cd-mock-map { width: 100%; height: 75px; background: #f1f5f9; border-radius: 6px; position: relative; overflow: hidden; background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 12px 12px; border: 1px solid var(--cd-border); }
+        .cd-map-dot { position: absolute; width: 6px; height: 6px; border-radius: 50%; box-shadow: 0 0 4px currentColor; }
+        
+        .cd-map-dot.alert { background: var(--cd-red); color: var(--cd-red); }
+        .cd-map-dot.alert::after {
+            content: ''; position: absolute; top: -4px; left: -4px; right: -4px; bottom: -4px;
+            border-radius: 50%; border: 2px solid var(--cd-red); animation: ripple 1.5s infinite;
+        }
+        @keyframes ripple { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(2.5); opacity: 0; } }
+
+        /* FLOATING ACTION MENU */
+        .cd-floating-overlay {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 12px;
+            z-index: 1000;
+        }
+        .cd-floating-menu {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-origin: bottom right;
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+        .cd-floating-menu.hidden {
+            opacity: 0;
+            transform: scale(0.8) translateY(20px);
+            pointer-events: none;
+        }
+        .cd-float-btn {
+            background: var(--cd-card-bg);
+            border: 1px solid var(--cd-border);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-radius: 50px;
+            padding: 10px 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--cd-text-main);
+            cursor: pointer;
+            transition: 0.2s ease;
+            white-space: nowrap;
+            text-decoration: none;
+        }
+        .cd-float-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); border-color: var(--cd-slate); }
+        .cd-float-btn i { font-size: 16px; }
+        .cd-float-btn.ai-btn { border: 2px solid var(--cd-cyan); background: #f0fdfa; color: #0e7490; margin-bottom: 8px; }
+        .cd-float-btn.danger { color: var(--cd-red); border-color: rgba(239, 68, 68, 0.3); background: #fee2e2; }
+        .cd-float-btn.danger:hover { background: var(--cd-red); color: white; }
+        .cd-float-btn.master-btn {
+            border-radius: 50%; width: 54px; height: 54px; padding: 0; justify-content: center;
+            background: var(--cd-text-main); color: white; border: none;
+            box-shadow: 0 4px 14px rgba(31, 41, 55, 0.4);
+        }
+        .cd-float-btn.master-btn i { font-size: 24px; transition: transform 0.3s; }
+        .cd-float-btn.master-btn:hover { background: #111827; }
+        .cd-floating-overlay.collapsed .master-btn i { transform: rotate(180deg); }
+
+        @media (max-width: 1024px) {
+            .cdashboard-environment, .cdashboard-system-health, .cdashboard-devices { grid-column: span 6; }
+            .cdashboard-map, .cdashboard-network, .cdashboard-pipeline, .cdashboard-admin { grid-column: span 6; }
+            .cd-incident-primary { flex-direction: column; align-items: flex-start; }
+            .cd-incident-primary > div:last-child { width: 100%; display: flex; gap: 8px; }
+            .cd-time-context-block { width: 100%; }
+        }
+        @media (max-width: 640px) {
+            .cdashboard-wrapper > div { grid-column: span 12 !important; }
+            .cd-time-context-block { grid-template-columns: 1fr; }
+        }
+    </style>
+
+    <div class="cdashboard-wrapper">
+
+        {# ================================================================== #}
+        {# PRIMARY INCIDENT CARD                                              #}
+        {# Shows the most recent critical alert, or a "clear" state          #}
+        {# ================================================================== #}
+        {% with critical_alert=active_alerts.0 %}
+        <div class="cd-incident-primary {% if not critical_alert %}clear{% endif %}">
+            <div class="cd-incident-col">
+                <div class="cd-incident-title {% if not critical_alert %}clear{% endif %}">
+                    <i class="ph-fill {% if critical_alert %}ph-warning-circle{% else %}ph-check-circle{% endif %}" style="font-size: 18px;"></i>
+                    {% if critical_alert %}
+                        {{ critical_alert.title }}
+                        <span class="cd-time-tag new">NEW</span>
+                    {% else %}
+                        All Systems Normal — No Active Incidents
+                        <span class="cd-time-tag stable">CLEAR</span>
+                    {% endif %}
+                </div>
+
+                <div class="cd-incident-detail">
+                    {% if critical_alert %}
+                        Node: {{ critical_alert.node.name }}
+                        {% if critical_alert.node.location %} &mdash; {{ critical_alert.node.location }}{% endif %}
+                    {% else %}
+                        All sensor nodes are reporting within expected parameters.
+                    {% endif %}
+                </div>
+
+                {% if critical_alert %}
+                <div class="cd-trend critical" style="display: inline-flex; width: fit-content; margin-top: 4px;">
+                    <i class="ph-bold ph-trend-up"></i>
+                    Severity: {{ critical_alert.get_severity_display }} &mdash; Avg AQI: {{ aggregate_data.avg_aqi|default:"N/A" }}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="cd-incident-col" style="flex: 1; max-width: 450px;">
+                <div class="cd-incident-impact">
+                    <div>Nodes Offline: <span>{{ system_health.inactive_nodes }}</span></div>
+                    <div>Active: <span>{{ system_health.active_nodes }} / {{ system_health.total_nodes }}</span></div>
+                    <div>
+                        Alerts:
+                        <span style="color: {% if severity_counts.critical > 0 %}var(--cd-red){% elif severity_counts.warning > 0 %}var(--cd-yellow){% else %}var(--cd-green){% endif %};">
+                            {% if severity_counts.critical > 0 %}
+                                {{ severity_counts.critical }} Critical
+                            {% elif severity_counts.warning > 0 %}
+                                {{ severity_counts.warning }} Warning{{ severity_counts.warning|pluralize }}
+                            {% else %}
+                                None
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="cd-time-context-block {% if not critical_alert %}clear{% endif %}" style="margin-top: 4px;">
+                    <div>
+                        Last Reading:
+                        <span>
+                            <i class="ph-bold ph-clock"></i>
+                            {% if system_health.data_freshness_minutes is not None %}
+                                {{ system_health.data_freshness_minutes }} min ago
+                            {% else %}
+                                No data yet
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div>
+                        Time:
+                        <span>
+                            <i class="ph-bold ph-arrows-clockwise"></i>
+                            {% if system_health.latest_reading_time %}
+                                {{ system_health.latest_reading_time|date:"H:i" }}
+                            {% else %}
+                                &mdash;
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div>
+                        Warnings:
+                        <span>
+                            <i class="ph-bold ph-warning"></i>
+                            {{ severity_counts.warning }} active
+                        </span>
+                    </div>
+                    <div>
+                        Info Alerts:
+                        <span>
+                            <i class="ph-bold ph-info"></i>
+                            {{ severity_counts.info }} active
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 140px;">
+                <a href="{% url 'app:client_alerts' %}" class="btn-solid">
+                    <i class="ph-bold ph-crosshair"></i>
+                    {% if critical_alert %}Investigate{% else %}View Alerts{% endif %}
+                </a>
+                <a href="{% url 'app:client_devices' %}" class="btn-outline">
+                    View Devices
+                </a>
+            </div>
+        </div>
+        {% endwith %}
+
+        {# ================================================================== #}
+        {# SECONDARY ISSUES STRIP                                             #}
+        {# Live counts of warnings and offline nodes                          #}
+        {# ================================================================== #}
+        <div class="cd-secondary-issues">
+            {% if severity_counts.critical > 0 %}
+            <a href="{% url 'app:client_alerts' %}" class="cd-secondary-pill orange" style="text-decoration: none;">
+                <i class="ph-fill ph-warning-circle" style="color: var(--cd-red);"></i>
+                {{ severity_counts.critical }} Critical Alert{{ severity_counts.critical|pluralize }}
+            </a>
+            {% endif %}
+
+            {% if severity_counts.warning > 0 %}
+            <a href="{% url 'app:client_alerts' %}" class="cd-secondary-pill yellow" style="text-decoration: none;">
+                <i class="ph-fill ph-warning" style="color: var(--cd-yellow);"></i>
+                {{ severity_counts.warning }} Warning{{ severity_counts.warning|pluralize }}
+            </a>
+            {% endif %}
+
+            {% if system_health.inactive_nodes > 0 %}
+            <a href="{% url 'app:client_devices' %}" class="cd-secondary-pill orange" style="text-decoration: none;">
+                <i class="ph-fill ph-wifi-slash" style="color: var(--cd-orange);"></i>
+                {{ system_health.inactive_nodes }} Node{{ system_health.inactive_nodes|pluralize }} Offline
+            </a>
+            {% endif %}
+
+            {% if user_stats.pending_approval > 0 %}
+            <div class="cd-secondary-pill yellow">
+                <i class="ph-fill ph-user-circle-plus" style="color: var(--cd-yellow);"></i>
+                {{ user_stats.pending_approval }} User{{ user_stats.pending_approval|pluralize }} Awaiting Approval
+            </div>
+            {% endif %}
+
+            {% if severity_counts.critical == 0 and severity_counts.warning == 0 and system_health.inactive_nodes == 0 and user_stats.pending_approval == 0 %}
+            <div class="cd-secondary-pill green">
+                <i class="ph-fill ph-check-circle"></i>
+                No secondary issues detected — all systems nominal
+            </div>
+            {% endif %}
+        </div>
+
+        {# ================================================================== #}
+        {# ENVIRONMENT IMPACT CARD                                            #}
+        {# Driven by: aggregate_data, analytics                               #}
+        {# ================================================================== #}
+        <div class="cdashboard-card cdashboard-environment">
+            <div class="cdashboard-card-header">
+                <div class="cd-header-left">
+                    <i class="ph-fill ph-leaf" style="color: var(--cd-yellow);"></i> Environment Impact
+                </div>
+                {% if aggregate_data.avg_aqi > 150 %}
+                    <span class="cd-time-tag new">ALERT</span>
+                {% elif aggregate_data.avg_aqi > 50 %}
+                    <span class="cd-time-tag ongoing">ONGOING</span>
+                {% else %}
+                    <span class="cd-time-tag stable">STABLE</span>
+                {% endif %}
+            </div>
+            <div class="cdashboard-card-body">
+
+                <div class="cd-confidence-bar">
+                    <span class="cd-confidence-text">
+                        <i class="ph-bold ph-shield-check"></i> Live Avg AQI
+                    </span>
+                    <span class="cd-confidence-val {% if aggregate_data.avg_aqi > 100 %}degraded{% else %}high{% endif %}">
+                        {% if aggregate_data.avg_aqi > 150 %}Unhealthy
+                        {% elif aggregate_data.avg_aqi > 100 %}Moderate Risk
+                        {% elif aggregate_data.avg_aqi > 0 %}Good
+                        {% else %}No Data
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="cd-aqi-highlight">
+                    <div class="cd-aqi-score
+                        {% if aggregate_data.avg_aqi <= 50 %}aqi-good
+                        {% elif aggregate_data.avg_aqi <= 100 %}aqi-moderate
+                        {% elif aggregate_data.avg_aqi <= 150 %}aqi-sensitive
+                        {% elif aggregate_data.avg_aqi <= 200 %}aqi-unhealthy
+                        {% elif aggregate_data.avg_aqi <= 300 %}aqi-very-unhealthy
+                        {% else %}aqi-hazardous
+                        {% endif %}
+                        shimmer-text"
+                        data-tooltip="Based on {{ active_count }} active node{{ active_count|pluralize }}">
+                        {{ aggregate_data.avg_aqi|default:"—" }}
+                    </div>
+                    <div>
+                        <div style="font-weight: 700; color: var(--cd-text-main);">
+                            Avg AQI
+                            ({% if aggregate_data.avg_aqi <= 50 %}Good
+                            {% elif aggregate_data.avg_aqi <= 100 %}Moderate
+                            {% elif aggregate_data.avg_aqi <= 150 %}Unhealthy for Sensitive Groups
+                            {% elif aggregate_data.avg_aqi <= 200 %}Unhealthy
+                            {% elif aggregate_data.avg_aqi <= 300 %}Very Unhealthy
+                            {% elif aggregate_data.avg_aqi > 300 %}Hazardous
+                            {% else %}No Data
+                            {% endif %})
+                        </div>
+                        <div style="font-size: 11px; color: var(--cd-text-muted); margin-top: 2px;">
+                            PM2.5 avg: {{ aggregate_data.avg_pm2_5|default:"—" }} µg/m³
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Nodes Reporting</span>
+                    <span class="cd-metric-val">
+                        {{ active_count }} / {{ total_nodes }}
+                        {% if inactive_count > 0 %}
+                            <span class="cd-pill red">{{ inactive_count }} Offline</span>
+                        {% else %}
+                            <span class="cd-pill green">All Online</span>
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">7-Day AQI Range</span>
+                    <span class="cd-metric-val">
+                        {{ analytics.min_aqi|default:"—" }} &ndash; {{ analytics.max_aqi|default:"—" }}
+                    </span>
+                </div>
+
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Avg Temperature</span>
+                    <span class="cd-metric-val">
+                        {% if analytics.avg_temperature %}
+                            {{ analytics.avg_temperature }} &deg;C
+                        {% else %}
+                            &mdash;
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="cd-link-hint">
+                    <i class="ph-fill ph-link"></i>
+                    {% if analytics.avg_pm2_5 %}
+                        7-day avg PM2.5: {{ analytics.avg_pm2_5 }} µg/m³ across {{ analytics.total_readings }} readings.
+                    {% else %}
+                        No readings in the last 7 days. Check node connectivity.
+                    {% endif %}
+                </div>
+            </div>
+            <a href="{% url 'app:client_analytics' %}" class="cdashboard-quick-access">
+                View Full Analytics &rarr;
+            </a>
+        </div>
+
+        {# ================================================================== #}
+        {# SYSTEM HEALTH CARD                                                 #}
+        {# Driven by: system_health                                           #}
+        {# ================================================================== #}
+        <div class="cdashboard-card cdashboard-system-health">
+            <div class="cdashboard-card-header">
+                <div class="cd-header-left">
+                    <i class="ph-fill ph-heartbeat" style="color: var(--cd-green);"></i> System Health
+                </div>
+                {% if system_health.inactive_nodes == 0 and severity_counts.critical == 0 %}
+                    <span class="cd-time-tag stable">HEALTHY</span>
+                {% elif severity_counts.critical > 0 %}
+                    <span class="cd-time-tag new">CRITICAL</span>
+                {% else %}
+                    <span class="cd-time-tag ongoing">DEGRADED</span>
+                {% endif %}
+            </div>
+            <div class="cdashboard-card-body">
+
+                <div class="cd-confidence-bar"
+                    {% if system_health.inactive_nodes == 0 %}
+                        style="border-color: var(--cd-green); background: var(--cd-green-bg);"
+                    {% else %}
+                        style="border-color: var(--cd-yellow); background: var(--cd-yellow-bg);"
+                    {% endif %}>
+                    <span class="cd-confidence-text"
+                        {% if system_health.inactive_nodes == 0 %}
+                            style="color: var(--cd-green);"
+                        {% else %}
+                            style="color: var(--cd-yellow-text);"
+                        {% endif %}>
+                        <i class="ph-bold ph-activity"></i> System Confidence
+                    </span>
+                    <span class="cd-confidence-val {% if system_health.inactive_nodes == 0 %}high{% else %}degraded{% endif %}">
+                        {% if system_health.inactive_nodes == 0 %}High{% else %}Medium{% endif %}
+                    </span>
+                </div>
+
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Total Nodes</span>
+                    <span class="cd-metric-val shimmer-text">{{ system_health.total_nodes }}</span>
+                </div>
+
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Active Nodes</span>
+                    <span class="cd-metric-val"
+                        data-tooltip="{{ system_health.inactive_nodes }} offline node{{ system_health.inactive_nodes|pluralize }} reducing coverage">
+                        {{ system_health.active_nodes }} / {{ system_health.total_nodes }}
+                        {% if system_health.inactive_nodes > 0 %}
+                            <span class="cd-pill red">{{ system_health.inactive_nodes }} Down</span>
+                        {% else %}
+                            <span class="cd-pill green">All Up</span>
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Data Freshness</span>
+                    <span class="cd-metric-val">
+                        {% if system_health.data_freshness_minutes is not None %}
+                            {% if system_health.data_freshness_minutes < 5 %}
+                                <span style="color: var(--cd-green);">
+                                    <i class="ph-fill ph-circle" style="font-size:8px;"></i>
+                                    Live ({{ system_health.data_freshness_minutes }}m ago)
+                                </span>
+                            {% elif system_health.data_freshness_minutes < 30 %}
+                                <span style="color: var(--cd-yellow);">
+                                    {{ system_health.data_freshness_minutes }}m ago
+                                </span>
+                            {% else %}
+                                <span style="color: var(--cd-red);">
+                                    Stale ({{ system_health.data_freshness_minutes }}m ago)
+                                </span>
+                            {% endif %}
+                        {% else %}
+                            <span style="color: var(--cd-text-muted);">No readings yet</span>
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="cd-link-hint">
+                    <i class="ph-fill ph-link"></i>
+                    {% if system_health.inactive_nodes > 0 %}
+                        {{ system_health.inactive_nodes }} offline node{{ system_health.inactive_nodes|pluralize }} reducing AQI accuracy.
+                    {% else %}
+                        All nodes online — data confidence is high.
+                    {% endif %}
+                </div>
+            </div>
+            <a href="{% url 'app:client_devices' %}" class="cdashboard-quick-access {% if system_health.inactive_nodes > 0 %}urgent{% endif %}">
+                {% if system_health.inactive_nodes > 0 %}
+                    View Offline Nodes ({{ system_health.inactive_nodes }}) &rarr;
+                {% else %}
+                    View All Devices &rarr;
+                {% endif %}
+            </a>
+        </div>
+
+        {# ================================================================== #}
+        {# SENSOR HARDWARE / DEVICES CARD                                     #}
+        {# Driven by: active_count, inactive_count, total_nodes               #}
+        {# ================================================================== #}
+        <div class="cdashboard-card cdashboard-devices">
+            <div class="cdashboard-card-header">
+                <div class="cd-header-left">
+                    <i class="ph-fill ph-cpu" style="color: var(--cd-purple);"></i> Sensor Hardware
+                </div>
+                {% if inactive_count > 0 %}
+                    <span class="cd-time-tag ongoing">ATTENTION</span>
+                {% else %}
+                    <span class="cd-time-tag stable">OK</span>
+                {% endif %}
+            </div>
+            <div class="cdashboard-card-body">
+
+                {# Node status progress bar — widths computed from real counts #}
+                {% if total_nodes > 0 %}
+                <div>
+                    <div class="cd-metric-row" style="margin-bottom: 6px;">
+                        <span class="cd-metric-label">Node Fleet Status</span>
+                    </div>
+                    <div class="cd-progress-bar"
+                        data-tooltip="{{ active_count }} active, {{ inactive_count }} offline out of {{ total_nodes }} total">
+                        {# Active portion #}
+                        {% if active_count > 0 %}
+                        <div class="cd-progress-fill good"
+                            style="width: {% widthratio active_count total_nodes 100 %}%;">
+                        </div>
+                        {% endif %}
+                        {# Offline portion #}
+                        {% if inactive_count > 0 %}
+                        <div class="cd-progress-fill offline"
+                            style="width: {% widthratio inactive_count total_nodes 100 %}%;">
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; margin-top: 6px;">
+                        <span style="color: var(--cd-purple);">{{ active_count }} Active</span>
+                        <span style="color: var(--cd-red);">{{ inactive_count }} Offline</span>
+                        <span style="color: var(--cd-slate);">{{ total_nodes }} Total</span>
+                    </div>
+                </div>
+                {% else %}
+                <div style="text-align: center; color: var(--cd-text-muted); font-size: 12px; padding: 12px 0;">
+                    No sensor nodes registered yet.
+                </div>
+                {% endif %}
+
+                <div class="cd-metric-row" style="margin-top: 4px;">
+                    <span class="cd-metric-label">Readings (7 days)</span>
+                    <span class="cd-metric-val">
+                        {{ analytics.total_readings|default:"0" }}
+                        {% if analytics.total_readings > 0 %}
+                            <span class="cd-trend good">↑ Ingesting</span>
+                        {% else %}
+                            <span class="cd-trend slow">— No data</span>
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="cd-link-hint">
+                    <i class="ph-fill ph-link"></i>
+                    {% if inactive_count > 0 %}
+                        {{ inactive_count }} offline node{{ inactive_count|pluralize }} may be affecting AQI coverage.
+                    {% else %}
+                        All nodes reporting normally.
+                    {% endif %}
+                </div>
+            </div>
+            <a href="{% url 'app:client_devices' %}" class="cdashboard-quick-access {% if inactive_count > 0 %}urgent{% endif %}">
+                {% if inactive_count > 0 %}
+                    View Offline Nodes ({{ inactive_count }}) &rarr;
+                {% else %}
+                    Manage Devices &rarr;
+                {% endif %}
+            </a>
+        </div>
+
+        {# ================================================================== #}
+        {# SPATIAL CONTEXT / MAP CARD                                         #}
+        {# Mock map preview — links to the real live map                      #}
+        {# ================================================================== #}
+        <div class="cdashboard-card cdashboard-map">
+            <div class="cdashboard-card-header">
+                <div class="cd-header-left">
+                    <i class="ph-fill ph-map-pin" style="color: var(--cd-slate);"></i> Spatial Context
+                </div>
+            </div>
+            <div class="cdashboard-card-body" style="padding-top: 6px;">
+                <div class="cd-mock-map">
+                    {# Static dots — visual placeholder linking to real map #}
+                    <div class="cd-map-dot" style="top: 20%; left: 30%; color: var(--cd-green); background: var(--cd-green);"></div>
+                    <div class="cd-map-dot" style="top: 70%; left: 40%; color: var(--cd-yellow); background: var(--cd-yellow);"></div>
+                    {% if inactive_count > 0 %}
+                    <div class="cd-map-dot alert" style="top: 60%; left: 75%;"></div>
+                    {% endif %}
+                </div>
+                <div class="cd-metric-row" style="margin-top: 6px;">
+                    <span class="cd-metric-label">Active on Map</span>
+                    <span class="cd-metric-val" style="color: var(--cd-green);">{{ active_count }} node{{ active_count|pluralize }}</span>
+                </div>
+                {% if inactive_count > 0 %}
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Offline Nodes</span>
+                    <span class="cd-metric-val" style="color: var(--cd-red);">{{ inactive_count }} node{{ inactive_count|pluralize }}</span>
+                </div>
+                {% endif %}
+            </div>
+            <a href="{% url 'app:client_map' %}" class="cdashboard-quick-access">
+                Open Live Map &rarr;
+            </a>
+        </div>
+
+        {# ================================================================== #}
+        {# DATA PIPELINE CARD                                                 #}
+        {# Driven by: analytics                                               #}
+        {# ================================================================== #}
+        <div class="cdashboard-card cdashboard-pipeline">
+            <div class="cdashboard-card-header">
+                <div class="cd-header-left">
+                    <i class="ph-fill ph-database" style="color: var(--cd-orange);"></i> Data Pipeline
+                </div>
+                {% if analytics.total_readings > 0 %}
+                    <span class="cd-time-tag stable">STABLE</span>
+                {% else %}
+                    <span class="cd-time-tag ongoing">NO DATA</span>
+                {% endif %}
+            </div>
+            <div class="cdashboard-card-body">
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Readings (7 days)</span>
+                    <span class="cd-metric-val">{{ analytics.total_readings|default:"0" }}</span>
+                </div>
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Avg PM2.5 (7d)</span>
+                    <span class="cd-metric-val">
+                        {% if analytics.avg_pm2_5 %}
+                            {{ analytics.avg_pm2_5 }} µg/m³
+                        {% else %}
+                            &mdash;
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">AQI Min / Max (7d)</span>
+                    <span class="cd-metric-val">
+                        {{ analytics.min_aqi|default:"—" }} / {{ analytics.max_aqi|default:"—" }}
+                    </span>
+                </div>
+                <div class="cd-link-hint">
+                    <i class="ph-fill ph-link"></i>
+                    {% if analytics.total_readings > 0 %}
+                        Pipeline ingesting normally across {{ active_count }} active node{{ active_count|pluralize }}.
+                    {% else %}
+                        No readings in the last 7 days — check node connectivity.
+                    {% endif %}
+                </div>
+            </div>
+            <a href="{% url 'app:client_analytics' %}" class="cdashboard-quick-access">
+                View Analytics &rarr;
+            </a>
+        </div>
+
+        {# ================================================================== #}
+        {# USERS / PERSONNEL CARD                                             #}
+        {# Driven by: user_stats                                              #}
+        {# ================================================================== #}
+        <div class="cdashboard-card cdashboard-network">
+            <div class="cdashboard-card-header">
+                <div class="cd-header-left">
+                    <i class="ph-fill ph-users" style="color: var(--cd-blue);"></i> Users
+                </div>
+                {% if user_stats.pending_approval > 0 %}
+                    <span class="cd-time-tag ongoing">ACTION NEEDED</span>
+                {% else %}
+                    <span class="cd-time-tag stable">OK</span>
+                {% endif %}
+            </div>
+            <div class="cdashboard-card-body">
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Total Users</span>
+                    <span class="cd-metric-val shimmer-text">{{ user_stats.total_users|default:"0" }}</span>
+                </div>
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Admins / Officials</span>
+                    <span class="cd-metric-val">
+                        {{ user_stats.admin_count|default:"0" }} / {{ user_stats.official_count|default:"0" }}
+                    </span>
+                </div>
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Pending Approval</span>
+                    <span class="cd-metric-val">
+                        {{ user_stats.pending_approval|default:"0" }}
+                        {% if user_stats.pending_approval > 0 %}
+                            <span class="cd-pill red">Review Required</span>
+                        {% else %}
+                            <span class="cd-trend good">↑ All Approved</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="cd-link-hint">
+                    <i class="ph-fill ph-link"></i>
+                    {% if user_stats.pending_approval > 0 %}
+                        {{ user_stats.pending_approval }} user{{ user_stats.pending_approval|pluralize }} awaiting admin approval.
+                    {% else %}
+                        All registered users are approved and active.
+                    {% endif %}
+                </div>
+            </div>
+            <a href="{% url 'app:client_users' %}" class="cdashboard-quick-access {% if user_stats.pending_approval > 0 %}urgent{% endif %}">
+                Manage Users &rarr;
+            </a>
+        </div>
+
+        {# ================================================================== #}
+        {# ALERTS SUMMARY CARD                                                #}
+        {# Driven by: severity_counts, active_alerts                         #}
+        {# ================================================================== #}
+        <div class="cdashboard-card cdashboard-admin">
+            <div class="cdashboard-card-header">
+                <div class="cd-header-left">
+                    <i class="ph-fill ph-bell-ringing" style="color: var(--cd-red);"></i> Alert Summary
+                </div>
+                {% if severity_counts.critical > 0 %}
+                    <span class="cd-time-tag new">CRITICAL</span>
+                {% elif severity_counts.warning > 0 %}
+                    <span class="cd-time-tag ongoing">WARNING</span>
+                {% else %}
+                    <span class="cd-time-tag stable">CLEAR</span>
+                {% endif %}
+            </div>
+            <div class="cdashboard-card-body">
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Critical</span>
+                    <span class="cd-metric-val" style="color: {% if severity_counts.critical > 0 %}var(--cd-red){% else %}var(--cd-text-muted){% endif %};">
+                        {{ severity_counts.critical|default:"0" }}
+                    </span>
+                </div>
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Warnings</span>
+                    <span class="cd-metric-val" style="color: {% if severity_counts.warning > 0 %}var(--cd-yellow-text){% else %}var(--cd-text-muted){% endif %};">
+                        {{ severity_counts.warning|default:"0" }}
+                    </span>
+                </div>
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Info</span>
+                    <span class="cd-metric-val">{{ severity_counts.info|default:"0" }}</span>
+                </div>
+                <div class="cd-link-hint">
+                    <i class="ph-fill ph-link"></i>
+                    {% if severity_counts.critical > 0 %}
+                        {{ severity_counts.critical }} critical alert{{ severity_counts.critical|pluralize }} require immediate attention.
+                    {% elif severity_counts.warning > 0 %}
+                        {{ severity_counts.warning }} warning{{ severity_counts.warning|pluralize }} need review.
+                    {% else %}
+                        No active alerts — system is operating normally.
+                    {% endif %}
+                </div>
+            </div>
+            <a href="{% url 'app:client_alerts' %}" class="cdashboard-quick-access {% if severity_counts.critical > 0 %}urgent{% endif %}">
+                View All Alerts &rarr;
+            </a>
+        </div>
+
+    </div>
+
+    {# ================================================================== #}
+    {# FLOATING QUICK-ACTION MENU                                          #}
+    {# ================================================================== #}
+    <div class="cd-floating-overlay" id="floatingOverlay">
+        <div class="cd-floating-menu hidden" id="floatingMenu">
+            <a href="{% url 'app:client_alerts' %}" class="cd-float-btn ai-btn">
+                <i class="ph-fill ph-sparkle"></i> View Active Alerts
+            </a>
+            <a href="{% url 'app:client_devices' %}" class="cd-float-btn">
+                <i class="ph-bold ph-activity"></i> Check Devices
+            </a>
+            <a href="{% url 'app:client_map' %}" class="cd-float-btn">
+                <i class="ph-bold ph-broadcast"></i> Live Map
+            </a>
+            <a href="{% url 'app:client_analytics' %}" class="cd-float-btn">
+                <i class="ph-bold ph-chart-line"></i> Analytics
+            </a>
+        </div>
+
+        <button class="cd-float-btn master-btn" onclick="toggleFloatingMenu()" title="Toggle Quick Actions">
+            <i class="ph-bold ph-list-plus" id="masterIcon"></i>
+        </button>
+    </div>
+
+    <script>
+        function toggleFloatingMenu() {
+            const menu = document.getElementById('floatingMenu');
+            const overlay = document.getElementById('floatingOverlay');
+            const icon = document.getElementById('masterIcon');
+            
+            menu.classList.toggle('hidden');
+            overlay.classList.toggle('collapsed');
+            
+            if (menu.classList.contains('hidden')) {
+                icon.classList.remove('ph-x');
+                icon.classList.add('ph-list-plus');
+            } else {
+                icon.classList.remove('ph-list-plus');
+                icon.classList.add('ph-x');
+            }
+        }
+    </script>
+{% endblock %}

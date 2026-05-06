@@ -1,0 +1,99 @@
+{% extends 'AppEnviroNode/index.html' %}
+{% load static %}
+
+{% block title %}Alerts - Environode{% endblock %}
+
+{% block content %}
+    <section class="metrics-grid">
+      <div class="metric-card critical">
+        <div class="metric-label">Critical Alerts</div>
+        <div class="metric-value">{{ critical_count }}</div>
+        <div class="metric-desc">Active critical alerts requiring immediate attention</div>
+      </div>
+      <div class="metric-card warning">
+        <div class="metric-label">Active Warnings</div>
+        <div class="metric-value">{{ warning_count }}</div>
+        <div class="metric-desc">Active warning-level alerts</div>
+      </div>
+      <div class="metric-card info">
+        <div class="metric-label">Total Alerts (24h)</div>
+        <div class="metric-value">{{ total_24h }}</div>
+        <div class="metric-desc">In the last 24 hours</div>
+      </div>
+    </section>
+
+    <section class="alerts-container">
+      <div class="container-title">Active Alerts</div>
+      {% if active_alerts %}
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          {% for alert in active_alerts %}
+            <div style="padding: 16px; border-left: 4px solid; border-radius: 4px; background: #f9f9f9; {% if alert.severity == 'critical' %}border-left-color: #ef4444; background: #fef2f2;{% elif alert.severity == 'warning' %}border-left-color: #f59e0b; background: #fffbeb;{% else %}border-left-color: #3b82f6; background: #eff6ff;{% endif %}">
+              <div style="font-weight: 600; margin-bottom: 4px;">{{ alert.title }} <span style="font-size: 0.8rem; color: #666;">{{ alert.severity|upper }}</span></div>
+              <div style="font-size: 0.9rem; color: #666; margin-bottom: 4px;">📍 {{ alert.node.name }}</div>
+              <div style="font-size: 0.85rem; color: #999;">⏰ {{ alert.triggered_at|date:"M d, Y g:i A" }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div style="text-align: center; padding: 40px 20px; color: #889ab5; font-size: 1.1rem;">
+          No active alerts at this time
+        </div>
+      {% endif %}
+    </section>
+
+    <section class="alerts-container">
+      <div class="container-title">Alert History (Last 24h)</div>
+      {% if alert_history %}
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="border-bottom: 2px solid #d0d5e3; padding: 12px 0;">
+              <th style="text-align: left; padding: 12px; color: #333; font-weight: 600;">Alert Title</th>
+              <th style="text-align: left; padding: 12px; color: #333; font-weight: 600;">Node</th>
+              <th style="text-align: center; padding: 12px; color: #333; font-weight: 600;">Severity</th>
+              <th style="text-align: right; padding: 12px; color: #333; font-weight: 600;">Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for alert in alert_history %}
+              <tr style="border-bottom: 1px solid #e0e0e0;">
+                <td style="padding: 12px; color: #333;">{{ alert.title }}</td>
+                <td style="padding: 12px; color: #666;">{{ alert.node.name }}</td>
+                <td style="padding: 12px; text-align: center;">
+                  <span style="padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; {% if alert.severity == 'critical' %}background: #fecaca; color: #991b1b;{% elif alert.severity == 'warning' %}background: #fed7aa; color: #92400e;{% else %}background: #bfdbfe; color: #1e40af;{% endif %}">
+                    {{ alert.severity|upper }}
+                  </span>
+                </td>
+                <td style="padding: 12px; text-align: right; color: #999; font-size: 0.9rem;">{{ alert.triggered_at|date:"M d g:i A" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div style="text-align: center; padding: 40px 20px; color: #889ab5; font-size: 1.1rem;">
+          No alerts in the last 24 hours
+        </div>
+      {% endif %}
+    </section>
+
+    <section class="alerts-container">
+      <div class="container-title">Safety Advisory Tips</div>
+      <div class="advisory-grid">
+        <div class="advisory-section">
+          <div class="advisory-title">When Alerts are Active:</div>
+          <ul>
+            <li>Monitor air quality updates regularly</li>
+            <li>Limit outdoor physical activities</li>
+            <li>Keep windows and doors closed</li>
+          </ul>
+        </div>
+        <div class="advisory-section">
+          <div class="advisory-title">For Sensitive Groups:</div>
+          <ul>
+            <li>Children and elderly should stay indoors</li>
+            <li>Use air purifiers if available</li>
+            <li>Consult healthcare provider if experiencing symptoms</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+{% endblock %}

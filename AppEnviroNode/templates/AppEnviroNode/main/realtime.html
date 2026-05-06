@@ -1,0 +1,1408 @@
+{% extends 'AppEnviroNode/index.html' %}
+{% load static %}
+
+{% block title %}Real-Time - Environode{% endblock %}
+
+{% block extra_head %}
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    
+    /* Base Wrapper */
+    .rtpub-wrapper {
+      background-color: transparent;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      color: #0f172a;
+      width: 100%;
+      max-width: 100%;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    .rtpub-container {
+      width: 100%;
+      max-width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.875rem;
+    }
+
+    /* MATCH DASHBOARD LAYOUT MARGINS AND SPACING EXACTLY */
+    main.main-container {
+      margin-top: 70px !important;
+      padding: 12px 14px 18px !important;
+      width: calc(100% - 20px) !important;
+      gap: 10px !important;
+    }
+
+    @media (max-width: 1024px) {
+      main.main-container {
+        width: calc(100% - 24px) !important;
+        margin-top: 62px !important;
+        padding: 12px 14px 18px !important;
+      }
+    }
+
+    @media (max-width: 640px) {
+      main.main-container {
+        width: calc(100% - 18px) !important;
+        margin-top: 58px !important;
+        padding: 12px 14px 18px !important;
+      }
+    }
+
+    /* Common Card / Panel Styling */
+    .rtpub-panel {
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1px solid rgba(41, 56, 72, 0.08);
+      box-shadow: 0 8px 20px rgba(20, 42, 66, 0.08);
+      overflow: hidden;
+    }
+
+    /* Filters Bar */
+    .rtpub-filters {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      justify-content: space-between;
+      align-items: center;
+    }
+    @media (min-width: 640px) {
+      .rtpub-filters { flex-direction: row; }
+    }
+
+    .rtpub-filter-left {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+      overflow-x: auto;
+      padding-bottom: 0;
+    }
+    @media (min-width: 640px) {
+      .rtpub-filter-left { width: auto; }
+    }
+
+    .rtpub-time-group {
+      display: flex;
+      background: #f1f5f9;
+      border-radius: 8px;
+      padding: 0.125rem;
+    }
+
+    .rtpub-time-btn {
+      padding: 0.375rem 0.875rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .rtpub-time-btn:hover { color: #334155; }
+    /* ACTIVE BUTTON STYLING - MATCHES LIVE MONITORING DARK NAVY/BLACK THEME */
+    .rtpub-time-btn.active {
+      background: #0B1120 !important;
+      color: #ffffff !important;
+      box-shadow: 0 2px 4px rgba(11, 17, 32, 0.3);
+    }
+
+    .rtpub-custom-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.375rem 0.875rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #475569;
+      background: #ffffff;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .rtpub-custom-btn:hover { background: #f8fafc; border-color: #cbd5e1; }
+    /* Custom button active styling - matches dark navy/black theme */
+    .rtpub-custom-btn.active-custom {
+      background: #0B1120 !important;
+      color: #ffffff !important;
+      border-color: #0B1120 !important;
+    }
+
+    .rtpub-filter-right {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+    }
+    @media (min-width: 640px) {
+      .rtpub-filter-right { width: auto; }
+    }
+
+    .rtpub-select {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      color: #334155;
+      font-size: 0.75rem;
+      font-weight: 500;
+      border-radius: 8px;
+      padding: 0.375rem 0.875rem;
+      outline: none;
+      width: 100%;
+      min-width: 160px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .rtpub-select:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.1);
+    }
+
+    /* Stats Grid */
+    .rtpub-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.875rem;
+    }
+    @media (max-width: 768px) {
+      .rtpub-stats-grid { grid-template-columns: 1fr; }
+    }
+
+    .rtpub-stat-card {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.875rem 1.125rem;
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1px solid rgba(41, 56, 72, 0.08);
+      box-shadow: 0 8px 20px rgba(20, 42, 66, 0.08);
+    }
+
+    .rtpub-stat-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+    }
+    .rtpub-stat-icon.brand { background: #e8f5e9; color: #2e7d32; }
+    .rtpub-stat-icon.blue { background: #e3f2fd; color: #1565c0; }
+    .rtpub-stat-icon.green { background: #e8f5e9; color: #2e7d32; }
+
+    .rtpub-stat-info { display: flex; flex-direction: column; }
+    .rtpub-stat-label { 
+      font-size: 0.65rem; 
+      font-weight: 600; 
+      color: #64748b; 
+      text-transform: uppercase; 
+      letter-spacing: 0.05em; 
+    }
+    .rtpub-stat-val-wrapper { display: flex; align-items: baseline; gap: 0.25rem; flex-wrap: wrap; }
+    .rtpub-stat-value { 
+      font-size: 1.5rem; 
+      font-weight: 800; 
+      color: #1e293b; 
+      line-height: 1.2; 
+    }
+    .rtpub-stat-subtext { 
+      font-size: 0.6rem; 
+      font-weight: 500; 
+      color: #64748b; 
+      margin-left: 0.25rem; 
+    }
+
+    /* LIVE MONITORING STATUS BAR - Dark Navy/Black Theme */
+    .rtpub-live-panel {
+      background: linear-gradient(135deg, #0B1120 0%, #091222 100%);
+      border-radius: 12px;
+      border: 1px solid rgba(41, 56, 72, 0.08);
+      box-shadow: 0 8px 20px rgba(20, 42, 66, 0.08);
+      overflow: hidden;
+      padding: 0.75rem 1rem;
+    }
+
+    .live-bar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .live-status-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: transparent;
+    }
+
+    .green-dot {
+      width: 10px;
+      height: 10px;
+      background-color: #2ecc71;
+      border-radius: 50%;
+      box-shadow: 0 0 6px #2ecc71;
+      animation: pulse-green 1.8s infinite ease-out;
+    }
+
+    .live-text {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: white;
+      letter-spacing: 0.2px;
+    }
+
+    .live-info-panel {
+      background: rgba(20, 30, 48, 0.75);
+      backdrop-filter: blur(2px);
+      border-radius: 8px;
+      padding: 0.35rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      border: 0.5px solid rgba(46, 204, 113, 0.2);
+    }
+
+    .live-reading-group {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .live-reading-label {
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: #b9c4e0;
+    }
+
+    .live-location-name {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: white;
+    }
+
+    .live-aqi-badge {
+      background-color: #2ecc71;
+      border-radius: 20px;
+      padding: 0.2rem 0.8rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.75rem;
+      color: white;
+      white-space: nowrap;
+    }
+
+    .live-time-stamp {
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: #b9c4e0;
+      white-space: nowrap;
+    }
+
+    @keyframes pulse-green {
+      0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.5);
+      }
+      70% {
+        transform: scale(1.15);
+        box-shadow: 0 0 0 5px rgba(46, 204, 113, 0);
+      }
+      100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(46, 204, 113, 0);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .live-bar-inner {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .live-info-panel {
+        justify-content: space-between;
+        width: 100%;
+      }
+    }
+
+    /* Charts Section */
+    .rtpub-charts-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.875rem;
+    }
+    @media (max-width: 1024px) {
+      .rtpub-charts-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 640px) {
+      .rtpub-charts-grid { grid-template-columns: 1fr; }
+    }
+
+    .rtpub-chart-card {
+      display: flex;
+      flex-direction: column;
+      padding: 1rem;
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1px solid rgba(41, 56, 72, 0.08);
+      box-shadow: 0 8px 20px rgba(20, 42, 66, 0.08);
+      min-height: 300px;
+    }
+
+    .rtpub-chart-header {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #1a3352;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.375rem;
+      border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+    }
+
+    .rtpub-chart-body {
+      flex: 1;
+      position: relative;
+      width: 100%;
+      min-height: 220px;
+    }
+
+    /* FORECAST SECTION - REDESIGNED 7-DAY FORECAST */
+    .rtpub-forecast-section {
+      padding: 1.25rem;
+      background: #ffffff;
+      border-radius: 20px;
+      border: 1px solid rgba(41, 56, 72, 0.08);
+      box-shadow: 0 12px 28px rgba(20, 42, 66, 0.12);
+    }
+    
+    .rtpub-forecast-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 1.5rem;
+    }
+    
+    .rtpub-forecast-head {
+      flex: 1;
+    }
+    
+    .rtpub-forecast-title { 
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: #1a3352;
+      letter-spacing: -0.2px;
+      margin: 0 0 6px 0;
+      text-transform: none;
+    }
+    
+    .rtpub-forecast-subtitle {
+      font-size: 0.8rem;
+      color: #5b6e8c;
+      font-weight: 500;
+      margin: 0;
+      line-height: 1.4;
+    }
+    
+    .rtpub-btn-reload { 
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 40px;
+      padding: 6px 16px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #2c3e66;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .rtpub-btn-reload i {
+      font-size: 0.8rem;
+      color: #5b6e8c;
+    }
+    .rtpub-btn-reload:hover { 
+      background: #f1f5f9;
+      color: #1e293b;
+      border-color: #cbd5e1;
+    }
+
+    /* 7-Day Forecast Grid - matches the redesigned card layout */
+    .forecast-list {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 1rem;
+      overflow-x: auto;
+      padding-bottom: 6px;
+    }
+    @media (max-width: 1200px) {
+      .forecast-list { 
+        grid-template-columns: repeat(7, minmax(170px, 1fr)); 
+        overflow-x: auto;
+        scrollbar-width: thin;
+      }
+    }
+    @media (max-width: 900px) {
+      .forecast-list { 
+        grid-template-columns: repeat(7, minmax(170px, 220px)); 
+        overflow-x: auto;
+      }
+    }
+    
+    /* Forecast Card - New Design */
+    .forecast-day-card {
+      background: #ffffff;
+      border-radius: 18px;
+      border: 1px solid #e9edf2;
+      transition: all 0.2s ease;
+      padding: 1rem 0.6rem 0.9rem 0.6rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      position: relative;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+    .forecast-day-card:hover { 
+      transform: translateY(-3px);
+      box-shadow: 0 12px 22px -8px rgba(0, 0, 0, 0.1);
+      border-color: #dce3ec;
+    }
+    
+    /* Highlighted Today card */
+    .forecast-day-card.today {
+      background: linear-gradient(145deg, #eff8ef 0%, #f6fbf4 100%);
+      border-left: 3px solid #4caf50;
+      border-top: 1px solid #e2f0e2;
+    }
+    
+    /* Today label badge */
+    .today-badge {
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #4caf50;
+      color: white;
+      font-size: 0.6rem;
+      font-weight: 800;
+      padding: 0.2rem 0.75rem;
+      border-radius: 40px;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
+      letter-spacing: 0.3px;
+      z-index: 2;
+    }
+    
+    /* Day & Date */
+    .forecast-day-header { 
+      text-align: center; 
+      margin-bottom: 0;
+      width: 100%;
+    }
+    .forecast-day-label { 
+      font-weight: 800;
+      font-size: 1rem;
+      color: #1f2a44;
+      margin-bottom: 2px;
+    }
+    .forecast-day-meta { 
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: #6d7b93;
+      margin-bottom: 12px;
+    }
+    
+    /* Weather Icon */
+    .forecast-weather-icon {
+      font-size: 1.8rem;
+      margin-bottom: 14px;
+      color: #f5a623;
+    }
+    
+    /* AQI Circle */
+    .forecast-aqi-circle {
+      width: 75px;
+      height: 75px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 6px auto 8px auto;
+      background: #f8fafc;
+      border: 2.5px solid;
+    }
+    .forecast-aqi-circle.good { border-color: #4caf50; background: #eafaf1; }
+    .forecast-aqi-circle.moderate { border-color: #ffc107; background: #fffae6; }
+    .forecast-aqi-circle.unhealthy-sensitive { border-color: #ff9800; background: #fff2e0; }
+    .forecast-aqi-circle.unhealthy { border-color: #f44336; background: #ffe8e6; }
+    .forecast-aqi-circle.very-unhealthy { border-color: #9c27b0; background: #f5e9fc; }
+    .forecast-aqi-circle.hazardous { border-color: #5d4037; background: #f3efed; }
+    
+    .forecast-aqi-value {
+      font-size: 1.7rem;
+      font-weight: 800;
+      color: #1f2a44;
+      line-height: 1;
+    }
+    
+    /* AQI Level Label */
+    .forecast-aqi-level {
+      font-size: 0.65rem;
+      font-weight: 700;
+      margin-top: 4px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .forecast-aqi-level.good { color: #2e7d32; }
+    .forecast-aqi-level.moderate { color: #bf8f00; }
+    .forecast-aqi-level.unhealthy-sensitive { color: #e65100; }
+    .forecast-aqi-level.unhealthy { color: #c62828; }
+    .forecast-aqi-level.very-unhealthy { color: #6a1b9a; }
+    .forecast-aqi-level.hazardous { color: #4e342e; }
+    
+    /* Temperature Row */
+    .forecast-temp-row {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      margin: 8px 0 4px 0;
+    }
+    .forecast-temp-high { color: #e05a5a; font-weight: 800; }
+    .forecast-temp-low { color: #4895ef; font-weight: 600; }
+    
+    /* PM2.5 Row */
+    .forecast-pm-row {
+      font-size: 0.65rem;
+      color: #6c7b96;
+      font-weight: 600;
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px solid #eef2f8;
+      display: inline-block;
+      width: auto;
+      text-align: center;
+    }
+
+    /* AQI Badge styling for stats */
+    .aqi-badge-val {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 12px;
+      font-size: 0.65rem;
+      font-weight: 700;
+    }
+    .aqi-badge-val.good { background: #68c046; color: white; }
+    .aqi-badge-val.moderate { background: #ffef64; color: #1e293b; }
+    .aqi-badge-val.unhealthy-sensitive { background: #e88532; color: white; }
+    .aqi-badge-val.unhealthy { background: #db4836; color: white; }
+    .aqi-badge-val.very-unhealthy { background: #814396; color: white; }
+    .aqi-badge-val.hazardous { background: #701526; color: white; }
+
+    /* Custom Date Modal */
+    .rtpub-modal { 
+      position: fixed; 
+      inset: 0; 
+      background: rgba(15, 23, 42, 0.5); 
+      display: none; 
+      align-items: center; 
+      justify-content: center; 
+      z-index: 1000; 
+      backdrop-filter: blur(4px);
+    }
+    .rtpub-modal.visible { display: flex; }
+    .rtpub-modal-card { 
+      background: #ffffff; 
+      border-radius: 12px; 
+      padding: 1.25rem; 
+      width: calc(100% - 2rem); 
+      max-width: 22rem; 
+      box-shadow: 0 20px 40px rgba(0,0,0,0.15); 
+      border: 1px solid rgba(41, 56, 72, 0.08);
+    }
+    .rtpub-modal-title { 
+      font-size: 0.9rem; 
+      font-weight: 700; 
+      color: #1a3352; 
+      margin-bottom: 0.875rem; 
+    }
+    .rtpub-modal-body { 
+      display: flex; 
+      gap: 0.875rem; 
+      margin-bottom: 1.25rem; 
+    }
+    .rtpub-input-group { 
+      flex: 1; 
+    }
+    .rtpub-input-group label { 
+      display: block; 
+      font-size: 0.65rem; 
+      font-weight: 700; 
+      color: #64748b; 
+      text-transform: uppercase; 
+      margin-bottom: 0.25rem; 
+      letter-spacing: 0.05em;
+    }
+    .rtpub-input-group input { 
+      width: 100%; 
+      padding: 0.375rem 0.625rem; 
+      border: 1px solid #e2e8f0; 
+      border-radius: 8px; 
+      font-size: 0.75rem; 
+      color: #1e293b; 
+      background: #ffffff; 
+      outline: none; 
+      transition: all 0.2s;
+    }
+    .rtpub-input-group input:focus { 
+      border-color: #3b82f6; 
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.1);
+    }
+    .rtpub-modal-footer { 
+      display: flex; 
+      justify-content: flex-end; 
+      gap: 0.625rem; 
+    }
+    .rtpub-btn { 
+      padding: 0.375rem 1rem; 
+      font-size: 0.75rem; 
+      font-weight: 600; 
+      border-radius: 8px; 
+      cursor: pointer; 
+      border: none; 
+      transition: all 0.2s;
+    }
+    .rtpub-btn-cancel { 
+      background: #f1f5f9; 
+      color: #475569; 
+    }
+    .rtpub-btn-cancel:hover { 
+      background: #e2e8f0; 
+    }
+    .rtpub-btn-primary { 
+      background: #1a3260; 
+      color: #ffffff; 
+    }
+    .rtpub-btn-primary:hover { 
+      background: #122448; 
+    }
+
+    /* Loading state */
+    .loading-placeholder {
+      text-align: center;
+      padding: 2rem;
+      color: #7c8aa2;
+      font-size: 0.75rem;
+      grid-column: 1 / -1;
+    }
+
+    /* Chart canvas sizing */
+    canvas {
+      max-height: 100%;
+      width: 100%;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <div class="overlay">
+    <div class="dashb-page-shell">
+      <div class="rtpub-wrapper">
+        <div class="rtpub-container">
+          
+          <!-- Filters Panel -->
+          <div class="rtpub-panel rtpub-filters">
+            <div class="rtpub-filter-left">
+              <div class="rtpub-time-group" role="group" aria-label="Time range">
+                <button type="button" class="rtpub-time-btn {% if selected_range == '24h' %}active{% endif %}" data-range="24h">24h</button>
+                <button type="button" class="rtpub-time-btn {% if selected_range == '7d' %}active{% endif %}" data-range="7d">7d</button>
+                <button type="button" class="rtpub-time-btn {% if selected_range == '30d' %}active{% endif %}" data-range="30d">30d</button>
+              </div>
+              <button type="button" class="rtpub-custom-btn {% if selected_range == 'custom' %}active-custom{% endif %}" data-range="custom">
+                <i class="fa-solid fa-calendar"></i> Custom
+              </button>
+            </div>
+
+            <div class="rtpub-filter-right">
+              <select id="nodeFilter" class="rtpub-select" aria-label="Select node">
+                <optgroup label="All Nodes Group">
+                  <option value="" {% if not selected_node %}selected{% endif %}>All Nodes</option>
+                </optgroup>
+                <optgroup label="Nodes">
+                  {% for node in nodes %}
+                    <option value="node:{{ node.id }}" {% if selected_node == "node:"|add:node.id %}selected{% endif %}>{{ node.name }} ({{ node.status|title }})</option>
+                  {% endfor %}
+                </optgroup>
+                {% regroup nodes by location as location_groups %}
+                <optgroup label="Locations">
+                  {% for group in location_groups %}
+                    {% with loc=group.grouper|default:"Unknown" %}
+                      <option value="location:{{ loc|escape }}" {% if selected_node == "location:"|add:loc %}selected{% endif %}>{{ loc }}</option>
+                    {% endwith %}
+                  {% endfor %}
+                </optgroup>
+              </select>
+            </div>
+          </div>
+
+          <!-- Date Range Modal -->
+          <div class="rtpub-modal" id="datePopup">
+            <div class="rtpub-modal-card">
+              <div class="rtpub-modal-title">Custom Range</div>
+              <div class="rtpub-modal-body">
+                <div class="rtpub-input-group">
+                  <label for="dateFrom">From</label>
+                  <input type="date" id="dateFrom" value="{{ start_date }}">
+                </div>
+                <div class="rtpub-input-group">
+                  <label for="dateTo">To</label>
+                  <input type="date" id="dateTo" value="{{ end_date }}">
+                </div>
+              </div>
+              <div class="rtpub-modal-footer">
+                <button type="button" class="rtpub-btn rtpub-btn-cancel" id="cancelDate">Cancel</button>
+                <button type="button" class="rtpub-btn rtpub-btn-primary" id="applyDate">Apply</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stats Cards -->
+          <div class="rtpub-stats-grid">
+            <div class="rtpub-stat-card">
+              <div class="rtpub-stat-icon brand"><i class="fa-solid fa-wave-square"></i></div>
+              <div class="rtpub-stat-info">
+                <span class="rtpub-stat-label">Average AQI</span>
+                <div class="rtpub-stat-val-wrapper">
+                  <span class="rtpub-stat-value" id="avgAqiValue">{{ avg_aqi|default:"—" }}</span>
+                  <span class="rtpub-stat-subtext" id="rangeNote">{{ range_label }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="rtpub-stat-card">
+              <div class="rtpub-stat-icon blue"><i class="fa-solid fa-chart-simple"></i></div>
+              <div class="rtpub-stat-info">
+                <span class="rtpub-stat-label">Total Readings</span>
+                <div class="rtpub-stat-val-wrapper">
+                  <span class="rtpub-stat-value" id="totalReadingsValue">{{ total_readings }}</span>
+                  <span class="rtpub-stat-subtext">based on selection</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="rtpub-stat-card">
+              <div class="rtpub-stat-icon green"><i class="fa-solid fa-tower-broadcast"></i></div>
+              <div class="rtpub-stat-info">
+                <span class="rtpub-stat-label">Active Nodes</span>
+                <div class="rtpub-stat-val-wrapper">
+                  <span class="rtpub-stat-value" id="activeNodesValue">{{ active_nodes }}</span>
+                  <span class="rtpub-stat-subtext">currently active</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Monitoring Status Bar -->
+          <div class="rtpub-live-panel">
+            <div class="live-bar-inner">
+              <div class="live-status-left">
+                <div class="green-dot"></div>
+                <span class="live-text">Live Monitoring Active</span>
+              </div>
+              <div class="live-info-panel">
+                <div class="live-reading-group">
+                  <span class="live-reading-label">Latest Reading:</span>
+                  <span class="live-location-name">Signal Village</span>
+                </div>
+                <div class="live-aqi-badge" id="liveAqiValue">AQI --</div>
+                <div class="live-time-stamp" id="liveTimestamp">--:-- --</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Charts Section -->
+          <div class="rtpub-charts-grid">
+            <div class="rtpub-chart-card">
+              <div class="rtpub-chart-header">AQI Trend</div>
+              <div class="rtpub-chart-body">
+                <canvas id="aqiTrendChart"></canvas>
+              </div>
+            </div>
+
+            <div class="rtpub-chart-card">
+              <div class="rtpub-chart-header">PM2.5 / PM10 Levels</div>
+              <div class="rtpub-chart-body">
+                <canvas id="pmTrendChart"></canvas>
+              </div>
+            </div>
+
+            <div class="rtpub-chart-card">
+              <div class="rtpub-chart-header">Temperature (°C)</div>
+              <div class="rtpub-chart-body">
+                <canvas id="temperatureTrendChart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Forecast Section - 7-Day Forecast with Redesigned Cards -->
+          <div class="rtpub-forecast-section">
+            <div class="rtpub-forecast-header-row">
+              <div class="rtpub-forecast-head">
+                <h3 class="rtpub-forecast-title">7-Day Forecast</h3>
+                <p class="rtpub-forecast-subtitle">Our AI predicts the expected air quality for the coming week so you can plan ahead.</p>
+              </div>
+              <button type="button" class="rtpub-btn-reload" id="reloadButton">
+                <i class="fa-solid fa-rotate-right"></i> Refresh
+              </button>
+            </div>
+            <div class="forecast-list" id="dailyForecastContainer" data-api-url="{% url 'app:api_daily_forecast' %}">
+              <div class="loading-placeholder">Loading forecast data...</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  <script>
+    const apiRealtimeDataUrl = '{% url "app:api_realtime_data" %}';
+    const timeButtons = document.querySelectorAll('.rtpub-time-btn, .rtpub-custom-btn');
+    const nodeFilter = document.getElementById('nodeFilter');
+    const reloadButton = document.getElementById('reloadButton');
+    const customPopup = document.getElementById('datePopup');
+    const customButton = document.querySelector('.rtpub-custom-btn');
+    const cancelDate = document.getElementById('cancelDate');
+    const applyDate = document.getElementById('applyDate');
+    const dateFrom = document.getElementById('dateFrom');
+    const dateTo = document.getElementById('dateTo');
+
+    const avgAqiValue = document.getElementById('avgAqiValue');
+    const totalReadingsValue = document.getElementById('totalReadingsValue');
+    const activeNodesValue = document.getElementById('activeNodesValue');
+    const rangeNote = document.getElementById('rangeNote');
+
+    // Live monitoring elements
+    const liveAqiValue = document.getElementById('liveAqiValue');
+    const liveTimestamp = document.getElementById('liveTimestamp');
+
+    const initialChartData = JSON.parse('{{ chart_data_json|escapejs|default:"[]" }}');
+    const currentFilters = {
+      range: '{{ selected_range }}',
+      node: '{{ selected_node|default:"" }}',
+      startDate: '{{ start_date }}',
+      endDate: '{{ end_date }}',
+    };
+
+    let aqiChart = null;
+    let pmChart = null;
+    let tempChart = null;
+
+    function getAqiLevelClass(aqi) {
+      if (aqi <= 50) return 'good';
+      if (aqi <= 100) return 'moderate';
+      if (aqi <= 150) return 'unhealthy-sensitive';
+      if (aqi <= 200) return 'unhealthy';
+      if (aqi <= 300) return 'very-unhealthy';
+      return 'hazardous';
+    }
+
+    function formatDateLabel(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return value || 'N/A';
+      }
+      return new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      }).format(date);
+    }
+
+    function formatDateLabelShort(value) {
+      if (!value) return 'Custom';
+      const parts = value.split('-');
+      if (parts.length !== 3) return value;
+      return `${parts[1]}/${parts[2]}/${parts[0]}`;
+    }
+
+    function buildQueryParams() {
+      const params = new URLSearchParams();
+      if (currentFilters.range) params.set('range', currentFilters.range);
+      if (currentFilters.node) params.set('node', currentFilters.node);
+      if (currentFilters.startDate) params.set('start_date', currentFilters.startDate);
+      if (currentFilters.endDate) params.set('end_date', currentFilters.endDate);
+      return params.toString();
+    }
+
+    function updateCustomButtonLabel() {
+      if (!customButton) return;
+      if (currentFilters.range === 'custom' && currentFilters.startDate && currentFilters.endDate) {
+        customButton.innerHTML = `<i class="fa-solid fa-calendar"></i> ${formatDateLabelShort(currentFilters.startDate)} – ${formatDateLabelShort(currentFilters.endDate)}`;
+        customButton.classList.add('active-custom');
+      } else {
+        customButton.innerHTML = '<i class="fa-solid fa-calendar"></i> Custom';
+        customButton.classList.remove('active-custom');
+      }
+    }
+
+    function updateSummary(summary) {
+      avgAqiValue.textContent = summary.avg_aqi !== null ? summary.avg_aqi : '—';
+      totalReadingsValue.textContent = summary.total_readings;
+      activeNodesValue.textContent = summary.active_nodes;
+      rangeNote.textContent = summary.range_label;
+    }
+
+    function updateLiveMonitoring(summary) {
+      // Update live AQI badge
+      const currentAqi = summary.latest_aqi || summary.avg_aqi;
+      if (currentAqi !== null && currentAqi !== undefined) {
+        liveAqiValue.textContent = `AQI ${Math.round(currentAqi)}`;
+      } else {
+        liveAqiValue.textContent = 'AQI --';
+      }
+      
+      // Update timestamp
+      if (summary.latest_timestamp) {
+        const date = new Date(summary.latest_timestamp);
+        if (!isNaN(date.getTime())) {
+          liveTimestamp.textContent = date.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit'
+          });
+        } else {
+          liveTimestamp.textContent = summary.latest_timestamp;
+        }
+      } else {
+        liveTimestamp.textContent = '--:-- --';
+      }
+    }
+
+    function getChartDataset(data) {
+      const labels = [];
+      const aqiValues = [];
+      const pm25Values = [];
+      const pm10Values = [];
+      const temperatureValues = [];
+
+      (data || []).forEach(item => {
+        labels.push(formatDateLabel(item.period));
+        aqiValues.push(item.avg_aqi ?? 0);
+        pm25Values.push(item.avg_pm2_5 ?? 0);
+        pm10Values.push(item.avg_pm10 ?? 0);
+        temperatureValues.push(item.avg_temperature ?? 0);
+      });
+
+      return { labels, aqiValues, pm25Values, pm10Values, temperatureValues };
+    }
+
+    function createChart(canvasId, label, data, color, type = 'line') {
+      const element = document.getElementById(canvasId);
+      if (!element) return null;
+      return new Chart(element, {
+        type: type,
+        data: {
+          labels: data.labels,
+          datasets: [{
+            label: label,
+            data: data.values,
+            borderColor: color,
+            backgroundColor: type === 'bar' ? color : 'transparent',
+            borderWidth: 2,
+            tension: 0.3,
+            pointRadius: 2,
+            pointHoverRadius: 5,
+            pointBorderColor: color,
+            pointBackgroundColor: '#ffffff',
+            fill: false,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { intersect: false, mode: 'index' },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#ffffff',
+              titleColor: '#1e293b',
+              bodyColor: '#475569',
+              borderColor: '#e2e8f0',
+              borderWidth: 1,
+              padding: 8,
+              titleFont: { family: 'Inter', weight: '600', size: 11 },
+              bodyFont: { family: 'Inter', size: 10 },
+            },
+          },
+          scales: {
+            x: {
+              grid: { display: false, drawBorder: false },
+              ticks: { color: '#94a3b8', font: { size: 9, family: 'Inter' }, maxRotation: 45, minRotation: 45 },
+            },
+            y: {
+              grid: { color: '#f1f5f9', drawBorder: false },
+              ticks: { color: '#94a3b8', font: { size: 9, family: 'Inter' } },
+              beginAtZero: true,
+            },
+          },
+        },
+      });
+    }
+
+    function createBarChart(canvasId, labels, pm25Values, pm10Values) {
+      const element = document.getElementById(canvasId);
+      if (!element) return null;
+      return new Chart(element, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: 'PM2.5', data: pm25Values, backgroundColor: '#64748b', borderRadius: 4, barPercentage: 0.7 },
+            { label: 'PM10', data: pm10Values, backgroundColor: '#cbd5e1', borderRadius: 4, barPercentage: 0.7 }
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { intersect: false, mode: 'index' },
+          plugins: {
+            legend: { display: true, position: 'bottom', labels: { color: '#64748b', boxWidth: 10, font: { size: 9, family: 'Inter' } } },
+            tooltip: {
+              backgroundColor: '#ffffff',
+              titleColor: '#1e293b',
+              bodyColor: '#475569',
+              borderColor: '#e2e8f0',
+              borderWidth: 1,
+              padding: 8,
+              titleFont: { family: 'Inter', weight: '600', size: 11 },
+              bodyFont: { family: 'Inter', size: 10 },
+            },
+          },
+          scales: {
+            x: {
+              grid: { display: false, drawBorder: false },
+              ticks: { color: '#94a3b8', font: { size: 9, family: 'Inter' }, maxRotation: 45, minRotation: 45 },
+            },
+            y: {
+              grid: { color: '#f1f5f9', drawBorder: false },
+              ticks: { color: '#94a3b8', font: { size: 9, family: 'Inter' } },
+              beginAtZero: true,
+            },
+          },
+        },
+      });
+    }
+
+    function updateChart(chart, labels, values) {
+      if (!chart) return;
+      chart.data.labels = labels;
+      chart.data.datasets[0].data = values;
+      chart.update();
+    }
+
+    function updateBarChart(chart, labels, pm25Values, pm10Values) {
+      if (!chart) return;
+      chart.data.labels = labels;
+      chart.data.datasets[0].data = pm25Values;
+      chart.data.datasets[1].data = pm10Values;
+      chart.update();
+    }
+
+    function renderCharts(chartData) {
+      const chartValues = getChartDataset(chartData);
+
+      if (!aqiChart) {
+        aqiChart = createChart('aqiTrendChart', 'AQI', { labels: chartValues.labels, values: chartValues.aqiValues }, '#e88532', 'line');
+      } else {
+        updateChart(aqiChart, chartValues.labels, chartValues.aqiValues);
+      }
+
+      if (!pmChart) {
+        pmChart = createBarChart('pmTrendChart', chartValues.labels, chartValues.pm25Values, chartValues.pm10Values);
+      } else {
+        updateBarChart(pmChart, chartValues.labels, chartValues.pm25Values, chartValues.pm10Values);
+      }
+
+      if (!tempChart) {
+        tempChart = createChart('temperatureTrendChart', 'Temperature', { labels: chartValues.labels, values: chartValues.temperatureValues }, '#ef4444', 'line');
+      } else {
+        updateChart(tempChart, chartValues.labels, chartValues.temperatureValues);
+      }
+    }
+
+    function setActiveRangeButton(range) {
+      const allButtons = document.querySelectorAll('.rtpub-time-btn');
+      allButtons.forEach(button => {
+        const buttonRange = button.dataset.range;
+        button.classList.toggle('active', buttonRange === range);
+      });
+      
+      // Also handle custom button styling
+      if (customButton) {
+        if (range === 'custom') {
+          customButton.classList.add('active-custom');
+        } else {
+          customButton.classList.remove('active-custom');
+        }
+      }
+    }
+
+    function closePopup() { customPopup.classList.remove('visible'); }
+    function openPopup() { customPopup.classList.add('visible'); }
+
+    function loadRealtimeData() {
+      if (reloadButton) reloadButton.disabled = true;
+      fetch(`${apiRealtimeDataUrl}?${buildQueryParams()}`)
+        .then(response => response.ok ? response.json() : Promise.reject(response.statusText))
+        .then(data => {
+          if (!data.success) {
+            throw new Error(data.message || 'Unable to load realtime data.');
+          }
+          updateSummary(data.summary);
+          updateLiveMonitoring(data.summary);
+          renderCharts(data.chart_data);
+        })
+        .catch(error => { console.error('Realtime data load failed:', error); })
+        .finally(() => { if (reloadButton) reloadButton.disabled = false; });
+    }
+
+    // Event Listeners
+    timeButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const selectedRange = button.dataset.range || button.textContent.trim().toLowerCase();
+        currentFilters.range = selectedRange;
+        if (selectedRange === 'custom') {
+          openPopup();
+        } else {
+          currentFilters.startDate = '';
+          currentFilters.endDate = '';
+          closePopup();
+        }
+        setActiveRangeButton(selectedRange);
+        updateCustomButtonLabel();
+        if (selectedRange !== 'custom') {
+          loadRealtimeData();
+        }
+      });
+    });
+
+    if (nodeFilter) {
+      nodeFilter.addEventListener('change', () => {
+        currentFilters.node = nodeFilter.value;
+        loadRealtimeData();
+      });
+    }
+
+    if (applyDate) {
+      applyDate.addEventListener('click', () => {
+        if (!dateFrom.value || !dateTo.value) { return; }
+        currentFilters.range = 'custom';
+        currentFilters.startDate = dateFrom.value;
+        currentFilters.endDate = dateTo.value;
+        setActiveRangeButton('custom');
+        updateCustomButtonLabel();
+        closePopup();
+        loadRealtimeData();
+      });
+    }
+
+    if (cancelDate) {
+      cancelDate.addEventListener('click', closePopup);
+    }
+
+    if (reloadButton) {
+      reloadButton.addEventListener('click', loadRealtimeData);
+    }
+
+    document.addEventListener('click', event => {
+      const target = event.target;
+      if (customPopup && !customPopup.contains(target) && !target.closest('.rtpub-custom-btn') && !target.closest('.rtpub-time-btn')) {
+        closePopup();
+      }
+    });
+
+    // Initialize
+    setActiveRangeButton(currentFilters.range);
+    updateCustomButtonLabel();
+    renderCharts(initialChartData);
+    
+    // Initial live monitoring values from context if available
+    {% if aggregate_data.latest_overall %}
+    const initialLatestAqi = {{ aggregate_data.latest_overall.aqi|default:'null' }};
+    const initialLatestTimestamp = '{{ aggregate_data.latest_overall.timestamp|default:"" }}';
+    if (initialLatestAqi) {
+      liveAqiValue.textContent = `AQI ${Math.round(initialLatestAqi)}`;
+    }
+    if (initialLatestTimestamp) {
+      const date = new Date(initialLatestTimestamp);
+      if (!isNaN(date.getTime())) {
+        liveTimestamp.textContent = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      }
+    }
+    {% endif %}
+  </script>
+  <script>
+    (function() {
+      const forecastContainer = document.getElementById('dailyForecastContainer');
+      if (!forecastContainer) return;
+      const apiUrl = forecastContainer.dataset.apiUrl;
+
+      function getCircleClassByAqi(aqi) {
+        if (aqi <= 50) return 'good';
+        if (aqi <= 100) return 'moderate';
+        if (aqi <= 150) return 'unhealthy-sensitive';
+        if (aqi <= 200) return 'unhealthy';
+        if (aqi <= 300) return 'very-unhealthy';
+        return 'hazardous';
+      }
+
+      function getLevelClassByAqi(aqi) {
+        if (aqi <= 50) return 'good';
+        if (aqi <= 100) return 'moderate';
+        if (aqi <= 150) return 'unhealthy-sensitive';
+        if (aqi <= 200) return 'unhealthy';
+        if (aqi <= 300) return 'very-unhealthy';
+        return 'hazardous';
+      }
+
+      function getCategoryLabel(aqi) {
+        if (aqi <= 50) return 'Good';
+        if (aqi <= 100) return 'Moderate';
+        if (aqi <= 150) return 'Unhealthy for Sensitive';
+        if (aqi <= 200) return 'Unhealthy';
+        if (aqi <= 300) return 'Very Unhealthy';
+        return 'Hazardous';
+      }
+
+      function getWeatherIconHtml(aqi) {
+        if (aqi <= 50) return '<i class="fa-solid fa-sun"></i>';
+        if (aqi <= 70) return '<i class="fa-solid fa-cloud-sun"></i>';
+        if (aqi <= 100) return '<i class="fa-solid fa-cloud"></i>';
+        if (aqi <= 150) return '<i class="fa-solid fa-smog"></i>';
+        return '<i class="fa-solid fa-wind"></i>';
+      }
+
+      function formatForecastDate(dateString) {
+        if (!dateString) return { day: '--', monthDay: '--' };
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return { day: '--', monthDay: '--' };
+        const day = date.toLocaleDateString('en-US', { weekday: 'short' });
+        const monthDay = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return { day, monthDay };
+      }
+
+      function isToday(dateString) {
+        if (!dateString) return false;
+        const today = new Date();
+        const d = new Date(dateString);
+        return today.toDateString() === d.toDateString();
+      }
+
+      function renderForecastCards(forecastData) {
+        if (!forecastData || !Array.isArray(forecastData) || forecastData.length === 0) {
+          forecastContainer.innerHTML = '<div class="loading-placeholder">No forecast data available.</div>';
+          return;
+        }
+
+        let cardsHtml = '';
+        for (let i = 0; i < forecastData.length; i++) {
+          const day = forecastData[i];
+          const aqiVal = day.summary?.avg_aqi ?? day.aqi ?? 0;
+          const pm25Val = day.summary?.avg_pm2_5 ?? day.pm2_5 ?? day.pm25 ?? '—';
+          const tempHigh = day.temp_high ?? day.summary?.max_temp ?? day.high ?? '—';
+          const tempLow = day.temp_low ?? day.summary?.min_temp ?? day.low ?? '—';
+          const dateStr = day.date || day.forecast_date || '';
+          const { day: dayLabel, monthDay } = formatForecastDate(dateStr);
+          
+          const circleClass = getCircleClassByAqi(aqiVal);
+          const levelClass = getLevelClassByAqi(aqiVal);
+          const categoryFull = getCategoryLabel(aqiVal);
+          const weatherIconHtml = getWeatherIconHtml(aqiVal);
+          const todayFlag = isToday(dateStr);
+          const todayClass = todayFlag ? 'today' : '';
+          const todayBadgeHtml = todayFlag ? '<div class="today-badge">Today</div>' : '';
+          
+          const highDisplay = (tempHigh !== '—' && !isNaN(parseFloat(tempHigh))) ? Math.round(parseFloat(tempHigh)) : '—';
+          const lowDisplay = (tempLow !== '—' && !isNaN(parseFloat(tempLow))) ? Math.round(parseFloat(tempLow)) : '—';
+          const pmDisplay = (pm25Val !== '—' && !isNaN(parseFloat(pm25Val))) ? parseFloat(pm25Val).toFixed(1) : pm25Val;
+          
+          cardsHtml += `
+            <div class="forecast-day-card ${todayClass}" style="position:relative;">
+              ${todayBadgeHtml}
+              <div class="forecast-day-header">
+                <div class="forecast-day-label">${dayLabel}</div>
+                <div class="forecast-day-meta">${monthDay}</div>
+              </div>
+              <div class="forecast-weather-icon">
+                ${weatherIconHtml}
+              </div>
+              <div class="forecast-aqi-circle ${circleClass}">
+                <span class="forecast-aqi-value">${Math.round(aqiVal)}</span>
+              </div>
+              <div class="forecast-aqi-level ${levelClass}">${categoryFull}</div>
+              <div class="forecast-temp-row">
+                <span class="forecast-temp-high">H: ${highDisplay}</span>
+                <span class="forecast-temp-low">L: ${lowDisplay}</span>
+              </div>
+              <div class="forecast-pm-row">
+                PM2.5: ${pmDisplay}
+              </div>
+            </div>
+          `;
+        }
+        forecastContainer.innerHTML = cardsHtml;
+      }
+
+      function loadForecast() {
+        if (!apiUrl) {
+          forecastContainer.innerHTML = '<div class="loading-placeholder">Forecast endpoint not configured.</div>';
+          return;
+        }
+        forecastContainer.innerHTML = '<div class="loading-placeholder">Loading forecast data...</div>';
+        fetch(apiUrl)
+          .then(response => response.ok ? response.json() : Promise.reject('Unable to fetch forecast'))
+          .then(data => {
+            if (!data || data.success !== true) {
+              throw new Error(data?.message || 'Forecast data not available.');
+            }
+            const forecastList = data.forecast || [];
+            if (forecastList.length === 0) throw new Error('Empty forecast');
+            renderForecastCards(forecastList);
+          })
+          .catch(error => {
+            console.error('Forecast load error:', error);
+            forecastContainer.innerHTML = '<div class="loading-placeholder">Unable to load forecast at this time.</div>';
+          });
+      }
+
+      document.addEventListener('DOMContentLoaded', loadForecast);
+      const refreshBtn = document.getElementById('reloadButton');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', loadForecast);
+      }
+    })();
+  </script>
+{% endblock %}

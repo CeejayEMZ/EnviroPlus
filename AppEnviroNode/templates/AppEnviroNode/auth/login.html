@@ -1,0 +1,346 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Login - EnviroNode{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'AppEnviroNode/css/Style.css' %}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    .auth-container {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background-image: url("../images/pembo.jpg");
+    }
+
+    .auth-card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+      width: 100%;
+      max-width: 420px;
+      padding: 40px;
+    }
+
+    .auth-header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .auth-header h1 {
+      font-size: 2rem;
+      color: #113460;
+      margin: 0 0 10px;
+      font-weight: 700;
+    }
+
+    .auth-header p {
+      color: #546a86;
+      font-size: 0.95rem;
+      margin: 0;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #113460;
+      font-size: 0.95rem;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 12px 15px;
+      border: 1px solid #d0d5e3;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+      font-family: inherit;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: #2d5bbe;
+      box-shadow: 0 0 0 3px rgba(45, 91, 190, 0.1);
+    }
+
+    .form-group input::placeholder {
+      color: #889ab5;
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+    }
+
+    .form-actions a {
+      color: #2d5bbe;
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+
+    .form-actions a:hover {
+      color: #1f3f89;
+      text-decoration: underline;
+    }
+
+    .remember-me {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .remember-me input[type="checkbox"] {
+      width: auto;
+      cursor: pointer;
+    }
+
+    .submit-btn {
+      width: 100%;
+      padding: 12px;
+      background: #2d5bbe;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .submit-btn:hover {
+      background: #1f3f89;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(45, 91, 190, 0.3);
+    }
+
+    .submit-btn:active {
+      transform: translateY(0);
+    }
+
+    .divider {
+      text-align: center;
+      margin: 25px 0;
+      position: relative;
+      color: #889ab5;
+      font-size: 0.9rem;
+    }
+
+    .divider::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: #d0d5e3;
+    }
+
+    .divider span {
+      background: white;
+      padding: 0 10px;
+      position: relative;
+    }
+
+    .signup-link {
+      text-align: center;
+      font-size: 0.9rem;
+      color: #546a86;
+    }
+
+    .signup-link a {
+      color: #2d5bbe;
+      text-decoration: none;
+      font-weight: 600;
+      transition: color 0.3s;
+    }
+
+    .signup-link a:hover {
+      color: #1f3f89;
+      text-decoration: underline;
+    }
+
+    .errorlist {
+      background: #fff5f5;
+      border: 1px solid #feb2b2;
+      color: #c53030;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      list-style: none;
+      font-size: 0.9rem;
+    }
+
+    .errorlist li {
+      margin: 4px 0;
+    }
+
+    .errorlist li:before {
+      content: "⚠ ";
+      margin-right: 8px;
+    }
+
+    .messages {
+      margin-bottom: 20px;
+    }
+
+    .message {
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      font-size: 0.9rem;
+    }
+
+    .message.success {
+      background: #c6f6d5;
+      color: #22543d;
+      border: 1px solid #9ae6b4;
+    }
+
+    .message.error {
+      background: #fed7d7;
+      color: #742a2a;
+      border: 1px solid #fc8181;
+    }
+
+    .message.info {
+      background: #bee3f8;
+      color: #2c5282;
+      border: 1px solid #90cdf4;
+    }
+
+    @media (max-width: 600px) {
+      .auth-card {
+        padding: 30px 20px;
+      }
+
+      .auth-header h1 {
+        font-size: 1.5rem;
+      }
+
+      .form-actions {
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-container">
+    <div class="auth-card">
+      <div class="auth-header">
+        <h1>EnviroNode</h1>
+        <p>{% block subtitle %}Admin Portal Login{% endblock %}</p>
+      </div>
+
+      {% if messages %}
+        <div class="messages">
+          {% for message in messages %}
+            <div class="message {{ message.tags }}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% block content %}
+      <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <ul class="errorlist">
+            {% for error in form.non_field_errors %}
+              <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+
+        <div class="form-group">
+          <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+          {{ form.username }}
+          {% if form.username.errors %}
+            <ul class="errorlist">
+              {% for error in form.username.errors %}
+                <li>{{ error }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+
+        <div class="form-group">
+          <label for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
+          <div style="position: relative;">
+            {{ form.password }}
+            <button 
+              type="button" 
+              class="password-toggle" 
+              style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #889ab5; font-size: 1rem;"
+              onclick="togglePasswordVisibility(this)"
+              title="Show/hide password"
+            >
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+          {% if form.password.errors %}
+            <ul class="errorlist">
+              {% for error in form.password.errors %}
+                <li>{{ error }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+
+        <div class="form-actions">
+          <label class="remember-me">
+            <input type="checkbox" name="remember_me" />
+            Remember me
+          </label>
+          <a href="{% url 'app:forgot_password' %}">Forgot Password?</a>
+        </div>
+
+        <button type="submit" class="submit-btn">Sign In</button>
+      </form>
+
+      <div class="divider">
+        <span>New to EnviroNode?</span>
+      </div>
+
+      <div class="signup-link">
+        Contact your administrator to create an account or visit our 
+        <a href="{% url 'app:about' %}">home page</a> for more information.
+      </div>
+      {% endblock %}
+    </div>
+  </div>
+  
+  <script>
+    function togglePasswordVisibility(button) {
+      const input = button.parentElement.querySelector('input[type="password"], input[type="text"]');
+      if (!input) return;
+      
+      if (input.type === 'password') {
+        input.type = 'text';
+        button.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
+        button.title = 'Hide password';
+      } else {
+        input.type = 'password';
+        button.innerHTML = '<i class="fa-solid fa-eye"></i>';
+        button.title = 'Show password';
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,570 @@
+{% extends 'AppEnviroNode/index.html' %}
+{% load static %}
+
+{% block title %}Admin - Map View - Environode{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+{% endblock %}
+
+{% block content %}
+<style>
+
+.cmapv-wrapper,
+#cmapv-wrapper,
+.clientanalytics-main,
+.clientanalytics-container,
+.clientanalytics-content,
+.main-container {
+    width: 93% !important;
+    max-width: 93% !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+.cmapv-wrapper {
+    /* Localized CSS Variables */
+    --bg-body: #f4f7f9;
+    --bg-card: #ffffff;
+    --text-main: #111827;
+    --text-muted: #6b7280;
+    --border-color: #e5e7eb;
+    
+    --color-good: #10b981;
+    --color-moderate: #f59e0b;
+    --color-sensitive: #f97316;
+    --color-unhealthy: #ef4444;
+    --color-hazardous: #7f1d1d;
+    --color-info: #3b82f6;
+    
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    
+    --radius-md: 6px; /* Tightened radius */
+    --radius-lg: 8px;
+
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* Reduced from 16px */
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* 1. Compact Top Summary Strip */
+.cmapv-summary-strip {
+    display: flex;
+    gap: 10px; /* Reduced from 12px */
+    flex-wrap: wrap;
+}
+
+.cmapv-metric-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: 8px 12px; /* Significantly reduced vertical padding */
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 1;
+    min-width: 160px;
+    border-left-width: 4px;
+    border-left-style: solid;
+}
+
+.cmapv-metric-card.cmapv-total { border-left-color: var(--color-info); }
+.cmapv-metric-card.cmapv-active { border-left-color: var(--color-good); }
+.cmapv-metric-card.cmapv-inactive { border-left-color: var(--color-moderate); }
+.cmapv-metric-card.cmapv-rogue { border-left-color: var(--color-unhealthy); }
+
+.cmapv-metric-title { display: flex; align-items: center; gap: 6px; }
+
+.cmapv-metric-label {
+    font-size: 0.7rem; /* Smaller label */
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    font-weight: 700;
+}
+
+.cmapv-metric-value {
+    font-size: 1.15rem; /* Smaller number */
+    font-weight: 800;
+    color: var(--text-main);
+}
+
+/* Main Workspace: Lock to viewport to prevent scrolling */
+.cmapv-workspace {
+    display: flex;
+    gap: 12px;
+    /* Locks height to available viewport minus navbars and padding */
+    height: calc(100vh - 200px); 
+    min-height: 450px;
+}
+
+/* Main Map Container */
+.cmapv-map-container {
+    flex: 1;
+    position: relative;
+    background-color: #f0f4f8;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    background-image: radial-gradient(#cbd5e1 2px, transparent 2px);
+    background-size: 30px 30px;
+}
+
+.cmapv-map-river {
+    position: absolute;
+    top: 20%; left: -10%;
+    width: 120%; height: 60px;
+    background: rgba(186, 230, 253, 0.4);
+    transform: rotate(-15deg);
+}
+
+/* Floating Map Control Panel */
+.cmapv-map-controls {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 10px 12px; /* Tighter padding */
+    box-shadow: var(--shadow-md);
+    width: 220px; /* Slimmer panel */
+    z-index: 10;
+}
+
+.cmapv-control-group { margin-bottom: 10px; }
+.cmapv-control-group:last-child { margin-bottom: 0; }
+
+.cmapv-control-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    display: block;
+    letter-spacing: 0.05em;
+}
+
+.cmapv-select-input {
+    width: 100%;
+    padding: 4px 8px; /* Tighter dropdown */
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    font-size: 0.8rem;
+    color: var(--text-main);
+    outline: none;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.cmapv-toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.cmapv-toggle-switch {
+    width: 26px; height: 14px;
+    background: var(--color-good);
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+}
+.cmapv-toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 14px;
+    width: 10px; height: 10px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.2s;
+}
+.cmapv-toggle-switch.cmapv-off { background: #d1d5db; }
+.cmapv-toggle-switch.cmapv-off::after { left: 2px; }
+
+.cmapv-btn-group {
+    display: flex;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.cmapv-btn-group button {
+    flex: 1;
+    padding: 4px 0;
+    background: var(--bg-card);
+    border: none;
+    border-right: 1px solid var(--border-color);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-family: inherit;
+}
+.cmapv-btn-group button:last-child { border-right: none; }
+.cmapv-btn-group button.cmapv-active { background: #f3f4f6; color: var(--text-main); }
+
+/* Map Legend */
+.cmapv-map-legend {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+    font-size: 0.7rem;
+    z-index: 10;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.cmapv-legend-title { font-weight: 800; color: var(--text-main); text-transform: uppercase; letter-spacing: 0.05em; padding-right: 8px; border-right: 1px solid var(--border-color); }
+.cmapv-legend-item { display: flex; align-items: center; color: var(--text-muted); font-weight: 600; }
+.cmapv-legend-color { width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+
+/* Right-Side Drilldown Panel - High Density */
+.cmapv-drilldown-panel {
+    width: 340px; /* Slimmer panel */
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.cmapv-panel-header {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color);
+    background: #fdfbfb;
+}
+
+.cmapv-node-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.cmapv-node-name { font-size: 0.95rem; font-weight: 800; color: var(--text-main); }
+
+.cmapv-status-pill {
+    font-size: 0.65rem; font-weight: 800; padding: 2px 8px; border-radius: 12px; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.cmapv-status-pill.cmapv-crit { background: #fee2e2; color: var(--color-hazardous); border: 1px solid #fecaca; }
+
+/* Meta Row */
+.cmapv-node-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-top: 6px;
+}
+.cmapv-meta-item { display: flex; align-items: center; gap: 4px; }
+.cmapv-meta-item.cmapv-good i { color: var(--color-good); }
+.cmapv-meta-item.cmapv-warn i { color: var(--color-moderate); }
+.cmapv-meta-item.cmapv-crit i { color: var(--color-unhealthy); font-weight: 700; }
+.cmapv-meta-item.cmapv-crit { color: var(--color-unhealthy); font-weight: 700; }
+
+.cmapv-panel-body { padding: 12px; flex-grow: 1; overflow-y: auto; }
+
+/* Node Health Aggregated Grid */
+.cmapv-section-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; color: var(--text-muted); }
+
+.cmapv-health-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px; /* Tighter gap */
+    margin-bottom: 12px;
+}
+.cmapv-health-pill {
+    background: #f9fafb;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+}
+.cmapv-hp-label { font-size: 0.6rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 2px; }
+.cmapv-hp-val { font-size: 0.85rem; font-weight: 800; }
+.cmapv-hp-val.cmapv-good { color: var(--color-good); }
+.cmapv-hp-val.cmapv-warn { color: var(--color-moderate); }
+.cmapv-hp-val.cmapv-crit { color: var(--color-unhealthy); }
+
+/* AQI Hero Block */
+.cmapv-aqi-hero {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 8px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+}
+
+.cmapv-aqi-value-box {
+    background: var(--color-hazardous);
+    color: white;
+    width: 48px; height: 48px; /* Shrunk hero box */
+    border-radius: 6px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(127, 29, 29, 0.25);
+}
+
+.cmapv-aqi-num { font-size: 1.3rem; font-weight: 900; line-height: 1; }
+.cmapv-aqi-label { font-size: 0.6rem; font-weight: 800; margin-top: 2px; opacity: 0.9; letter-spacing: 0.05em;}
+
+.cmapv-aqi-desc { flex: 1; }
+.cmapv-aqi-desc-title { font-size: 0.85rem; font-weight: 800; color: var(--color-hazardous); margin-bottom: 2px; }
+.cmapv-aqi-desc-text { font-size: 0.75rem; color: #7f1d1d; line-height: 1.2; font-weight: 600; }
+
+/* Pollutant Grid */
+.cmapv-pollutant-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.cmapv-pollutant-card {
+    background: #f9fafb;
+    border: 1px solid var(--border-color);
+    padding: 8px;
+    border-radius: 6px;
+}
+
+.cmapv-pollutant-name { font-size: 0.75rem; color: var(--text-muted); font-weight: 700; margin-bottom: 2px; }
+.cmapv-pollutant-val { font-size: 1rem; font-weight: 800; display: flex; align-items: baseline; gap: 4px; color: var(--text-main); }
+.cmapv-pollutant-val.cmapv-crit { color: var(--color-hazardous); }
+.cmapv-pollutant-unit { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); }
+
+/* Trend Chart Placeholder */
+.cmapv-chart-placeholder {
+    height: 45px; /* Shorter chart */
+    background: #f9fafb;
+    border: 1px dashed var(--border-color);
+    border-radius: 4px;
+    display: flex;
+    align-items: flex-end;
+    padding: 4px;
+    gap: 2px;
+}
+
+.cmapv-chart-bar { flex: 1; background: var(--color-info); border-radius: 2px 2px 0 0; opacity: 0.8; }
+
+/* Actions Footer */
+.cmapv-panel-footer {
+    padding: 10px 12px;
+    border-top: 1px solid var(--border-color);
+    background: #f9fafb;
+    display: flex;
+    gap: 8px;
+}
+
+.cmapv-btn {
+    flex: 1;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-family: inherit;
+}
+
+.cmapv-btn-outline { background: white; border: 1px solid var(--border-color); color: var(--text-main); }
+.cmapv-btn-outline:hover { background: #f3f4f6; }
+
+.cmapv-btn-danger { background: white; border: 1px solid #fca5a5; color: var(--color-unhealthy); }
+.cmapv-btn-danger:hover { background: #fef2f2; }
+
+/* MAP MARKERS (Left exactly the same for visuals, removed for brevity, retain your previous marker CSS here) */
+.cmapv-marker { position: absolute; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); transform: translate(-50%, -50%); cursor: pointer; z-index: 5; transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.cmapv-marker.cmapv-offline { background-color: #7f8c8d !important; border-color: #95a5a6 !important; opacity: 0.7; }
+.cmapv-marker .cmapv-tt-card { visibility: hidden; opacity: 0; position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%) scale(0.9); width: 200px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: var(--shadow-lg); padding: 12px; transition: all 0.2s ease-out; z-index: 100; pointer-events: none; display: flex; flex-direction: column; gap: 8px; cursor: default; }
+.cmapv-marker:hover { transform: translate(-50%, -50%) scale(1.4); z-index: 20; }
+.cmapv-marker:hover .cmapv-tt-card { visibility: visible; opacity: 1; bottom: 28px; transform: translateX(-50%) scale(0.71); }
+.cmapv-tt-header { display: flex; justify-content: space-between; font-weight: 800; font-size: 0.9rem; color: var(--text-main); border-bottom: 1px solid var(--border-color); padding-bottom: 6px; }
+.cmapv-tt-row { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); font-weight: 600;}
+.cmapv-tt-val { font-weight: 700; }
+.cmapv-tt-val.cmapv-good { color: var(--color-good); }
+.cmapv-tt-val.cmapv-warn { color: var(--color-moderate); }
+.cmapv-tt-val.cmapv-crit { color: var(--color-unhealthy); }
+.cmapv-marker.cmapv-good { background-color: var(--color-good); }
+.cmapv-marker.cmapv-warning { background-color: var(--color-moderate); }
+.cmapv-marker.cmapv-unhealthy { background-color: var(--color-unhealthy); }
+.cmapv-marker.cmapv-critical { background-color: var(--color-hazardous); border-color: #fca5a5; }
+.cmapv-marker.cmapv-selected { box-shadow: 0 0 0 4px rgba(0,0,0,0.15); border: 2px solid var(--text-main); z-index: 15; transform: translate(-50%, -50%) scale(1.2); }
+.cmapv-alert-ring { position: absolute; width: 60px; height: 60px; border-radius: 50%; transform: translate(-50%, -50%); z-index: 4; pointer-events: none; }
+.cmapv-alert-ring.cmapv-critical { background-color: rgba(127, 29, 29, 0.25); animation: cmapv-pulse-ring-crit 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
+@keyframes cmapv-pulse-ring-crit { 0% { transform: translate(-50%, -50%) scale(0.4); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(2); opacity: 0; } }
+
+@media (max-width: 1100px) {
+    .cmapv-workspace { flex-direction: column; height: auto; min-height: auto; }
+    .cmapv-map-container { height: 400px; }
+    .cmapv-drilldown-panel { width: 100%; }
+    .cmapv-map-legend { display: none; }
+}
+</style>
+<div class="overlay">
+  <div class="cmapv-wrapper">
+    
+    <div class="cmapv-summary-strip">
+      <div class="cmapv-metric-card cmapv-total">
+        <div class="cmapv-metric-title">
+          <i class="fas fa-server cmapv-metric-icon" style="color: var(--color-info);"></i>
+          <span class="cmapv-metric-label">Total Nodes</span>
+        </div>
+        <span class="cmapv-metric-value">{{ total_nodes }}</span>
+      </div>
+      <div class="cmapv-metric-card cmapv-active">
+        <div class="cmapv-metric-title">
+          <i class="fas fa-check-circle cmapv-metric-icon" style="color: var(--color-good);"></i>
+          <span class="cmapv-metric-label">Active & Healthy</span>
+        </div>
+        <span class="cmapv-metric-value">{{ active_count }}</span>
+      </div>
+      <div class="cmapv-metric-card cmapv-inactive">
+        <div class="cmapv-metric-title">
+          <i class="fas fa-tools cmapv-metric-icon" style="color: var(--color-moderate);"></i>
+          <span class="cmapv-metric-label">Offline / Maint</span>
+        </div>
+        <span class="cmapv-metric-value">{{ inactive_count }}</span>
+      </div>
+      <div class="cmapv-metric-card cmapv-rogue">
+        <div class="cmapv-metric-title">
+          <i class="fas fa-exclamation-triangle cmapv-metric-icon" style="color: var(--color-unhealthy);"></i>
+          <span class="cmapv-metric-label">Rogue / Alerts</span>
+        </div>
+        <span class="cmapv-metric-value" style="color: var(--color-unhealthy);">{{ rogue_count }}</span>
+      </div>
+    </div>
+
+    <div class="cmapv-workspace">
+      
+      <div class="cmapv-map-container">
+        <div class="cmapv-map-river"></div>
+        <div class="cmapv-map-controls">
+          <div class="cmapv-control-group">
+            <label class="cmapv-control-label">Data Layer</label>
+            <select class="cmapv-select-input" id="cmapv-layer-select">
+              <option value="aqi">AQI (Overall)</option>
+              <option value="pm25">PM 2.5</option>
+              <option value="pm10">PM 10</option>
+              <option value="temperature">Temperature</option>
+            </select>
+          </div>
+          <div class="cmapv-control-group">
+            <label class="cmapv-control-label">Node Visibility</label>
+            <div class="cmapv-toggle-row">
+              <span>Online</span>
+              <div class="cmapv-toggle-switch" id="cmapv-toggle-active"></div>
+            </div>
+            <div class="cmapv-toggle-row">
+              <span>Offline</span>
+              <div class="cmapv-toggle-switch" id="cmapv-toggle-inactive"></div>
+            </div>
+            <div class="cmapv-toggle-row">
+              <span>Rogue</span>
+              <div class="cmapv-toggle-switch cmapv-off" id="cmapv-toggle-rogue"></div>
+            </div>
+            <div class="cmapv-toggle-row">
+              <span>Unregistered</span>
+              <div class="cmapv-toggle-switch" id="cmapv-toggle-unregistered"></div>
+            </div>
+          </div>
+          <div class="cmapv-control-group">
+            <label class="cmapv-control-label">Timeframe</label>
+            <div class="cmapv-btn-group">
+              <button class="cmapv-active" id="cmapv-btn-live">Live</button>
+              <button id="cmapv-btn-24h">Last 24h</button>
+            </div>
+          </div>
+        </div>
+        <div class="cmapv-map-legend" id="cmapv-map-legend">
+          <!-- Legend will be rendered dynamically by JS -->
+        </div>
+        <div id="cmapv-leaflet-map" style="width:100%;height:100%;position:absolute;top:0;left:0;z-index:2;"></div>
+      </div>
+
+      <div class="cmapv-drilldown-panel" id="cmapv-drilldown-panel">
+        <!-- Drilldown panel will be rendered dynamically by JS -->
+      </div>
+    {% block extra_js %}
+    <!-- Leaflet Map Library (must load first) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- Leaflet MarkerCluster Plugin (required for clustering; must load before enviro-mapview.js) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.1/MarkerCluster.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.1/MarkerCluster.Default.min.css"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.1/leaflet.markercluster.min.js"></script>
+    
+    <script>
+      // Ensure Leaflet is available before proceeding
+      if (typeof L === 'undefined') {
+        console.error('Leaflet library failed to load. Map functionality disabled.');
+        document.addEventListener('DOMContentLoaded', function() {
+          const mapContainer = document.getElementById('cmapv-leaflet-map');
+          if (mapContainer) {
+            mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;">⚠️ Map library failed to load. Please refresh the page.</div>';
+          }
+        });
+      }
+      
+      // Node data from Django template
+      // FIX #2: API-First Data Loading
+      // Initialize with EMPTY arrays - all data is fetched from API endpoints
+      // Backend endpoints: /api/nodes/live/, /api/nodes/24h/, /api/nodes/viewport/
+      // 
+      // Requirements for backend response:
+      // 1. Each node object MUST have: id, name, status, latitude, longitude
+      // 2. Each node object should have: latest_reading (with timestamp, battery, rssi)
+      // 3. Each node object should have: pollutants (with aqi, pm25, pm10, temperature, humidity)
+      // 4. Optional: aqi_history array (will be sliced to last 24 points by frontend)
+      // 5. Maximum 200 nodes per request (enforced by both backend and frontend)
+      // 6. Statuses: 'active', 'inactive', 'rogue', 'unregistered'
+      //
+      // The frontend will:
+      // - Deduplicate nodes by node.id
+      // - Filter by viewport bounds (show only visible markers)
+      // - Fetch data on timeframe change and map movement
+      window.CMAPV_NODES = {
+        active: [],
+        inactive: [],
+        unregistered: [],
+        rogue: []
+      };
+    </script>
+    
+    <!-- Load enviro-mapview.js ONLY ONCE - guard against duplicate initialization in JS -->
+    <script src="{% static 'AppEnviroNode/js/enviro-mapview.js' %}"></script>
+    {% endblock %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,475 @@
+{% extends 'AppEnviroNode/index.html' %}
+{% load static %}
+
+{% block title %}Admin - Analytics - Environode{% endblock %}
+
+{% block content %}
+
+<style>
+    .main-container {
+        width: 90% !important;
+        max-width: 90% !important;
+        margin: 0 auto !important;
+        margin-top: 10% !important;
+    }
+    /* --- Main Layout & Hierarchy --- */
+    .container { width: 100%; max-width: 1600px; margin: 0 auto; padding: 12px 20px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); display: flex; flex-direction: column; transition: box-shadow 0.2s ease; }
+    .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.04); }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-shrink: 0; }
+    .card-title { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* Grid Hierarchy */
+    .top-row { display: grid; grid-template-columns: 280px 1fr; gap: 12px; margin-bottom: 12px; }
+    @media (max-width: 1024px) { .top-row { grid-template-columns: 1fr; } }
+    
+    /* MODIFIED: Changed bottom row to 2 columns for a better narrative split */
+    .bottom-row { display: grid; grid-template-columns: 2.2fr 1fr; gap: 12px; }
+    @media (max-width: 1024px) { .bottom-row { grid-template-columns: 1fr; } }
+
+    /* --- Compact Filter Bar --- */
+    .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; background: var(--surface); padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); }
+    .filter-control { padding: 4px 8px; font-size: 0.75rem; border: 1px solid var(--border); border-radius: 4px; background: #f8fafc; color: var(--text-main); }
+    .btn { padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--surface); transition: 0.2s; display: inline-flex; align-items: center; gap: 4px; color: var(--text-main); }
+    .btn:hover { background: #f1f5f9; }
+    .btn-primary { background: var(--primary); color: white; border-color: var(--primary); }
+    .btn-primary:hover { background: #1d4ed8; }
+
+    /* Range Pills */
+    .range-pills { display: flex; background: #e2e8f0; padding: 2px; border-radius: 4px; gap: 2px; }
+    .range-pill { padding: 4px 10px; font-size: 0.7rem; font-weight: 700; color: var(--text-muted); cursor: pointer; border-radius: 3px; transition: 0.2s; }
+    .range-pill.active { background: var(--surface); color: var(--primary); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+
+    /* --- LEFT PANEL: Env State --- */
+    .aqi-hero { position: relative; display: flex; justify-content: center; align-items: center; height: 110px; margin-bottom: 0; }
+    .aqi-circle-inner { position: absolute; text-align: center; display: flex; flex-direction: column; align-items: center; }
+    .aqi-value { font-size: 2.2rem; font-weight: 800; line-height: 1; color: var(--text-main); }
+    .aqi-badge { background: var(--moderate); color: white; padding: 2px 6px; border-radius: 12px; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; margin-top: 2px; }
+    .comp-hero { position: relative; display: flex; justify-content: center; align-items: center; width: 60px; height: 60px; }
+    .comp-inner { position: absolute; font-size: 0.5rem; font-weight: 800; color: var(--text-muted); text-align: center; line-height: 1.1; }
+    .insight-strip { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; margin-bottom: 6px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+    .insight-badge { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 700; justify-content: center; }
+    .gas-list { display: flex; flex-direction: column; gap: 6px; justify-content: center; flex-grow: 1; }
+    .gas-item { width: 100%; }
+    .gas-label-row { display: flex; justify-content: space-between; font-size: 0.7rem; margin-bottom: 2px; font-weight: 600; }
+    .gas-track { width: 100%; height: 4px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+    .gas-fill { height: 100%; border-radius: 4px; }
+
+    /* --- RIGHT PANEL: Trend Chart --- */
+    .trend-controls-header { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+    .gas-toggles { display: flex; gap: 4px; background: #f1f5f9; padding: 3px; border-radius: 4px; }
+    .gas-btn { padding: 3px 10px; font-size: 0.7rem; font-weight: 700; color: var(--text-muted); background: transparent; border: none; border-radius: 3px; cursor: pointer; transition: 0.2s; }
+    .gas-btn.active { background: var(--surface); color: var(--primary); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+    .trend-kpi-row { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.75rem; color: var(--text-muted); background: #f8fafc; padding: 6px 10px; border-radius: 4px; margin-bottom: 8px; border: 1px solid var(--border); align-items: center; }
+    .kpi-divider { width: 1px; height: 12px; background: var(--border); }
+    .chart-container { position: relative; flex-grow: 1; min-height: 220px; width: 100%; display: flex; flex-direction: column; }
+    .line-chart-wrapper { flex-grow: 1; position: relative; }
+    .heatmap-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; flex-grow: 1; padding: 4px 0; }
+    .heatmap-col { display: flex; flex-direction: column; gap: 4px; }
+    .heatmap-lbl { font-size: 0.6rem; text-align: center; color: var(--text-muted); font-weight: 700; margin-bottom: 2px; }
+    .heatmap-cell { flex-grow: 1; border-radius: 2px; transition: 0.2s; position: relative; min-height: 20px; }
+    .heatmap-cell:hover { opacity: 0.8; transform: scale(1.05); z-index: 2; box-shadow: 0 2px 4px rgba(0,0,0,0.15); cursor: pointer; }
+    .hm-g { background-color: var(--good); }
+    .hm-m { background-color: var(--moderate); }
+    .hm-u { background-color: var(--unhealthy-sens); }
+    .hm-uu { background-color: var(--unhealthy); }
+    .hm-h { background-color: var(--hazardous); }
+
+    /* =========================================================
+       NEW CANALYTICS BOTTOM ROW STYLES
+       ========================================================= */
+
+    .bottom-row .card { padding: 6px 8px; }
+    .bottom-row .card-header { margin-bottom: 4px; }
+    .bottom-row .card-title { font-size: 0.65rem; }
+
+    /* Node Map & Drilldown Refinements */
+    .canalytics-node-map-grid { display: grid; grid-template-columns: 1fr 2.2fr; gap: 6px; flex-grow: 1; }
+    
+    .node-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(45px, 1fr)); gap: 4px; align-content: start; }
+    .node-tile { color: white; padding: 4px 2px; border-radius: 4px; text-align: center; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); opacity: 0.6; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .node-tile:hover { transform: translateY(-1px); opacity: 0.9; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+    .node-tile.active { opacity: 1; box-shadow: 0 0 0 1px var(--surface), 0 0 0 2px var(--text-main); transform: scale(1.02); z-index: 1; }
+    
+    .canalytics-nt-status { position: absolute; top: 2px; right: 2px; width: 4px; height: 4px; border-radius: 50%; background: #fff; box-shadow: 0 0 2px rgba(0,0,0,0.3); }
+    .canalytics-nt-status.offline { background: var(--unhealthy); opacity: 0.8; }
+    .canalytics-nt-trend { position: absolute; bottom: 2px; right: 2px; font-size: 0.45rem; opacity: 0.8; }
+    
+    .nt-title { font-size: 0.55rem; font-weight: 700; opacity: 0.9; margin-bottom: 1px; }
+    .nt-val { font-size: 0.85rem; font-weight: 800; line-height: 1; }
+
+    /* Enhanced Drilldown Focus Panel */
+    .node-drilldown { background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%); border-radius: 6px; border: 1px solid var(--border); padding: 6px 8px; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+    .canalytics-dd-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+    .canalytics-dd-title-wrap { display: flex; flex-direction: column; gap: 1px; }
+    .canalytics-dd-subtitle { font-size: 0.55rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    #dd-title { font-size: 0.85rem !important; }
+    
+    .canalytics-status-pill { font-size: 0.55rem; padding: 2px 4px; border-radius: 6px; font-weight: 700; display: inline-flex; align-items: center; gap: 3px; }
+    .canalytics-status-pill.online { background: #dcfce7; color: #166534; }
+    .canalytics-status-pill.warning { background: #fef3c7; color: #92400e; }
+
+    .drilldown-kpi { background: white; padding: 4px; border-radius: 4px; border: 1px solid var(--border); text-align: left; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+    .canalytics-kpi-label { font-size: 0.55rem; color: var(--text-muted); font-weight: 700; margin-bottom: 1px; text-transform: uppercase; }
+    .canalytics-kpi-val { font-weight: 800; font-size: 0.85rem; color: var(--text-main); }
+    
+    /* Stacked Right Panel Layout */
+    .canalytics-stacked-panel { display: flex; flex-direction: column; gap: 6px; height: 100%; }
+    
+    /* Risk Distribution Upgrade */
+    .canalytics-risk-wrapper { padding: 0; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }
+    .canalytics-risk-bar { display: flex; width: 100%; height: 8px; border-radius: 3px; overflow: hidden; margin-bottom: 4px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1); }
+    .canalytics-risk-segment { display: flex; align-items: center; justify-content: center; color: transparent; font-size: 0px; font-weight: 800; transition: width 0.5s ease; position: relative; }
+    .canalytics-risk-segment:hover { filter: brightness(1.1); cursor: crosshair; }
+    
+    .canalytics-risk-legend { display: flex; justify-content: space-between; gap: 4px; }
+    .canalytics-legend-item { display: flex; flex-direction: column; align-items: flex-start; }
+    .canalytics-legend-dot { width: 6px; height: 6px; border-radius: 2px; display: inline-block; margin-right: 3px; }
+    .canalytics-legend-title { font-size: 0.55rem; color: var(--text-muted); font-weight: 700; display: flex; align-items: center; margin-bottom: 1px; }
+    .canalytics-legend-val { font-size: 0.65rem; font-weight: 800; color: var(--text-main); }
+
+    /* System Health Upgrade (Replaces old Data Integrity) */
+    .canalytics-health-list { display: flex; flex-direction: column; gap: 4px; flex-grow: 1; justify-content: center; }
+    .canalytics-health-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px; background: #f8fafc; border-radius: 4px; border: 1px solid var(--border); transition: background 0.2s; }
+    .canalytics-health-item:hover { background: #f1f5f9; }
+    .canalytics-health-icon { width: 18px; height: 18px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; margin-right: 6px; flex-shrink: 0; }
+    .canalytics-health-info { flex-grow: 1; display: flex; flex-direction: column; }
+    .canalytics-health-label { font-size: 0.55rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+    .canalytics-health-value { font-size: 0.7rem; font-weight: 800; color: var(--text-main); }
+    .canalytics-health-urgent { color: var(--unhealthy); background: #fee2e2; border-color: #fecaca; animation: pulse-border 2s infinite; }
+    
+    @keyframes pulse-border {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+      70% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+
+
+    /* --- ALERTS TRAY (Slide-out Drawer) --- */
+    .alert-fab { position: relative; margin-left: 12px; }
+    .alert-badge { position: absolute; top: -6px; right: -6px; background: var(--unhealthy); color: white; font-size: 0.55rem; padding: 2px 5px; border-radius: 10px; font-weight: 800; border: 2px solid var(--surface); }
+    
+    .alert-drawer-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.4); z-index: 199; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; backdrop-filter: blur(2px); }
+    .alert-drawer-overlay.open { opacity: 1; pointer-events: auto; }
+    
+    .alert-drawer { position: fixed; top: 0; right: -360px; width: 360px; height: 100vh; background: var(--surface); box-shadow: -4px 0 20px rgba(0,0,0,0.15); z-index: 200; transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; }
+    .alert-drawer.open { right: 0; }
+    
+    .drawer-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: #f8fafc; }
+    .drawer-content { padding: 16px 20px; overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 12px; }
+    
+    .alert-card { border: 1px solid var(--border); border-left: 3px solid var(--unhealthy); border-radius: 6px; padding: 12px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+    .alert-card.warning { border-left-color: var(--moderate); }
+    .alert-time { font-size: 0.65rem; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; display: block; }
+    .alert-desc { font-size: 0.8rem; font-weight: 500; margin-bottom: 8px; color: var(--text-main); }
+
+    /* --- AI MODAL STYLES --- */
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.6); display: none; justify-content: center; align-items: center; z-index: 1000; opacity: 0; transition: opacity 0.3s ease; backdrop-filter: blur(2px); }
+    .modal-overlay.active { display: flex; opacity: 1; }
+    .modal-card { background: var(--surface); width: 90%; max-width: 500px; border-radius: 8px; padding: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); position: relative; transform: translateY(20px); transition: transform 0.3s ease; }
+    .modal-overlay.active .modal-card { transform: translateY(0); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+    .modal-title { font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .modal-close { background: none; border: none; font-size: 1.1rem; cursor: pointer; color: var(--text-muted); }
+    .ai-content-box { font-size: 0.85rem; line-height: 1.5; color: var(--text-main); }
+    .ai-content-box h3 { margin: 12px 0 6px; font-size: 0.9rem; color: var(--primary); }
+    .ai-content-box ul { margin-left: 16px; margin-bottom: 10px; }
+    .btn-ai { background: linear-gradient(135deg, #6366f1, #a855f7); color: white; border: none; }
+    .btn-ai:hover { opacity: 0.9; }
+  </style>
+
+    <!-- COMPACT FILTER BAR -->
+    <div class="filter-bar">
+      <span style="font-weight: 700; font-size: 0.7rem; color: var(--text-muted);"><i class="fas fa-filter"></i> VIEW:</span>
+      <select class="filter-control" id="nodeFilter"><option value="all">All Nodes Group</option></select>
+      
+      <div class="range-pills" id="timeframeButtons">
+        <div class="range-pill" onclick="setTimeframe('24h', this)">24H</div>
+        <div class="range-pill active" onclick="setTimeframe('7d', this)">7D</div>
+        <div class="range-pill" onclick="setTimeframe('30d', this)">30D</div>
+        <div class="range-pill" onclick="toggleCustomDate(true, this)">Custom</div>
+      </div>
+
+      <div id="customDateGroup" style="display: none; align-items: center; gap: 4px;">
+        <input type="date" class="filter-control" value="2026-04-09"> 
+        <span style="color:var(--text-muted); font-size: 0.75rem;">to</span> 
+        <input type="date" class="filter-control" value="2026-04-16">
+      </div>
+      
+      <select class="filter-control"><option>Daily Interval</option><option>Hourly</option></select>
+      
+      <div style="margin-left: auto; display: flex; gap: 8px;">
+        <button class="btn"><i class="fas fa-sync"></i> Reset</button>
+        <button class="btn btn-primary"><i class="fas fa-download"></i> Export PDF</button>
+      </div>
+    </div>
+
+    <!-- ROW 1: CORE ANALYTICS -->
+    <div class="top-row">
+
+      <!-- LEFT: Environmental State -->
+      <div class="card aqi-panel">
+        <div class="card-header">
+          <span class="card-title">Current Air Quality</span>
+          <i class="fas fa-circle-info" style="color:var(--text-muted); font-size:0.75rem;" title="Aggregated from 3 active nodes"></i>
+        </div>
+
+        <div style="display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 4px;">
+          <div class="aqi-hero">
+            <canvas id="aqiDonutChart" width="110" height="110"></canvas>
+            <div class="aqi-circle-inner">
+              <span class="aqi-value">96</span>
+              <span class="aqi-badge">Moderate</span>
+            </div>
+          </div>
+          <div class="comp-hero">
+            <canvas id="compDonutChart" width="60" height="60"></canvas>
+            <div class="comp-inner">COMP</div>
+          </div>
+        </div>
+
+        <div class="insight-strip">
+          <div class="insight-badge" style="background:#fee2e2; color:#991b1b;">
+            <i class="fas fa-exclamation-triangle"></i> Dominant: PM2.5 (55%)
+          </div>
+          <div class="insight-badge" style="background:#fef3c7; color:#92400e;">
+            <i class="fas fa-temperature-arrow-up"></i> Factor: Temp Stress
+          </div>
+        </div>
+
+        <div class="gas-list">
+          <div class="gas-item" data-pollutant="pm25">
+            <div class="gas-label-row"><span>PM2.5</span><span class="value">—</span></div>
+            <div class="gas-track"><div class="gas-fill" style="width:0%;"></div></div>
+          </div>
+          <div class="gas-item" data-pollutant="pm10">
+            <div class="gas-label-row"><span>PM10</span><span class="value">—</span></div>
+            <div class="gas-track"><div class="gas-fill" style="width:0%;"></div></div>
+          </div>
+          <div class="gas-item" data-pollutant="tvoc">
+            <div class="gas-label-row"><span>TVOC</span><span class="value">—</span></div>
+            <div class="gas-track"><div class="gas-fill" style="width:0%;"></div></div>
+          </div>
+          <div class="gas-item" data-pollutant="temp">
+            <div class="gas-label-row"><span>Temp</span><span class="value">—</span></div>
+            <div class="gas-track"><div class="gas-fill" style="width:0%;"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Trend Analysis -->
+      <div class="card trend-panel">
+        <div class="card-header">
+          <div class="trend-controls-header">
+            <span class="card-title" style="margin-right: 12px;"><i class="fas fa-chart-area"></i> Historical Trend</span>
+            <div class="gas-toggles">
+              <button class="gas-btn active" id="btnLineView" onclick="toggleTrendView('line', this)"><i class="fas fa-chart-line"></i> Line</button>
+              <button class="gas-btn" id="btnHeatmapView" onclick="toggleTrendView('heatmap', this)"><i class="fas fa-th"></i> Heat</button>
+            </div>
+            <div class="gas-toggles">
+              <button class="gas-btn active" onclick="updateTrendChart('aqi', this)">AQI</button>
+              <button class="gas-btn" onclick="updateTrendChart('pm25', this)">PM2.5</button>
+              <button class="gas-btn" onclick="updateTrendChart('pm10', this)">PM10</button>
+              <button class="gas-btn" onclick="updateTrendChart('temp', this)">Temp</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="trend-kpi-row">
+          <span style="font-weight: 700; color: var(--text-main);"><i class="fas fa-calendar-alt"></i> Apr 09 – 16</span>
+          <div class="kpi-divider"></div>
+          <span>Avg: <strong style="color: var(--text-main);">92</strong></span>
+          <div class="kpi-divider"></div>
+          <span>Peak: <strong style="color: var(--unhealthy);">184</strong> <i class="fas fa-arrow-trend-up" style="color:var(--unhealthy);"></i></span>
+          <div class="kpi-divider"></div>
+          <span>Freshness: <strong style="color: var(--good);"><i class="fas fa-circle" style="font-size:0.4rem; vertical-align: middle;"></i> Live</strong></span>
+          <div class="kpi-divider"></div>
+          <span>Sampling: <strong>10s</strong></span>
+          
+          <button class="btn btn-ai" style="margin-left: auto; padding: 2px 8px; font-size: 0.7rem;" onclick="openAIModal('trend_insight')">
+            <i class="fas fa-sparkles"></i> AI Insights
+          </button>
+        </div>
+
+        <div class="chart-container">
+          <div id="lineChartWrapper" class="line-chart-wrapper">
+            <canvas id="dateTrendChart"></canvas>
+          </div>
+          <div id="heatmapWrapper" class="heatmap-grid" style="display: none;">
+            <div class="heatmap-col"><div class="heatmap-lbl">Apr 09</div><div class="heatmap-cell hm-g" title="Low"></div><div class="heatmap-cell hm-m" title="Elevated"></div><div class="heatmap-cell hm-g" title="Low"></div></div>
+            <div class="heatmap-col"><div class="heatmap-lbl">Apr 10</div><div class="heatmap-cell hm-g" title="Low"></div><div class="heatmap-cell hm-m" title="Elevated"></div><div class="heatmap-cell hm-m" title="Elevated"></div></div>
+            <div class="heatmap-col"><div class="heatmap-lbl">Apr 11</div><div class="heatmap-cell hm-m" title="Elevated"></div><div class="heatmap-cell hm-u" title="Spike"></div><div class="heatmap-cell hm-m" title="Elevated"></div></div>
+            <div class="heatmap-col"><div class="heatmap-lbl">Apr 12</div><div class="heatmap-cell hm-u" title="Spike"></div><div class="heatmap-cell hm-uu" title="High Spike"></div><div class="heatmap-cell hm-u" title="Spike"></div></div>
+            <div class="heatmap-col"><div class="heatmap-lbl">Apr 13</div><div class="heatmap-cell hm-m" title="Elevated"></div><div class="heatmap-cell hm-m" title="Elevated"></div><div class="heatmap-cell hm-g" title="Low"></div></div>
+            <div class="heatmap-col"><div class="heatmap-lbl">Apr 14</div><div class="heatmap-cell hm-g" title="Low"></div><div class="heatmap-cell hm-m" title="Elevated"></div><div class="heatmap-cell hm-g" title="Low"></div></div>
+            <div class="heatmap-col"><div class="heatmap-lbl">Apr 15</div><div class="heatmap-cell hm-g" title="Low"></div><div class="heatmap-cell hm-g" title="Low"></div><div class="heatmap-cell hm-g" title="Low"></div></div>
+            <div class="heatmap-col"><div class="heatmap-lbl">Apr 16</div><div class="heatmap-cell hm-g" title="Low"></div><div class="heatmap-cell hm-m" title="Elevated"></div><div class="heatmap-cell hm-g" title="Low"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROW 2: UPGRADED BOTTOM ROW (NODE INTELLIGENCE + STACKED INSIGHTS) -->
+    <div class="bottom-row">
+
+      <!-- LEFT: Node Intelligence Panel -->
+      <div class="card node-map-panel">
+        <div class="card-header">
+          <span class="card-title"><i class="fas fa-map-location-dot"></i> Node Intelligence</span>
+          <span style="font-size: 0.65rem; color: var(--text-muted);">Hover to preview, Click to lock</span>
+        </div>
+        
+        <div class="canalytics-node-map-grid">
+          <!-- Interactive Node Tiles -->
+          <div class="node-tiles">
+            <div class="node-tile active" id="tile-n1" style="background: var(--good);" 
+                 onmouseenter="previewNode('n1')" onmouseleave="clearPreview()" onclick="lockNode('n1')">
+              <div class="canalytics-nt-status"></div>
+              <div class="nt-title">N1</div>
+              <div class="nt-val">79</div>
+              <i class="fas fa-arrow-down canalytics-nt-trend"></i>
+            </div>
+            
+            <div class="node-tile" id="tile-n1og" style="background: var(--unhealthy-sens);" 
+                 onmouseenter="previewNode('n1og')" onmouseleave="clearPreview()" onclick="lockNode('n1og')">
+              <div class="canalytics-nt-status"></div>
+              <div class="nt-title">N1-OG</div>
+              <div class="nt-val">165</div>
+              <i class="fas fa-arrow-up canalytics-nt-trend"></i>
+            </div>
+            
+            <div class="node-tile" id="tile-n2" style="background: var(--moderate);" 
+                 onmouseenter="previewNode('n2')" onmouseleave="clearPreview()" onclick="lockNode('n2')">
+              <div class="canalytics-nt-status"></div>
+              <div class="nt-title">N2</div>
+              <div class="nt-val">88</div>
+              <i class="fas fa-minus canalytics-nt-trend"></i>
+            </div>
+            
+            <div class="node-tile" style="background: #cbd5e1; border: 1px dashed #94a3b8; opacity:0.5; color: #475569;">
+              <div class="canalytics-nt-status offline"></div>
+              <div class="nt-title">N3</div>
+              <div class="nt-val" style="font-size: 0.7rem; margin-top:4px;">OFFLINE</div>
+            </div>
+          </div>
+
+          <!-- Deep Focus Drilldown Panel -->
+          <div class="node-drilldown">
+            <div class="canalytics-dd-header">
+              <div class="canalytics-dd-title-wrap">
+                <span class="canalytics-dd-subtitle" id="dd-region">Focus Node</span>
+                <h4 id="dd-title" style="margin:0; font-size: 1.1rem; color: var(--text-main); font-weight: 800;">Node 1 (Home)</h4>
+              </div>
+              <span id="dd-status" class="canalytics-status-pill online"><i class="fas fa-wifi"></i> Online</span>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 6px;">
+              <div class="drilldown-kpi">
+                <div class="canalytics-kpi-label">PM2.5</div>
+                <div id="dd-pm25" class="canalytics-kpi-val">28 <span style="font-size:0.55rem; font-weight:500; color:var(--text-muted);">µg/m³</span></div>
+              </div>
+              <div class="drilldown-kpi">
+                <div class="canalytics-kpi-label">PM10</div>
+                <div id="dd-pm10" class="canalytics-kpi-val">40 <span style="font-size:0.55rem; font-weight:500; color:var(--text-muted);">µg/m³</span></div>
+              </div>
+              <div class="drilldown-kpi" style="border-left: 2px solid var(--moderate);">
+                <div class="canalytics-kpi-label">24h Peak</div>
+                <div id="dd-peak" class="canalytics-kpi-val" style="color: var(--moderate);">115 <span style="font-size:0.55rem; font-weight:500; color:var(--text-muted);">AQI</span></div>
+              </div>
+            </div>
+            
+            <div style="flex-grow: 1; position: relative; min-height: 25px;">
+              <!-- Mini chart will be populated here -->
+              <canvas id="nodeSparkline"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Stacked Insights Panel -->
+      <div class="canalytics-stacked-panel">
+        
+        <!-- Risk Distribution -->
+        <div class="card" style="flex: 1;">
+          <div class="card-header"><span class="card-title"><i class="fas fa-layer-group"></i> Risk Distribution</span></div>
+          <div class="canalytics-risk-wrapper">
+            <div class="canalytics-risk-bar">
+              <div class="canalytics-risk-segment" style="width: 60%; background: var(--good);" title="Stable: 60%"></div>
+              <div class="canalytics-risk-segment" style="width: 25%; background: var(--moderate);" title="Elevated: 25%"></div>
+              <div class="canalytics-risk-segment" style="width: 15%; background: var(--unhealthy);" title="Critical: 15%"></div>
+            </div>
+            <div class="canalytics-risk-legend">
+              <div class="canalytics-legend-item">
+                <span class="canalytics-legend-title"><span class="canalytics-legend-dot" style="background:var(--good);"></span> Stable</span>
+                <span class="canalytics-legend-val">0-50 AQI</span>
+              </div>
+              <div class="canalytics-legend-item">
+                <span class="canalytics-legend-title"><span class="canalytics-legend-dot" style="background:var(--moderate);"></span> Elevated</span>
+                <span class="canalytics-legend-val">51-100 AQI</span>
+              </div>
+              <div class="canalytics-legend-item">
+                <span class="canalytics-legend-title"><span class="canalytics-legend-dot" style="background:var(--unhealthy);"></span> Critical</span>
+                <span class="canalytics-legend-val">100+ AQI</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- System Health (Formerly Data Integrity) -->
+        <div class="card" style="flex: 1.2;">
+          <div class="card-header"><span class="card-title"><i class="fas fa-heart-pulse"></i> System Health</span></div>
+          <div class="canalytics-health-list">
+            
+            <div class="canalytics-health-item">
+              <div style="display:flex; align-items:center;">
+                <div class="canalytics-health-icon" style="background: #dcfce7; color: #166534;"><i class="fas fa-shield-check"></i></div>
+                <div class="canalytics-health-info">
+                  <span class="canalytics-health-label">Reliability / Uptime</span>
+                  <span class="canalytics-health-value">99.8%</span>
+                </div>
+              </div>
+              <span style="font-size:0.6rem; color:var(--good); font-weight:700;">Healthy</span>
+            </div>
+
+            <div class="canalytics-health-item">
+              <div style="display:flex; align-items:center;">
+                <div class="canalytics-health-icon" style="background: #e0e7ff; color: #3730a3;"><i class="fas fa-bolt"></i></div>
+                <div class="canalytics-health-info">
+                  <span class="canalytics-health-label">Performance / Latency</span>
+                  <span class="canalytics-health-value">1.2s avg</span>
+                </div>
+              </div>
+              <span style="font-size:0.6rem; color:var(--text-muted); font-weight:700;">Optimal</span>
+            </div>
+
+            <div class="canalytics-health-item canalytics-health-urgent">
+              <div style="display:flex; align-items:center;">
+                <div class="canalytics-health-icon" style="background: #fecaca; color: #991b1b;"><i class="fas fa-triangle-exclamation"></i></div>
+                <div class="canalytics-health-info">
+                  <span class="canalytics-health-label">Data Quality / Anomalies</span>
+                  <span class="canalytics-health-value">2 Spikes Detected</span>
+                </div>
+              </div>
+              <button class="btn" style="background:white; color:var(--unhealthy); border-color:#fca5a5; padding: 1px 4px; font-size: 0.55rem;">Review</button>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </div> 
+
+
+<!-- Chart.js library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<!-- Set Chart.js defaults -->
+<script>
+  Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+  Chart.defaults.color = "#64748b";
+</script>
+
+<!-- Load dynamic analytics module -->
+<script src="{% static 'AppEnviroNode/js/enviro-analytics.js' %}"></script>
+{% endblock %}

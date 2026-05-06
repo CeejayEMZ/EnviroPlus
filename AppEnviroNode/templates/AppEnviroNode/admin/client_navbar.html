@@ -1,0 +1,739 @@
+{% load static %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<header class="topbar">
+  <!-- Brand Section -->
+  <div class="topbar-brand">
+    <img src="{% static 'AppEnviroNode/images/logo.png' %}" alt="EnviroNode Logo" class="topbar-logo" />
+    <div class="topbar-brand-text">
+      <div class="topbar-title">EnviroNode</div>
+      <div class="topbar-subtitle">Pembo, Taguig Air Quality Monitoring</div>
+    </div>
+  </div>
+
+  <!-- Right-side Controls Section -->
+  <div class="topbar-controls" style="position: relative;">
+    <!-- System Status -->
+    <div class="topbar-status">
+      <span class="status-dot"></span>
+      <span class="status-text">System Online</span>
+    </div>
+
+    <!-- Divider -->
+    <div class="topbar-divider"></div>
+
+    <!-- Alert Bell Icon (Global) -->
+    <button type="button" id="alertBell" class="alert-bell" title="View Alerts" aria-label="Alerts">
+      <i class="fa-solid fa-bell"></i>
+      <span id="alertBadge" class="alert-badge" style="display:none;">0</span>
+    </button>
+
+    <div id="alertDropdown" class="alert-dropdown" aria-label="Notification dropdown" aria-hidden="true">
+      <div class="alert-dropdown-header">
+        <div class="alert-dropdown-title">Notifications</div>
+        <div class="alert-dropdown-actions">
+          <button type="button" id="notificationRefreshButton" class="alert-dropdown-icon" title="Refresh notifications">
+            <i class="fa-solid fa-arrows-rotate"></i>
+          </button>
+          <div class="filter-wrapper" style="position: relative; display: inline-block;">
+            <button type="button" id="notificationFilterToggle" class="alert-dropdown-icon" title="Filter notifications">
+              <i class="fa-solid fa-filter"></i>
+            </button>
+            <div id="notificationFilterMenu" class="alert-filter-menu" style="display: none;">
+              <button type="button" class="alert-filter-option active" data-filter="all">All Notifications</button>
+              <button type="button" class="alert-filter-option" data-filter="admin">Admin Alerts</button>
+              <button type="button" class="alert-filter-option" data-filter="hardware">Hardware Alerts</button>
+              <button type="button" class="alert-filter-option" data-filter="software">Software Alerts</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="alertDropdownContent" class="alert-dropdown-content">
+        <div class="alert-dropdown-empty">Loading notifications...</div>
+      </div>
+    </div>
+
+    <!-- Divider -->
+    <div class="topbar-divider"></div>
+
+    <!-- User Profile Section -->
+    <div class="topbar-user">
+      <div class="user-info">
+        <div class="user-name">{{ user.get_full_name|default:user.username }}</div>
+        <div class="user-org">{{ user.organization|default:"Administrator" }}</div>
+      </div>
+      
+      <div class="user-avatar">
+        {{ user.first_name|first|default:user.username|first|upper }}
+      </div>
+
+      <!-- Logout Button -->
+      <form method="post" action="{% url 'app:logout' %}" class="logout-form">
+        {% csrf_token %}
+        <button type="submit" class="logout-btn" title="Logout" aria-label="Logout">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <style>
+    /* Alert Bell Severity States */
+    .alert-bell {
+      position: relative;
+      background: transparent;
+      border: none;
+      font-size: 1.25rem;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 50%;
+      transition: all 0.2s ease;
+      color: #64748b;
+    }
+    
+    .alert-bell:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    
+    .alert-bell.alert-info {
+      color: #3b82f6;
+    }
+    
+    .alert-bell.alert-warning {
+      color: #f59e0b;
+      animation: subtlePulse 2s infinite;
+    }
+    
+    .alert-bell.alert-critical {
+      color: #ef4444;
+      animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+    }
+    
+    @keyframes subtlePulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    
+    /* Alert Badge */
+    .alert-badge {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      background: #ef4444;
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 700;
+      min-width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .alert-dropdown {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: auto;
+      max-width: min(380px, calc(100vw - 24px));
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      border-radius: 16px;
+      box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+      display: none;
+      z-index: 9999;
+      overflow: hidden;
+      min-width: 340px;
+    }
+
+    .alert-dropdown.open {
+      display: block;
+    }
+
+    .alert-dropdown-content {
+      max-height: 400px;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .alert-dropdown-content::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .alert-dropdown-content::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+
+    .alert-dropdown-content::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+
+    .alert-dropdown-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 16px;
+      border-bottom: 1px solid #e5e7eb;
+      background: #f8fafc;
+    }
+
+    .alert-dropdown-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .alert-dropdown-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .alert-dropdown-icon {
+      border: none;
+      background: none;
+      color: #475569;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      transition: all 0.2s ease;
+    }
+
+    .alert-dropdown-icon:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+
+    .alert-filter-menu {
+      position: fixed;
+      width: 210px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+      padding: 8px 0;
+      z-index: 10001;
+    }
+
+    .alert-filter-option {
+      width: 100%;
+      border: none;
+      background: none;
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 0.92rem;
+      color: #334155;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .alert-filter-option:hover {
+      background: #eef2ff;
+      color: #1e3a8a;
+    }
+
+    .alert-filter-option.active {
+      background: #eef2ff;
+      color: #1e3a8a;
+      font-weight: 600;
+    }
+
+    .notification-item {
+      width: 100%;
+      text-align: left;
+      border: none;
+      background: #ffffff;
+      cursor: pointer;
+      display: block;
+      padding: 16px;
+      border-bottom: 1px solid #e5e7eb;
+      transition: background 0.2s ease;
+    }
+
+    .notification-item:hover {
+      background: #f8fafc;
+    }
+
+    .notification-unread {
+      background: #eef6ff;
+      border-left: 3px solid #3b82f6;
+    }
+
+    .notification-unread .notification-title {
+      font-weight: 700;
+      color: #1e40af;
+    }
+
+    .notification-read .notification-title {
+      font-weight: 600;
+      color: #334155;
+    }
+    
+    .notification-description {
+      font-size: 0.86rem;
+      color: #475569;
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+
+    .notification-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      font-size: 0.75rem;
+      color: #64748b;
+    }
+
+    .notification-category {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #475569;
+      white-space: nowrap;
+    }
+
+    .notification-category.admin {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .notification-category.hardware {
+      background: #fed7aa;
+      color: #9a3412;
+    }
+
+    .notification-category.software {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .alert-dropdown-empty {
+      padding: 32px 20px;
+      color: #64748b;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    .notification-timestamp {
+      font-size: 0.7rem;
+      color: #94a3b8;
+    }
+  </style>
+</header>
+
+<nav class="menubar">
+  <div class="menubar-group">
+    <a href="{% url 'app:client_dashboard' %}" class="menubar-link {% if 'dashboard/dashboard' in request.path %}active{% endif %}">Dashboard</a>
+    <a href="{% url 'app:client_realtime' %}" class="menubar-link {% if 'dashboard/realtime' in request.path %}active{% endif %}">Real-Time</a>
+    <a href="{% url 'app:client_map' %}" class="menubar-link {% if 'dashboard/map' in request.path %}active{% endif %}">Map View</a>
+  </div>
+  <div class="menubar-group">
+    <a href="{% url 'app:client_analytics' %}" class="menubar-link {% if 'dashboard/analytics' in request.path %}active{% endif %}">Analytics</a>
+    <a href="{% url 'app:client_reports' %}" class="menubar-link {% if 'dashboard/reports' in request.path %}active{% endif %}">Reports</a>
+    <a href="{% url 'app:client_ai' %}" class="menubar-link {% if 'dashboard/ai' in request.path %}active{% endif %}">AI Insights</a>
+  </div>
+  <div class="menubar-group">
+    <a href="{% url 'app:client_devices' %}" class="menubar-link {% if 'dashboard/devices' in request.path %}active{% endif %}">Devices</a>
+    <a href="{% url 'app:client_users' %}" class="menubar-link {% if 'dashboard/users' in request.path %}active{% endif %}">Users</a>
+  </div>
+</nav>
+
+<script>
+// Complete Notification System - Shows notifications IMMEDIATELY when bell is clicked
+(function() {
+  'use strict';
+
+  // State
+  let unreadCount = 0;
+  let allNotifications = [];
+  let currentFilter = 'all';
+  let pollingInterval = null;
+  let isLoading = false;
+
+  // DOM Elements
+  const bell = document.getElementById('alertBell');
+  const badge = document.getElementById('alertBadge');
+  const dropdown = document.getElementById('alertDropdown');
+  const dropdownContent = document.getElementById('alertDropdownContent');
+  const refreshBtn = document.getElementById('notificationRefreshButton');
+  const filterToggle = document.getElementById('notificationFilterToggle');
+  const filterMenu = document.getElementById('notificationFilterMenu');
+
+  // Helper Functions
+  function getTimeAgo(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString();
+  }
+
+  function getCategoryClass(category) {
+    const classes = { 'admin': 'admin', 'hardware': 'hardware', 'software': 'software' };
+    return classes[category] || '';
+  }
+
+  function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function updateBellSeverity() {
+    if (!bell) return;
+    
+    let severity = 'none';
+    if (unreadCount > 0) {
+      if (unreadCount >= 5) severity = 'critical';
+      else if (unreadCount >= 2) severity = 'warning';
+      else severity = 'info';
+    }
+    
+    bell.classList.remove('alert-none', 'alert-info', 'alert-warning', 'alert-critical');
+    if (severity !== 'none') {
+      bell.classList.add(`alert-${severity}`);
+    }
+  }
+
+  function updateBadge() {
+    if (badge) {
+      if (unreadCount > 0) {
+        badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+        badge.style.display = 'flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+    updateBellSeverity();
+  }
+
+  // Core Functions
+  async function fetchUnreadCount() {
+    try {
+      const response = await fetch('/api/notifications/unread/');
+      if (!response.ok) throw new Error('Failed');
+      const data = await response.json();
+      unreadCount = data.unread_count || 0;
+      updateBadge();
+    } catch (error) {
+      console.warn('[Notify] Unread count error:', error);
+    }
+  }
+
+  async function fetchAllNotifications() {
+    if (isLoading) return;
+    isLoading = true;
+    
+    if (dropdownContent) {
+      dropdownContent.innerHTML = '<div class="alert-dropdown-empty">Loading notifications...</div>';
+    }
+    
+    try {
+      const response = await fetch('/api/notifications/list/');
+      if (!response.ok) throw new Error('Failed to fetch');
+      const data = await response.json();
+      allNotifications = data.notifications || [];
+      renderNotifications();
+    } catch (error) {
+      console.error('[Notify] Fetch error:', error);
+      if (dropdownContent) {
+        dropdownContent.innerHTML = '<div class="alert-dropdown-empty">Failed to load notifications. <button onclick="location.reload()" style="margin-top:8px; padding:4px 12px; background:#e2e8f0; border:none; border-radius:4px; cursor:pointer;">Retry</button></div>';
+      }
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  function renderNotifications() {
+    if (!dropdownContent) return;
+    
+    // Apply filter
+    let filtered = allNotifications;
+    if (currentFilter !== 'all') {
+      filtered = allNotifications.filter(n => n.category === currentFilter);
+    }
+    
+    if (!filtered.length) {
+      const message = currentFilter === 'all' 
+        ? 'No notifications available' 
+        : `No ${currentFilter} notifications available`;
+      dropdownContent.innerHTML = `<div class="alert-dropdown-empty">${message}</div>`;
+      return;
+    }
+    
+    // Build HTML
+    dropdownContent.innerHTML = filtered.map(notification => {
+      const isUnread = !notification.read;
+      const categoryClass = getCategoryClass(notification.category);
+      const timeAgo = getTimeAgo(notification.created_at);
+      
+      return `
+        <button class="notification-item ${isUnread ? 'notification-unread' : 'notification-read'}" 
+                data-id="${notification.id}" 
+                data-read="${!isUnread}"
+                onclick="window.markNotificationRead(${notification.id})">
+          <div class="notification-title">${escapeHtml(notification.title)}</div>
+          <div class="notification-description">${escapeHtml(notification.description)}</div>
+          <div class="notification-meta">
+            <span class="notification-timestamp">${timeAgo}</span>
+            <span class="notification-category ${categoryClass}">${notification.category_display || notification.category}</span>
+          </div>
+        </button>
+      `;
+    }).join('');
+  }
+
+  async function markAsRead(notificationId) {
+    try {
+      const response = await fetch(`/api/notifications/${notificationId}/read/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin'
+      });
+      
+      if (response.ok) {
+        const notification = allNotifications.find(n => n.id === notificationId);
+        if (notification && !notification.read) {
+          notification.read = true;
+          unreadCount = Math.max(0, unreadCount - 1);
+          updateBadge();
+          
+          // Update the button's appearance
+          const btn = dropdownContent?.querySelector(`.notification-item[data-id="${notificationId}"]`);
+          if (btn) {
+            btn.classList.remove('notification-unread');
+            btn.classList.add('notification-read');
+            btn.setAttribute('data-read', 'true');
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[Notify] Mark read error:', error);
+    }
+  }
+
+  function setFilter(filter) {
+    currentFilter = filter;
+    
+    // Update active state on filter buttons
+    document.querySelectorAll('.alert-filter-option').forEach(btn => {
+      if (btn.dataset.filter === filter) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+    
+    renderNotifications();
+  }
+
+  // Position filter menu below the filter icon
+  function positionFilterMenu() {
+    if (!filterToggle || !filterMenu) return;
+    
+    const rect = filterToggle.getBoundingClientRect();
+    const dropdownRect = dropdown?.getBoundingClientRect();
+    
+    // Position relative to the filter toggle button
+    let left = rect.left;
+    let top = rect.bottom + 5;
+    
+    // Ensure it doesn't go off screen
+    const menuWidth = 210;
+    const viewportWidth = window.innerWidth;
+    
+    if (left + menuWidth > viewportWidth - 10) {
+      left = viewportWidth - menuWidth - 10;
+    }
+    
+    filterMenu.style.position = 'fixed';
+    filterMenu.style.left = left + 'px';
+    filterMenu.style.top = top + 'px';
+    filterMenu.style.width = menuWidth + 'px';
+  }
+
+  // Dropdown positioning
+  function positionDropdown() {
+    if (!bell || !dropdown) return;
+    
+    const rect = bell.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    const dropdownWidth = 360;
+    let left = rect.left + rect.width / 2 - dropdownWidth / 2;
+    left = Math.min(Math.max(12, left), viewportWidth - dropdownWidth - 12);
+    
+    let top = rect.bottom + 8;
+    const maxHeight = Math.min(450, viewportHeight - top - 20);
+    dropdown.style.maxHeight = maxHeight + 'px';
+    
+    if (top + maxHeight > viewportHeight - 20) {
+      top = rect.top - maxHeight - 8;
+    }
+    
+    dropdown.style.left = left + 'px';
+    dropdown.style.top = top + 'px';
+    dropdown.style.minWidth = dropdownWidth + 'px';
+  }
+
+  function closeDropdown() {
+    if (dropdown) {
+      dropdown.classList.remove('open');
+      dropdown.setAttribute('aria-hidden', 'true');
+    }
+    if (bell) bell.setAttribute('aria-expanded', 'false');
+  }
+
+  async function openDropdown() {
+    if (!dropdown) return;
+    
+    positionDropdown();
+    dropdown.classList.add('open');
+    dropdown.setAttribute('aria-hidden', 'false');
+    if (bell) bell.setAttribute('aria-expanded', 'true');
+    
+    // Fetch notifications IMMEDIATELY when opened
+    await fetchAllNotifications();
+  }
+
+  async function toggleDropdown(event) {
+    if (event) event.stopPropagation();
+    
+    if (dropdown && dropdown.classList.contains('open')) {
+      closeDropdown();
+    } else {
+      await openDropdown();
+    }
+  }
+
+  // Event Listeners Setup
+  function setupEventListeners() {
+    // Bell click
+    if (bell) {
+      bell.onclick = toggleDropdown;
+    }
+    
+    // Refresh button
+    if (refreshBtn) {
+      refreshBtn.onclick = async (e) => {
+        e.stopPropagation();
+        await fetchAllNotifications();
+      };
+    }
+    
+    // Filter menu - positioned below the filter icon
+    if (filterToggle && filterMenu) {
+      filterToggle.onclick = function(e) {
+        e.stopPropagation();
+        
+        // Toggle visibility
+        if (filterMenu.style.display === 'none' || filterMenu.style.display === '') {
+          positionFilterMenu();
+          filterMenu.style.display = 'block';
+        } else {
+          filterMenu.style.display = 'none';
+        }
+      };
+      
+      document.querySelectorAll('.alert-filter-option').forEach(btn => {
+        btn.onclick = function(e) {
+          e.stopPropagation();
+          setFilter(this.dataset.filter);
+          filterMenu.style.display = 'none';
+        };
+      });
+      
+      // Close filter menu when clicking outside
+      document.addEventListener('click', function(e) {
+        if (filterMenu.style.display === 'block' && 
+            !filterMenu.contains(e.target) && 
+            !filterToggle.contains(e.target)) {
+          filterMenu.style.display = 'none';
+        }
+      });
+      
+      // Reposition on scroll/resize
+      window.addEventListener('scroll', function() {
+        if (filterMenu.style.display === 'block') {
+          positionFilterMenu();
+        }
+      });
+      
+      window.addEventListener('resize', function() {
+        if (filterMenu.style.display === 'block') {
+          positionFilterMenu();
+        }
+      });
+    }
+    
+    // Close dropdown on outside click
+    document.addEventListener('click', function(e) {
+      if (dropdown?.classList.contains('open') && 
+          !dropdown.contains(e.target) && 
+          !bell?.contains(e.target)) {
+        closeDropdown();
+      }
+    });
+    
+    // Window resize/scroll for dropdown
+    window.addEventListener('resize', positionDropdown);
+    window.addEventListener('scroll', positionDropdown, true);
+  }
+
+  // Start polling for unread count
+  function startPolling() {
+    if (pollingInterval) clearInterval(pollingInterval);
+    pollingInterval = setInterval(fetchUnreadCount, 30000);
+  }
+
+  // Initialize
+  function init() {
+    fetchUnreadCount();
+    startPolling();
+    setupEventListeners();
+  }
+  
+  // Expose global functions
+  window.markNotificationRead = markAsRead;
+  window.toggleNotificationDropdown = toggleDropdown;
+  window.positionAlertDropdown = positionDropdown;
+  window.closeNotificationDropdown = closeDropdown;
+  
+  // Start when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>

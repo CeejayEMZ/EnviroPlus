@@ -1,0 +1,47 @@
+{% extends 'AppEnviroNode/index.html' %}
+
+{% block title %}Delete Node - Environode{% endblock %}
+
+{% block content %}
+  <div class="overlay">
+    <section class="section card-white" style="background: rgba(255, 255, 255, 0.95); border: 1px solid #d7dde4; padding: 24px; max-width: 500px; margin: 20px auto;">
+      
+      <h2 style="color: #d9534f; margin-bottom: 24px;">⚠ Delete Node</h2>
+
+      <div style="padding: 16px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; margin-bottom: 24px; color: #721c24;">
+        <strong>Are you sure you want to delete this node?</strong>
+        <p style="margin: 8px 0 0 0; font-size: 0.9rem;">This action cannot be undone. All associated sensor readings will remain in the database.</p>
+      </div>
+
+      <div style="background: #f9f9f9; padding: 16px; border-radius: 4px; margin-bottom: 24px;">
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; gap: 12px;">
+            <strong style="min-width: 100px;">Name:</strong>
+            <span>{{ node.name }}</span>
+          </div>
+          <div style="display: flex; gap: 12px;">
+            <strong style="min-width: 100px;">MAC Address:</strong>
+            <span>{{ node.mac_address }}</span>
+          </div>
+          <div style="display: flex; gap: 12px;">
+            <strong style="min-width: 100px;">Location:</strong>
+            <span>{{ node.location|default:"Unknown" }}</span>
+          </div>
+          <div style="display: flex; gap: 12px;">
+            <strong style="min-width: 100px;">Status:</strong>
+            <span>{% if node.is_active %}Active{% else %}Inactive{% endif %}</span>
+          </div>
+        </div>
+      </div>
+
+      <form method="post" style="display: flex; gap: 12px;">
+        {% csrf_token %}
+        <button type="submit" style="flex: 1; padding: 12px 16px; background: #d9534f; color: white; border: none; border-radius: 4px; font-size: 1rem; font-weight: 600; cursor: pointer;">
+          Yes, Delete Node
+        </button>
+        <a href="{% url 'app:client_device' %}" style="flex: 1; padding: 12px 16px; background: #6b7480; color: white; text-decoration: none; border-radius: 4px; font-size: 1rem; font-weight: 600; text-align: center;">Cancel</a>
+      </form>
+
+    </section>
+  </div>
+{% endblock %}

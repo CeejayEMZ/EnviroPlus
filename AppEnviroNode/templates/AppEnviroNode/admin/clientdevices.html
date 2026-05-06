@@ -1,0 +1,441 @@
+{% extends 'AppEnviroNode/index.html' %}
+{% load static %}
+
+{% block title %}Admin - Devices - Environode{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-jQnRdNOI0zG3p1I8MMwndw5XNUlM3hfXV+20j0mgZZm+ljYQyP9B1b5Y3jU8KPg/7GB22T8JKK6lewi7N7b3kg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+    .main-container {
+            width: 90% !important;
+            max-width: 90% !important;
+            margin: 0 auto !important;
+            margin-top: 10% !important;
+        }
+    .toast-notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 16px 20px;
+      background: white;
+      border-left: 4px solid;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      z-index: 9999;
+      animation: slideIn 0.3s ease-out;
+      max-width: 350px;
+    }
+    
+    .toast-notification.success {
+      border-left-color: #28a745;
+      background: #f0fdf4;
+      color: #15803d;
+    }
+    
+    .toast-notification.error {
+      border-left-color: #dc3545;
+      background: #fdf2f2;
+      color: #991b1b;
+    }
+    
+    .toast-notification.info {
+      border-left-color: #17a2b8;
+      background: #ecf9ff;
+      color: #0c5460;
+    }
+    
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    
+    .btn-loading {
+      position: relative;
+      color: transparent;
+    }
+    
+    .btn-loading::after {
+      content: "";
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      top: 50%;
+      left: 50%;
+      margin-left: -6px;
+      margin-top: -6px;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .device-action-btn {
+      width: 36px;
+      height: 36px;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      background: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      font-size: 0.9rem;
+      padding: 0;
+    }
+
+    .device-action-btn:hover {
+      background: #f5f5f5;
+      border-color: #999;
+    }
+
+    .device-edit-btn:hover { color: #0a2d5f; }
+    .device-restart-btn:hover { color: #17a2b8; }
+    .device-delete-btn:hover { color: #dc3545; }
+
+    .device-delete-form {
+      display: inline;
+      margin: 0;
+      padding: 0;
+    }
+
+    .device-delete-form button {
+      margin: 0;
+      padding: 0;
+      border: none;
+      background: none;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .status-badge.status-active {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status-badge.status-inactive {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeeba;
+    }
+
+    .status-badge.status-unregistered {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+
+    .status-badge.status-rogue {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .empty-state-icon {
+      font-size: 3rem;
+      margin-bottom: 16px;
+      opacity: 0.3;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="overlay">
+  
+  <!-- Metrics Cards -->
+  <div class="grid-4 health-metrics-grid">
+    <div class="metric-card">
+      <div class="metric-top"><small>Active Nodes</small></div>
+      <div class="metric-value text-emerald">{{ active_count }}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-top"><small>Offline Nodes</small></div>
+      <div class="metric-value text-red">{{ inactive_count }}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-top"><small>Total Nodes</small></div>
+      <div class="metric-value text-blue">{{ total_nodes }}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-top"><small>Unregistered</small></div>
+      <div class="metric-value text-amber">{{ unregistered_count }}</div>
+    </div>
+  </div>
+
+  <!-- Controls & Search -->
+  <div class="device-controls-container">
+    <div class="device-filters">
+      <div class="search-box">
+        <i class="fa-solid fa-search"></i>
+        <input type="text" id="nodeSearchInput" placeholder="Search by Name, Location, or MAC..." autocomplete="off">
+      </div>
+      <div class="filter-box">
+        <select id="nodeStatusFilter">
+          <option value="all">All Statuses</option>
+          <option value="active">Active Only</option>
+          <option value="inactive">Offline Only</option>
+          <option value="unregistered">Unregistered Only</option>
+          <option value="rogue">Rogue Only</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="device-actions">
+      <a href="{% url 'app:node_create' %}" class="add-node-btn" title="Create new sensor node">
+        <i class="fa-solid fa-microchip"></i> Add New Node
+      </a>
+    </div>
+  </div>
+
+  <!-- Devices Table -->
+  <div class="devices-table-container">
+    {% if nodes %}
+      <table class="devices-table" id="devicesTable">
+        <thead>
+          <tr>
+            <th>Device Name</th>
+            <th>MAC Address</th>
+            <th>Location</th>
+            <th>Status</th>
+            <th>Last Update</th>
+            <th>Uptime</th>
+            <th style="text-align: center;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in nodes %}
+            {% with node=item.node reading=item.latest_reading %}
+              <tr data-device-id="{{ node.id }}" data-device-name="{{ node.name }}" class="device-row" data-status="{{ node.status }}">
+                <td class="col-id">
+                  <div style="font-weight: 600; color: #0a2d5f;">{{ node.name }}</div>
+                  <div style="font-size: 0.75rem; color: #999; margin-top: 2px;">MAC: {{ node.mac_address }}</div>
+                </td>
+                <td class="col-mac" style="font-family: monospace; font-size: 0.9rem;" title="{{ node.mac_address }}">
+                  {{ node.mac_address }}
+                </td>
+                <td class="col-location" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;" title="{{ node.location|default:'Not set' }}">
+                  {% if node.location %}{{ node.location }}{% else %}<em style="color: #999;">Not set</em>{% endif %}
+                </td>
+                <td class="col-status">
+                  <span class="status-badge status-{{ node.status }}" data-status="{{ node.status }}">
+                    {% if node.status == 'active' %}
+                      <i class="fa-solid fa-wifi"></i> Active
+                    {% elif node.status == 'inactive' %}
+                      <i class="fa-solid fa-wifi-slash"></i> Offline
+                    {% elif node.status == 'unregistered' %}
+                      <i class="fa-solid fa-circle-question"></i> Unregistered
+                    {% else %}
+                      <i class="fa-solid fa-triangle-exclamation"></i> Rogue
+                    {% endif %}
+                  </span>
+                </td>
+                <td class="col-update" style="font-size: 0.9rem; color: #666;">
+                  {% if reading.timestamp %}
+                    <time datetime="{{ reading.timestamp|date:'c' }}" title="{{ reading.timestamp|date:'M d, Y H:i:s' }}">
+                      {{ reading.timestamp|date:'M d, H:i' }}
+                    </time>
+                  {% else %}
+                    <span style="color: #999; font-style: italic;">Never</span>
+                  {% endif %}
+                </td>
+                <td class="col-uptime">{{ item.uptime }}</td>
+                <td style="text-align: center;">
+                  <div class="device-action-buttons" style="display: flex; gap: 6px; justify-content: center;">
+                    <!-- Edit Button -->
+                    <a href="{% url 'app:node_edit' node.pk %}" 
+                       class="device-action-btn device-edit-btn" 
+                       title="Edit node settings"
+                       data-action="edit">
+                      <i class="fa-solid fa-pen-to-square"></i>
+                    </a>
+                    
+                    <!-- Restart Button (placeholder for API) -->
+                    <button type="button" 
+                            class="device-action-btn device-restart-btn" 
+                            title="Restart this device"
+                            data-device-id="{{ node.id }}"
+                            data-device-name="{{ node.name }}"
+                            data-action="restart">
+                      <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                    
+                    <!-- Delete Button (form-based POST for security) -->
+                    <form method="post" 
+                          action="{% url 'app:node_delete' node.pk %}" 
+                          class="device-delete-form"
+                          style="display: inline-block;">
+                      {% csrf_token %}
+                      <button type="submit" 
+                              class="device-action-btn device-delete-btn" 
+                              title="Delete this device"
+                              onclick="return confirm('Delete &quot;{{ node.name }}&quot;? This cannot be undone.');">
+                        <i class="fa-solid fa-trash"></i>
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% endwith %}
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <!-- Empty State -->
+      <div style="text-align: center; padding: 60px 20px; color: #64748b;">
+        <i class="fa-solid fa-microchip empty-state-icon"></i>
+        <p style="font-size: 1.1rem; margin: 0 0 8px 0; font-weight: 600;">No sensor nodes found</p>
+        <p style="margin: 0 0 20px 0; opacity: 0.8;">Get started by adding your first IoT sensor node to the system.</p>
+        <a href="{% url 'app:node_create' %}" class="add-node-btn">
+          <i class="fa-solid fa-plus"></i> Add First Node
+        </a>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- No Matches State (shown when search returns nothing) -->
+  <div id="noResultsMessage" style="display: none; text-align: center; padding: 40px; color: #64748b;">
+    <i class="fa-solid fa-search" style="font-size: 2rem; margin-bottom: 10px; opacity: 0.5;"></i>
+    <p>No nodes match your search criteria.</p>
+  </div>
+
+  <!-- Status Legend -->
+  <div class="card-white" style="background: rgba(255,255,255,0.95); border: 1px solid #d7dde4; padding: 16px; margin-top: 24px;">
+    <div style="font-weight: 600; color: #0a2d5f; margin-bottom: 12px;">📊 Node Status Legend</div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="status-badge status-active"><i class="fa-solid fa-wifi"></i> Active</span>
+        <span style="font-size: 0.9rem; color: #666;">Sending data regularly</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="status-badge status-inactive"><i class="fa-solid fa-wifi-slash"></i> Offline</span>
+        <span style="font-size: 0.9rem; color: #666;">No data in 5+ minutes</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="status-badge status-unregistered"><i class="fa-solid fa-circle-question"></i> Unregistered</span>
+        <span style="font-size: 0.9rem; color: #666;">Auto-created, needs config</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="status-badge status-rogue"><i class="fa-solid fa-triangle-exclamation"></i> Rogue</span>
+        <span style="font-size: 0.9rem; color: #666;">Suspicious/invalid device</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // ========== Search & Filter Logic ==========
+    const searchInput = document.getElementById('nodeSearchInput');
+    const statusFilter = document.getElementById('nodeStatusFilter');
+    const tableRows = document.querySelectorAll('.device-row');
+    const noResultsMsg = document.getElementById('noResultsMessage');
+    const devicesTable = document.getElementById('devicesTable');
+    
+    function filterTable() {
+      const searchTerm = searchInput.value.toLowerCase();
+      const statusValue = statusFilter.value.toLowerCase();
+      let visibleCount = 0;
+      
+      tableRows.forEach(row => {
+        const name = row.querySelector('.col-id')?.textContent.toLowerCase() || '';
+        const mac = row.querySelector('.col-mac')?.textContent.toLowerCase() || '';
+        const location = row.querySelector('.col-location')?.textContent.toLowerCase() || '';
+        const rowStatus = row.getAttribute('data-status');
+        
+        const matchesSearch = name.includes(searchTerm) || mac.includes(searchTerm) || location.includes(searchTerm);
+        const matchesStatus = statusValue === 'all' || rowStatus === statusValue;
+        
+        if (matchesSearch && matchesStatus) {
+          row.style.display = '';
+          visibleCount++;
+        } else {
+          row.style.display = 'none';
+        }
+      });
+      
+      // Show/hide no results message
+      if (devicesTable) {
+        devicesTable.style.display = visibleCount === 0 ? 'none' : '';
+      }
+      noResultsMsg.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+    
+    if (searchInput) searchInput.addEventListener('input', filterTable);
+    if (statusFilter) statusFilter.addEventListener('change', filterTable);
+    
+    // ========== Toast Notification System ==========
+    function showToast(message, type = 'info', duration = 4000) {
+      const toast = document.createElement('div');
+      toast.className = `toast-notification ${type}`;
+      toast.innerHTML = `<div>${message}</div>`;
+      document.body.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.style.animation = 'slideIn 0.3s ease-out reverse';
+        setTimeout(() => toast.remove(), 300);
+      }, duration);
+    }
+    
+    // ========== Restart Device (Placeholder for IoT API) ==========
+    document.querySelectorAll('.device-restart-btn').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const deviceId = this.getAttribute('data-device-id');
+        const deviceName = this.getAttribute('data-device-name');
+        
+        if (!confirm(`Restart device "${deviceName}"?`)) return;
+        
+        // Add loading state
+        this.classList.add('btn-loading');
+        
+        // TODO: Implement actual API call to /api/nodes/<id>/restart/
+        console.log(`Restart initiated for device ${deviceId} (${deviceName})`);
+        
+        // Simulate API call
+        setTimeout(() => {
+          this.classList.remove('btn-loading');
+          showToast(`Device "${deviceName}" restart initiated.`, 'info', 3000);
+        }, 1500);
+      });
+    });
+
+    // ========== Display Django Messages if Present ==========
+    // This allows integration with Django's messages framework
+    const messages = document.querySelectorAll('[data-django-message]');
+    if (messages.length > 0) {
+      messages.forEach(msg => {
+        const type = msg.getAttribute('data-message-type') || 'info';
+        const text = msg.getAttribute('data-django-message');
+        if (text) {
+          showToast(text, type, 5000);
+        }
+      });
+    }
+    
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,653 @@
+{% extends 'AppEnviroNode/index.html' %}
+{% load static %}
+
+{% block title %}Health Advisory - Environode{% endblock %}
+
+{% block extra_head %}
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+    :root {
+      --aipub-aqi-good: #68c046;
+      --aipub-aqi-moderate: #ffef64;
+      --aipub-aqi-usg: #e88532;
+      --aipub-aqi-unhealthy: #db4836;
+      --aipub-aqi-very-unhealthy: #814396;
+      --aipub-aqi-hazardous: #701526;
+    }
+
+    /* MATCH DASHBOARD LAYOUT MARGINS AND SPACING */
+    main.main-container {
+      margin-top: 70px !important;
+      padding: 12px 14px 18px !important;
+      width: calc(100% - 20px) !important;
+      gap: 10px !important;
+    }
+
+    @media (max-width: 1024px) {
+      main.main-container {
+        width: calc(100% - 24px) !important;
+        margin-top: 62px !important;
+        padding: 12px 14px 18px !important;
+      }
+    }
+
+    @media (max-width: 640px) {
+      main.main-container {
+        width: calc(100% - 18px) !important;
+        margin-top: 58px !important;
+        padding: 12px 14px 18px !important;
+      }
+    }
+
+    /* Base Wrapper */
+    .aipub-wrapper {
+      background-color: transparent;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      color: #0f172a;
+      padding: 0;
+      margin: 0;
+    }
+
+    .aipub-container {
+      max-width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    /* Card Component - Adjusted padding */
+    .aipub-card {
+      background-color: #ffffff;
+      border-radius: 0.75rem;
+      padding: 1rem;
+      border: 1px solid #f1f5f9;
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    }
+    .aipub-card.dark {
+      background-color: #1e293b;
+      color: #ffffff;
+      border-color: transparent;
+    }
+
+    /* Info Banner - Navy Blue to match system branding */
+    .info-banner {
+      width: 100%;
+      background: #e6edf6;
+      border: 1px solid #000e1f;
+      border-radius: 12px;
+      padding: 0.85rem 2rem;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.03);
+      transition: all 0.2s ease;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .banner-content {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: nowrap;
+      white-space: nowrap;
+    }
+
+    .banner-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: #000e1f;
+    }
+
+    .banner-icon svg {
+      width: 22px;
+      height: 22px;
+      stroke: #000e1f;
+      stroke-width: 1.8;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      display: block;
+    }
+
+    .banner-text {
+      font-size: 0.95rem;
+      font-weight: 400;
+      line-height: 1.4;
+      color: #000e1f;
+      letter-spacing: -0.2px;
+      white-space: nowrap;
+    }
+
+    .info-banner:hover {
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.05);
+      border-color:#000e1f;
+      background: #e6edf6;
+    }
+
+    @media (max-width: 860px) {
+      .info-banner {
+        padding: 0.75rem 1.5rem;
+      }
+      .banner-text {
+        font-size: 0.85rem;
+      }
+      .banner-icon svg {
+        width: 20px;
+        height: 20px;
+      }
+      .banner-content {
+        gap: 10px;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .info-banner {
+        padding: 0.7rem 1.2rem;
+      }
+      .banner-text {
+        font-size: 0.8rem;
+      }
+      .banner-icon svg {
+        width: 18px;
+        height: 18px;
+      }
+    }
+
+    @media (max-width: 550px) {
+      .info-banner {
+        padding: 0.65rem 1rem;
+      }
+      .banner-text {
+        font-size: 0.75rem;
+      }
+      .banner-content {
+        gap: 8px;
+      }
+    }
+
+    .info-banner::-webkit-scrollbar {
+      height: 4px;
+    }
+    .info-banner::-webkit-scrollbar-track {
+      background: #1e293b;
+      border-radius: 10px;
+    }
+    .info-banner::-webkit-scrollbar-thumb {
+      background: #60a5fa;
+      border-radius: 10px;
+    }
+
+    /* Headings */
+    .aipub-card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .aipub-card-header i {
+      width: 1rem;
+      height: 1rem;
+    }
+    .aipub-card-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0;
+    }
+    .aipub-card-title.large {
+      font-size: 1rem;
+    }
+    .aipub-card.dark .aipub-card-title {
+      color: #ffffff;
+    }
+
+    /* Advisory Section Layout */
+    .health-advisory-full {
+      width: 100%;
+    }
+
+    .aipub-advisory-layout {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+    @media (min-width: 768px) {
+      .aipub-advisory-layout {
+        flex-direction: row;
+        align-items: center;
+        gap: 1rem;
+      }
+    }
+
+    /* AQI Box - Smaller size */
+    .aipub-aqi-box {
+      flex-shrink: 0;
+      width: 5rem;
+      height: 5rem;
+      border-radius: 0.875rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      box-shadow: 0 2px 4px -1px rgb(0 0 0 / 0.1);
+    }
+    .aipub-aqi-val { 
+      font-size: 1.75rem; 
+      font-weight: 800; 
+      line-height: 1; 
+    }
+    .aipub-aqi-lbl { 
+      font-size: 0.6rem; 
+      font-weight: 600; 
+      text-transform: uppercase; 
+      margin-top: 0.125rem; 
+      opacity: 0.9; 
+    }
+
+    /* Dynamic Colors */
+    .aipub-bg-good { background-color: var(--aipub-aqi-good); color: #ffffff; }
+    .aipub-bg-moderate { background-color: var(--aipub-aqi-moderate); color: #453f00; }
+    .aipub-bg-unhealthy_sensitive { background-color: var(--aipub-aqi-usg); color: #ffffff; }
+    .aipub-bg-unhealthy { background-color: var(--aipub-aqi-unhealthy); color: #ffffff; }
+    .aipub-bg-very_unhealthy { background-color: var(--aipub-aqi-very-unhealthy); color: #ffffff; }
+    .aipub-bg-hazardous { background-color: var(--aipub-aqi-hazardous); color: #ffffff; }
+
+    .aipub-text-good { color: var(--aipub-aqi-good); }
+    .aipub-text-moderate { color: var(--aipub-aqi-usg); }
+    .aipub-text-unhealthy_sensitive { color: var(--aipub-aqi-usg); }
+    .aipub-text-unhealthy { color: var(--aipub-aqi-unhealthy); }
+    .aipub-text-very_unhealthy { color: var(--aipub-aqi-very-unhealthy); }
+    .aipub-text-hazardous { color: var(--aipub-aqi-hazardous); }
+
+    .aipub-advisory-details { flex: 1; }
+    .aipub-advisory-status { 
+      font-size: 1rem; 
+      font-weight: 800; 
+      margin-bottom: 0.25rem; 
+      margin-top: 0; 
+    }
+    .aipub-advisory-desc { 
+      font-size: 0.8rem; 
+      color: #475569; 
+      line-height: 1.4; 
+      margin-bottom: 0.75rem; 
+      margin-top: 0; 
+    }
+    
+    .aipub-actions-box {
+      background-color: #f8fafc;
+      border-radius: 0.5rem;
+      padding: 0.75rem;
+      border: 1px solid #f1f5f9;
+      width: 100%;
+    }
+    .aipub-actions-title { 
+      font-size: 0.7rem; 
+      font-weight: 700; 
+      color: #1e293b; 
+      margin-bottom: 0.375rem; 
+      margin-top: 0; 
+      display: flex; 
+      align-items: center; 
+      gap: 0.375rem; 
+    }
+    .aipub-actions-list { 
+      margin: 0; 
+      padding-left: 1rem; 
+      color: #475569; 
+      font-size: 0.7rem; 
+      line-height: 1.5; 
+    }
+    .aipub-actions-list li { margin-bottom: 0.25rem; }
+
+    /* Grids */
+    .aipub-grid-2 { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+    @media (min-width: 768px) { .aipub-grid-2 { grid-template-columns: repeat(2, 1fr); } }
+
+    .aipub-grid-3 { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+    @media (min-width: 768px) { .aipub-grid-3 { grid-template-columns: repeat(3, 1fr); } }
+
+    /* Guide List - Compact */
+    .aipub-guide-list { display: flex; flex-direction: column; gap: 0.375rem; }
+    .aipub-guide-item { 
+      display: flex; 
+      align-items: center; 
+      gap: 0.75rem; 
+      padding: 0.375rem; 
+      border-radius: 0.375rem; 
+      transition: background-color 0.2s; 
+    }
+    .aipub-guide-item:hover { background-color: #f8fafc; }
+    .aipub-guide-badge { 
+      width: 3rem; 
+      height: 1.5rem; 
+      border-radius: 0.25rem; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-size: 0.6rem; 
+      font-weight: 700; 
+      flex-shrink: 0; 
+    }
+    .aipub-guide-label { 
+      font-size: 0.75rem; 
+      font-weight: 500; 
+      color: #334155; 
+    }
+
+    /* Risk Grid - Compact */
+    .aipub-risk-grid { display: grid; grid-template-columns: 1fr; gap: 0.75rem; }
+    @media (min-width: 640px) { .aipub-risk-grid { grid-template-columns: repeat(2, 1fr); } }
+    .aipub-risk-box { 
+      padding: 0.75rem; 
+      background-color: #f8fafc; 
+      border-radius: 0.5rem; 
+      border: 1px solid #f1f5f9; 
+    }
+    .aipub-risk-title { 
+      font-weight: 700; 
+      color: #1e293b; 
+      font-size: 0.75rem; 
+      margin-bottom: 0.25rem; 
+      margin-top: 0; 
+    }
+    .aipub-risk-desc { 
+      font-size: 0.65rem; 
+      color: #475569; 
+      line-height: 1.4; 
+      margin: 0; 
+    }
+
+    /* Custom Lists - Compact */
+    .aipub-custom-list { 
+      margin: 0; 
+      padding: 0; 
+      list-style: none; 
+      display: flex; 
+      flex-direction: column; 
+      gap: 0.5rem; 
+      font-size: 0.75rem; 
+      color: #475569; 
+    }
+    .aipub-custom-list li { 
+      display: flex; 
+      align-items: flex-start; 
+      gap: 0.5rem; 
+      line-height: 1.4;
+    }
+    .aipub-bullet { 
+      margin-top: 0.2rem; 
+      width: 0.375rem; 
+      height: 0.375rem; 
+      border-radius: 999px; 
+      flex-shrink: 0; 
+    }
+    .aipub-bullet.emerald { background-color: #10b981; }
+    .aipub-bullet.amber { background-color: #f59e0b; }
+
+    /* Emergency Section - Compact */
+    .aipub-emerg-desc { 
+      font-size: 0.7rem; 
+      color: #cbd5e1; 
+      margin-bottom: 0.75rem; 
+      margin-top: 0; 
+      line-height: 1.4; 
+    }
+    .aipub-emerg-box { 
+      background-color: rgba(51, 65, 85, 0.5); 
+      border-radius: 0.5rem; 
+      padding: 0.75rem; 
+      font-size: 0.7rem; 
+      color: #e2e8f0; 
+    }
+    .aipub-emerg-title { 
+      font-weight: 700; 
+      color: #fda4af; 
+      margin-bottom: 0.375rem; 
+      margin-top: 0; 
+      font-size: 0.75rem;
+    }
+    .aipub-emerg-box ul { 
+      margin: 0; 
+      padding-left: 1rem; 
+    }
+    .aipub-emerg-box li { 
+      margin-bottom: 0.25rem; 
+      line-height: 1.4;
+    }
+
+    /* Utility Icon Colors */
+    .icon-rose { color: #f43f5e; }
+    .icon-blue { color: #3b82f6; }
+    .icon-purple { color: #a855f7; }
+    .icon-emerald { color: #059669; }
+    .icon-amber { color: #f59e0b; }
+    .icon-light-rose { color: #fb7185; }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <div class="aipub-wrapper">
+    <div class="aipub-container">
+
+      <!-- Info Banner - Navy Blue to match system branding -->
+      <div class="info-banner">
+        <div class="banner-content">
+          <div class="banner-icon" aria-label="Chat icon">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2Z" />
+              <path d="M7 9H17" />
+              <path d="M7 13H14" />
+            </svg>
+          </div>
+          <div class="banner-text">
+            Need personalized help? Click the chat icon in the bottom-right corner to talk to our AI assistant.
+          </div>
+        </div>
+      </div>
+
+      <!-- Current Health Advisory - Full Width -->
+      <div class="health-advisory-full">
+        <div class="aipub-card" style="height: 100%;">
+          <div class="aipub-card-header">
+            <i data-lucide="heart-pulse" class="icon-rose"></i>
+            <h2 class="aipub-card-title large">Current Health Advisory</h2>
+          </div>
+
+          <div class="aipub-advisory-layout">
+            <div class="aipub-aqi-box aipub-bg-{{ latest_reading.aqi_level|default:'good' }}">
+              <span class="aipub-aqi-val">{{ latest_reading.aqi|default:'48' }}</span>
+              <span class="aipub-aqi-lbl">AQI</span>
+            </div>
+
+            <div class="aipub-advisory-details">
+              <h3 class="aipub-advisory-status aipub-text-{{ latest_reading.aqi_level|default:'good' }}">
+                {{ latest_reading.get_aqi_level_display|default:'Good' }}
+              </h3>
+              
+              {% if latest_reading.aqi_level == 'good' or not latest_reading %}
+                <p class="aipub-advisory-desc">Air quality is satisfactory. Outdoor activities are safe for everyone.</p>
+                <div class="aipub-actions-box">
+                  <h4 class="aipub-actions-title"><i data-lucide="shield-alert" style="width:0.75rem;height:0.75rem;"></i> Recommended Actions</h4>
+                  <ul class="aipub-actions-list">
+                    <li>Safe for outdoor exercise and sports.</li>
+                    <li>No mask required.</li>
+                    <li>Monitor conditions throughout the day.</li>
+                  </ul>
+                </div>
+              {% elif latest_reading.aqi_level == 'moderate' %}
+                <p class="aipub-advisory-desc">Air quality is acceptable. However, there may be a risk for some people, particularly those who are unusually sensitive to air pollution.</p>
+                <div class="aipub-actions-box">
+                  <h4 class="aipub-actions-title"><i data-lucide="shield-alert" style="width:0.75rem;height:0.75rem;"></i> Recommended Actions</h4>
+                  <ul class="aipub-actions-list">
+                    <li>Unusually sensitive individuals should consider limiting prolonged outdoor exertion.</li>
+                    <li>Keep windows closed if you live near busy roads.</li>
+                    <li>Consider running an air purifier indoors if you have symptoms.</li>
+                  </ul>
+                </div>
+              {% elif latest_reading.aqi_level == 'unhealthy_sensitive' %}
+                <p class="aipub-advisory-desc">Members of sensitive groups may experience health effects. Take precautions outdoors.</p>
+                <div class="aipub-actions-box">
+                  <h4 class="aipub-actions-title"><i data-lucide="shield-alert" style="width:0.75rem;height:0.75rem;"></i> Recommended Actions</h4>
+                  <ul class="aipub-actions-list">
+                    <li>Children, elderly, and asthma patients should stay cautious.</li>
+                    <li>Use protective masks outside.</li>
+                    <li>Limit long outdoor activities.</li>
+                  </ul>
+                </div>
+              {% elif latest_reading.aqi_level == 'unhealthy' %}
+                <p class="aipub-advisory-desc">Air quality is unhealthy. Everyone may begin to experience health effects.</p>
+                <div class="aipub-actions-box">
+                  <h4 class="aipub-actions-title"><i data-lucide="shield-alert" style="width:0.75rem;height:0.75rem;"></i> Recommended Actions</h4>
+                  <ul class="aipub-actions-list">
+                    <li>Limit all outdoor physical activity.</li>
+                    <li>Wear N95 or KN95 masks outdoors.</li>
+                    <li>Keep windows closed and stay indoors when possible.</li>
+                  </ul>
+                </div>
+              {% elif latest_reading.aqi_level == 'very_unhealthy' %}
+                <p class="aipub-advisory-desc">Health alert: risk of health effects is increased for everyone.</p>
+                <div class="aipub-actions-box">
+                  <h4 class="aipub-actions-title"><i data-lucide="shield-alert" style="width:0.75rem;height:0.75rem;"></i> Recommended Actions</h4>
+                  <ul class="aipub-actions-list">
+                    <li>Avoid outdoor activities entirely.</li>
+                    <li>Remain indoors as much as possible.</li>
+                    <li>Seek medical advice if breathing discomfort occurs.</li>
+                  </ul>
+                </div>
+              {% else %}
+                <p class="aipub-advisory-desc">Emergency conditions: the entire population may be affected by hazardous air quality.</p>
+                <div class="aipub-actions-box">
+                  <h4 class="aipub-actions-title"><i data-lucide="shield-alert" style="width:0.75rem;height:0.75rem;"></i> Recommended Actions</h4>
+                  <ul class="aipub-actions-list">
+                    <li>Avoid all outdoor exposure.</li>
+                    <li>Follow local health advisories and warnings.</li>
+                    <li>Seek immediate care if severe symptoms occur.</li>
+                  </ul>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="aipub-grid-2">
+        <div class="aipub-card">
+          <div class="aipub-card-header">
+            <i data-lucide="info" class="icon-blue"></i>
+            <h2 class="aipub-card-title">AQI Guide</h2>
+          </div>
+          <div class="aipub-guide-list">
+            <div class="aipub-guide-item">
+              <div class="aipub-guide-badge aipub-bg-good">0-50</div>
+              <span class="aipub-guide-label">Good</span>
+            </div>
+            <div class="aipub-guide-item">
+              <div class="aipub-guide-badge aipub-bg-moderate">51-100</div>
+              <span class="aipub-guide-label">Moderate</span>
+            </div>
+            <div class="aipub-guide-item">
+              <div class="aipub-guide-badge aipub-bg-unhealthy_sensitive">101-150</div>
+              <span class="aipub-guide-label">Unhealthy for Sensitive Groups</span>
+            </div>
+            <div class="aipub-guide-item">
+              <div class="aipub-guide-badge aipub-bg-unhealthy">151-200</div>
+              <span class="aipub-guide-label">Unhealthy</span>
+            </div>
+            <div class="aipub-guide-item">
+              <div class="aipub-guide-badge aipub-bg-very_unhealthy">201-300</div>
+              <span class="aipub-guide-label">Very Unhealthy</span>
+            </div>
+            <div class="aipub-guide-item">
+              <div class="aipub-guide-badge aipub-bg-hazardous">301+</div>
+              <span class="aipub-guide-label">Hazardous</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="aipub-card">
+          <div class="aipub-card-header">
+            <i data-lucide="users" class="icon-purple"></i>
+            <h2 class="aipub-card-title">Who's At Risk?</h2>
+          </div>
+          <div class="aipub-risk-grid">
+            <div class="aipub-risk-box">
+              <h4 class="aipub-risk-title">Children & Elderly</h4>
+              <p class="aipub-risk-desc">More susceptible to respiratory issues from poor air quality.</p>
+            </div>
+            <div class="aipub-risk-box">
+              <h4 class="aipub-risk-title">Respiratory Conditions</h4>
+              <p class="aipub-risk-desc">People with asthma or COPD are highly sensitive to PM2.5.</p>
+            </div>
+            <div class="aipub-risk-box">
+              <h4 class="aipub-risk-title">Outdoor Workers</h4>
+              <p class="aipub-risk-desc">Prolonged exposure increases health risks significantly.</p>
+            </div>
+            <div class="aipub-risk-box">
+              <h4 class="aipub-risk-title">Pregnant Women</h4>
+              <p class="aipub-risk-desc">High pollution can affect fetal development and maternal health.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="aipub-grid-3">
+        <div class="aipub-card">
+          <div class="aipub-card-header icon-emerald">
+            <i data-lucide="shield-alert"></i>
+            <h2 class="aipub-card-title" style="color: inherit;">Protective Measures</h2>
+          </div>
+          <ul class="aipub-custom-list">
+            <li><div class="aipub-bullet emerald"></div> Wear N95 masks outdoors during high AQI.</li>
+            <li><div class="aipub-bullet emerald"></div> Use HEPA air purifiers indoors.</li>
+            <li><div class="aipub-bullet emerald"></div> Keep windows closed on polluted days.</li>
+            <li><div class="aipub-bullet emerald"></div> Check AQI before exercising outside.</li>
+          </ul>
+        </div>
+
+        <div class="aipub-card">
+          <div class="aipub-card-header icon-amber">
+            <i data-lucide="alert-circle"></i>
+            <h2 class="aipub-card-title" style="color: inherit;">Symptoms to Watch</h2>
+          </div>
+          <ul class="aipub-custom-list">
+            <li><div class="aipub-bullet amber"></div> Persistent coughing or wheezing.</li>
+            <li><div class="aipub-bullet amber"></div> Eye, nose, and throat irritation.</li>
+            <li><div class="aipub-bullet amber"></div> Shortness of breath during light activity.</li>
+            <li><div class="aipub-bullet amber"></div> Unusual fatigue or headaches.</li>
+          </ul>
+        </div>
+
+        <div class="aipub-card dark">
+          <div class="aipub-card-header icon-light-rose">
+            <i data-lucide="phone"></i>
+            <h2 class="aipub-card-title">When to Seek Help</h2>
+          </div>
+          <p class="aipub-emerg-desc">Seek immediate medical attention if you or someone else experiences severe symptoms.</p>
+          <div class="aipub-emerg-box">
+            <p class="aipub-emerg-title">Emergency Signs:</p>
+            <ul>
+              <li>Severe difficulty breathing</li>
+              <li>Chest pain or tightness</li>
+              <li>Severe dizziness or confusion</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  <script>
+    // Initialize Lucide icons globally
+    lucide.createIcons();
+  </script>
+{% endblock %}

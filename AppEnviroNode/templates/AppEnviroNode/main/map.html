@@ -1,0 +1,610 @@
+{% extends 'AppEnviroNode/index.html' %}
+{% load static %}
+
+{% block title %}Air Quality Map - Environode{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+    /* Light gray background - matches the rest of the website */
+    .map-background {
+      background-color: #eef2f6;
+      min-height: 100vh;
+    }
+
+    .main-container {
+      margin-top: 70px;
+      padding: 12px 14px 18px;
+      width: calc(100% - 20px);
+      gap: 10px;
+    }
+
+    .map-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(320px, 440px);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .map-panel,
+    .info-panel {
+      background: #ffffff;
+      border: 1px solid #dbe0e7;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+      overflow: hidden;
+    }
+
+    .map-panel {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+      min-height: 540px;
+    }
+
+    .info-panel {
+      min-height: 540px;
+    }
+
+    #public-map {
+      width: 100%;
+      min-height: 520px;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    .map-legend {
+      padding: 14px 16px;
+      color: #546a86;
+      font-size: 0.92rem;
+      border-top: 1px solid rgba(102,115,137,0.18);
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      align-items: start;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      line-height: 1.4;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.08);
+    }
+
+    .legend-dot.good { background: #68c046; }
+    .legend-dot.moderate { background: #ffef64; }
+    .legend-dot.unhealthy-sensitive { background: #e88532; }
+    .legend-dot.unhealthy { background: #db4836; }
+    .legend-dot.very-unhealthy { background: #814396; }
+    .legend-dot.hazardous { background: #701526; }
+
+    .info-content {
+      padding: 18px;
+      min-height: 520px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      text-align: center;
+      color: #334155;
+      position: relative;
+    }
+
+    .placeholder-wrapper {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      max-width: 280px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .info-content .pin-text {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .info-content .pin-sub {
+      font-size: 0.94rem;
+      color: #64748b;
+    }
+    
+    .waqi-marker {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .waqi-box {
+      background: #fff;
+      border: 3px solid #666;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-weight: 700;
+      font-size: 16px;
+      min-width: 32px;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    .waqi-pointer {
+      width: 0;
+      height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-top: 10px solid;
+    }
+    
+    .aqi-good { border-color: #68c046; background-color: #68c046; color: #102a43; }
+    .aqi-moderate { border-color: #ffef64; background-color: #ffef64; color: #102a43; }
+    .aqi-unhealthy-sensitive { border-color: #e88532; background-color: #e88532; color: #ffffff; }
+    .aqi-unhealthy { border-color: #db4836; background-color: #db4836; color: #ffffff; }
+    .aqi-very-unhealthy { border-color: #814396; background-color: #814396; color: #ffffff; }
+    .aqi-hazardous { border-color: #701526; background-color: #701526; color: #ffffff; }
+
+    .sensor-info-shell {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .sensor-card {
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .sensor-card.top {
+      padding: 14px 14px 12px;
+      color: #ffffff;
+    }
+
+    .sensor-card.top.good { background: #68c046; color: #ffffff; }
+    .sensor-card.top.moderate { background: #ffef64; color: #ffffff; }
+    .sensor-card.top.unhealthy-sensitive { background: #e88532; color: #ffffff; }
+    .sensor-card.top.unhealthy { background: #db4836; color: #ffffff; }
+    .sensor-card.top.very-unhealthy { background: #814396; color: #ffffff; }
+    .sensor-card.top.hazardous { background: #701526; color: #ffffff; }
+
+    .aqi-heading {
+      font-size: 0.82rem;
+      opacity: 0.9;
+      margin-bottom: 8px;
+      letter-spacing: 0.04em;
+      color: inherit;
+    }
+
+    .sensor-card.top .aqi-value,
+    .sensor-card.top .aqi-level-badge,
+    .sensor-card.top .aqi-heading {
+      color: #ffffff;
+    }
+
+    .aqi-value {
+      font-size: 2.4rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .aqi-level-badge {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.78rem;
+      font-weight: 700;
+      opacity: 0.95;
+      color: inherit;
+    }
+
+    .sensor-data-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .sensor-reading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.04);
+      min-height: 68px;
+    }
+
+    .sensor-reading.full-row {
+      grid-column: 1 / -1;
+    }
+
+    .sensor-reading .reading-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .reading-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #475569;
+    }
+
+    .reading-value {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      font-size: 1.6rem;
+      font-weight: 800;
+      line-height: 1;
+      color: #0f172a;
+    }
+
+    .reading-unit {
+      font-size: 0.78rem;
+      color: #64748b;
+      font-weight: 600;
+    }
+
+    .sensor-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: #eff6ff;
+      color: #0f172a;
+      font-weight: 700;
+      font-size: 0.88rem;
+    }
+
+    .status-text {
+      font-size: 0.94rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .reading-icon {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.06);
+    }
+
+    .reading-icon.pm25 { background: #2f7dce; }
+    .reading-icon.pm10 { background: #7c3aed; }
+    .reading-icon.temp { background: #d97706; }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
+      flex-shrink: 0;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <div class="map-background">
+    <section class="map-grid">
+    <div class="map-panel">
+      <div id="public-map"></div>
+      <div class="map-legend">
+        <div class="legend-item"><span class="legend-dot good"></span>Good 0-50</div>
+        <div class="legend-item"><span class="legend-dot moderate"></span>Moderate 51-100</div>
+        <div class="legend-item"><span class="legend-dot unhealthy-sensitive"></span>Unhealthy for sensitive groups 101-150</div>
+        <div class="legend-item"><span class="legend-dot unhealthy"></span>Unhealthy 151-200</div>
+        <div class="legend-item"><span class="legend-dot very-unhealthy"></span>Very unhealthy 201-300</div>
+        <div class="legend-item"><span class="legend-dot hazardous"></span>Hazardous 301-500</div>
+      </div>
+    </div>
+
+    <div class="info-panel">
+      <div class="info-content" id="sensor-info">
+        <div class="placeholder-wrapper">
+          <div class="pin-icon" style="font-size:0; width:64px; height:64px; margin:0 auto 16px; background:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%23c9cdd9%22><path d=%22M12 2C7.58 2 4 5.58 4 10c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z%22/></svg>') center/contain no-repeat; opacity:0.6;"></div>
+          <div class="pin-text">{% if nodes %}Click on a sensor pin{% else %}Click on a sensor pin{% endif %}</div>
+          <div class="pin-sub">to view detailed readings</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="{% static 'AppEnviroNode/js/map-controls.js' %}"></script>
+  <script>
+    function getAqiStyle(aqi) {
+      if (aqi <= 50) return 'aqi-good';
+      if (aqi <= 100) return 'aqi-moderate';
+      if (aqi <= 150) return 'aqi-unhealthy-sensitive';
+      if (aqi <= 200) return 'aqi-unhealthy';
+      if (aqi <= 300) return 'aqi-very-unhealthy';
+      return 'aqi-hazardous';
+    }
+
+    function getAqiLabel(aqi) {
+      if (aqi <= 50) return 'Good';
+      if (aqi <= 100) return 'Moderate';
+      if (aqi <= 150) return 'Unhealthy for sensitive groups';
+      if (aqi <= 200) return 'Unhealthy';
+      if (aqi <= 300) return 'Very unhealthy';
+      return 'Hazardous';
+    }
+
+    function updateInfo(nodeName, location, aqi, aqiLevel, pollutants) {
+      if (!aqiLevel || aqiLevel === 'Unknown') {
+        aqiLevel = getAqiLabel(aqi);
+      }
+      const infoPanel = document.getElementById('sensor-info');
+      const aqiClass = getAqiStyle(aqi);
+      infoPanel.innerHTML = `
+        <div class="sensor-info-shell">
+          <div style="font-size:1.08rem; font-weight:700; color:#0f172a;">${nodeName}</div>
+          <div class="sensor-card top ${aqiClass}">
+            <div class="aqi-heading">Air Quality Index</div>
+            <div class="aqi-value-row">
+              <div class="aqi-value">${Math.round(aqi)}</div>
+              <div class="aqi-level-badge">${aqiLevel}</div>
+            </div>
+          </div>
+
+          <div class="sensor-data-grid">
+            <div class="sensor-reading">
+              <div class="reading-group">
+                <div class="reading-title">PM2.5</div>
+                <div class="reading-value">${pollutants?.pm25 || 'N/A'}<span class="reading-unit">µg/m³</span></div>
+              </div>
+              <span class="reading-icon pm25"></span>
+            </div>
+
+            <div class="sensor-reading">
+              <div class="reading-group">
+                <div class="reading-title">PM10</div>
+                <div class="reading-value">${pollutants.pm10 || 'N/A'}<span class="reading-unit">µg/m³</span></div>
+              </div>
+              <span class="reading-icon pm10"></span>
+            </div>
+
+            <div class="sensor-reading">
+              <div class="reading-group">
+                <div class="reading-title">PM1.0</div>
+                <div class="reading-value">${pollutants.pm1_0 || 'N/A'}<span class="reading-unit">µg/m³</span></div>
+              </div>
+              <span class="reading-icon pm10"></span>
+            </div>
+
+            <div class="sensor-reading">
+              <div class="reading-group">
+                <div class="reading-title">Temperature</div>
+                <div class="reading-value">${pollutants.temperature || 'N/A'}<span class="reading-unit">°C</span></div>
+              </div>
+              <span class="reading-icon temp"></span>
+            </div>
+
+            <div class="sensor-reading">
+              <div class="reading-group">
+                <div class="reading-title">Humidity</div>
+                <div class="reading-value">${pollutants.humidity || 'N/A'}<span class="reading-unit">%</span></div>
+              </div>
+              <span class="reading-icon pm25"></span>
+            </div>
+
+            <div class="sensor-reading">
+              <div class="reading-group">
+                <div class="reading-title">Pressure</div>
+                <div class="reading-value">${pollutants.pressure || 'N/A'}<span class="reading-unit">hPa</span></div>
+              </div>
+              <span class="reading-icon temp"></span>
+            </div>
+
+            <div class="sensor-reading full-row">
+              <div class="reading-group">
+                <div class="reading-title">VOCs</div>
+                <div class="reading-value">${pollutants.gas_resistance || 'N/A'}<span class="reading-unit">Ω</span></div>
+              </div>
+              <span class="reading-icon pm10"></span>
+            </div>
+          </div>
+
+          <div class="sensor-status"><span class="status-dot"></span>Sensor Online</div>
+        </div>
+      `;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        if (typeof L === 'undefined') {
+          console.error('❌ Leaflet failed to load');
+          return;
+        }
+
+        console.log('📍 Initializing public map with WAQI controls...');
+        
+        // Initialize map controller
+        const mapController = new EnviroMapController('public-map', 14.5631, 121.0192, 14);
+        mapController.initializeMap();
+
+        // Parse JSON data from Django template
+        let nodesData = [];
+        try {
+          nodesData = JSON.parse('{{ nodes_json|escapejs }}');
+          console.log(`✓ Loaded ${nodesData.length} nodes from JSON`);
+        } catch (e) {
+          console.error('❌ Failed to parse nodes JSON:', e);
+          return;
+        }
+
+        if (!nodesData || nodesData.length === 0) {
+          console.log('✓ No nodes to display');
+          mapController.invalidateSize();
+          return;
+        }
+
+        window.mapSearchMarkers = [];
+        const normalizeString = (value) => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+        const getSearchContextFromUrl = () => {
+          const params = new URLSearchParams(window.location.search);
+          const nodeParam = params.get('node');
+          const locationParam = params.get('location');
+          const searchParam = params.get('search') || '';
+
+          if (nodeParam?.startsWith('node:')) {
+            const nodeId = parseInt(nodeParam.split(':')[1], 10);
+            if (!Number.isNaN(nodeId)) {
+              return { query: searchParam, nodeId, type: 'node' };
+            }
+          }
+
+          if (nodeParam?.startsWith('location:')) {
+            return { query: searchParam, location: decodeURIComponent(nodeParam.split(':')[1] || ''), type: 'location' };
+          }
+
+          if (locationParam) {
+            return { query: searchParam, location: decodeURIComponent(locationParam), type: 'location' };
+          }
+
+          return searchParam ? { query: searchParam, type: 'search' } : null;
+        };
+
+        const findMarkerByContext = (context) => {
+          if (!context) return null;
+
+          if (context.nodeId) {
+            return window.mapSearchMarkers.find((entry) => entry.node.id === context.nodeId) || null;
+          }
+
+          const searchTerm = normalizeString(context.location || context.query || '');
+          if (!searchTerm) return null;
+
+          return window.mapSearchMarkers.find((entry) => {
+            return normalizeString(entry.node.name).includes(searchTerm)
+              || normalizeString(entry.node.location).includes(searchTerm)
+              || String(entry.node.id) === searchTerm;
+          }) || null;
+        };
+
+        const showMapSearchBanner = (message) => {
+          if (window.showEnviroSearchBanner) {
+            window.showEnviroSearchBanner(message);
+          }
+        };
+
+        window.applyLocationSearchOnMapPage = async (context) => {
+          if (!context) return;
+
+          const markerEntry = findMarkerByContext(context);
+          if (!markerEntry) {
+            showMapSearchBanner('No matching sensor was found for this location search.');
+            return;
+          }
+
+          const { marker, node, pollutants } = markerEntry;
+          const latLng = [node.latitude, node.longitude];
+          if (!latLng[0] || !latLng[1]) {
+            showMapSearchBanner('Unable to center on the selected location.');
+            return;
+          }
+
+          mapController.getMap().setView(latLng, 14);
+          marker.openPopup();
+          const levelLabel = pollutants.aqi_level && pollutants.aqi_level !== 'Unknown'
+            ? pollutants.aqi_level
+            : getAqiLabel(pollutants.aqi || 0);
+          updateInfo(node.name, node.location, pollutants.aqi || 0, levelLabel, pollutants);
+          showMapSearchBanner(`Showing environmental data for ${node.name || node.location}.`);
+        };
+
+        const processMapSearchContext = async () => {
+          const context = getSearchContextFromUrl();
+          if (context) {
+            await window.applyLocationSearchOnMapPage(context);
+          }
+        };
+
+        // Render markers through control
+        nodesData.forEach(function(item) {
+          const node = item.node;
+          const pollutants = item.pollutants;
+          
+          if (node.latitude && node.longitude) {
+            // Create marker with AQI styling (default view)
+            const aqi = pollutants.aqi || 0;
+            const aqiClass = getAqiStyle(aqi);
+            
+            const marker = L.marker([node.latitude, node.longitude], {
+              icon: L.divIcon({
+                html: `
+                  <div class="waqi-marker">
+                    <div class="waqi-box ${aqiClass}">${Math.round(aqi)}</div>
+                    <div class="waqi-pointer ${aqiClass}"></div>
+                  </div>
+                `,
+                iconSize: null,
+                className: '',
+                popupAnchor: [0, -50],
+              })
+            });
+
+            const popupContent = `
+              <div style="font-weight: 600; margin-bottom: 4px;">${node.name}</div>
+              <div style="margin-bottom: 4px;">📍 ${node.location || 'Unknown'}</div>
+              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #ddd;">
+                <strong>AQI:</strong> ${aqi}<br>
+                <strong>PM2.5:</strong> ${pollutants.pm25 || 'N/A'} µg/m³<br>
+                <strong>PM10:</strong> ${pollutants.pm10 || 'N/A'} µg/m³<br>
+                <strong>Temp:</strong> ${pollutants.temperature || 'N/A'}°C<br>
+                <strong>Humidity:</strong> ${pollutants.humidity || 'N/A'}%
+              </div>
+            `;
+
+            marker.bindPopup(popupContent);
+            marker.on('click', function() {
+              const levelLabel = pollutants.aqi_level && pollutants.aqi_level !== 'Unknown'
+                ? pollutants.aqi_level
+                : getAqiLabel(aqi);
+              updateInfo(node.name, node.location, aqi, levelLabel, pollutants);
+            });
+
+            // Register with control for filtering
+            mapController.addMarkerToControl(marker, {
+              node: node,
+              pollutants: pollutants
+            });
+
+            window.mapSearchMarkers.push({
+              node: node,
+              pollutants: pollutants,
+              marker: marker
+            });
+          }
+        });
+
+        console.log(`✓ Rendered ${nodesData.length} markers on map`);
+        processMapSearchContext();
+        mapController.invalidateSize();
+        console.log('✓ Public map initialized with WAQI-style controls');
+
+      } catch (e) {
+        console.error('❌ Map error:', e);
+      }
+    });
+  </script>
+  </div>
+{% endblock %}

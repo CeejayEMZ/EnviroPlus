@@ -1,0 +1,108 @@
+{% extends 'AppEnviroNode/auth/login.html' %}
+
+{% block title %}Signup - EnviroNode{% endblock %}
+{% block subtitle %}Create Admin Account{% endblock %}
+
+{% block content %}
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <ul class="errorlist">
+      {% for error in form.non_field_errors %}
+        <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <div class="form-group">
+    <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+    {{ form.username }}
+    {% if form.username.errors %}
+      <ul class="errorlist">
+        {% for error in form.username.errors %}
+          <li>{{ error }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    {% if form.username.help_text %}
+      <small>{{ form.username.help_text }}</small>
+    {% endif %}
+  </div>
+
+  <div class="form-group">
+    <label for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+    {{ form.email }}
+    {% if form.email.errors %}
+      <ul class="errorlist">
+        {% for error in form.email.errors %}
+          <li>{{ error }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label for="{{ form.role.id_for_label }}">{{ form.role.label }}</label>
+      {{ form.role }}
+      {% if form.role.errors %}
+        <ul class="errorlist">
+          {% for error in form.role.errors %}
+            <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <div class="form-group">
+      <label for="{{ form.organization.id_for_label }}">{{ form.organization.label }}</label>
+      {{ form.organization }}
+      {% if form.organization.errors %}
+        <ul class="errorlist">
+          {% for error in form.organization.errors %}
+            <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="{{ form.password1.id_for_label }}">{{ form.password1.label }}</label>
+    {{ form.password1 }}
+    {% if form.password1.errors %}
+      <ul class="errorlist">
+        {% for error in form.password1.errors %}
+          <li>{{ error }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    {% if form.password1.help_text %}
+      <small>{{ form.password1.help_text|safe }}</small>
+    {% endif %}
+  </div>
+
+  <div class="form-group">
+    <label for="{{ form.password2.id_for_label }}">{{ form.password2.label }}</label>
+    {{ form.password2 }}
+    {% if form.password2.errors %}
+      <ul class="errorlist">
+        {% for error in form.password2.errors %}
+          <li>{{ error }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+
+  <button type="submit" class="submit-btn">Create Account</button>
+</form>
+
+<div class="divider">
+  <span>Already have an account?</span>
+</div>
+
+<div class="login-link">
+  <a href="{% url 'app:login' %}">Sign In Here</a>
+</div>
+{% endblock %}

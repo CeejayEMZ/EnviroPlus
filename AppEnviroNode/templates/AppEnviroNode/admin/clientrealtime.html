@@ -1,0 +1,695 @@
+{% extends 'AppEnviroNode/index.html' %}
+{% load static %}
+
+{% block title %}Admin - Real-Time - Environode{% endblock %}
+
+{% block content %}
+  <!-- Chart.js Dependency (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- Scoped Styles -->
+<style>
+/* Base Reset & Variables */
+.crealtime-root {
+    --crealtime-bg-main: #ffffff;
+    --crealtime-bg-soft: #f8fafc;
+    --crealtime-border: #e2e8f0;
+    --crealtime-text-main: #334155;
+    --crealtime-text-muted: #64748b;
+    --crealtime-green: #10b981;
+    --crealtime-green-soft: #d1fae5;
+    --crealtime-yellow: #f59e0b;
+    --crealtime-yellow-soft: #fef3c7;
+    --crealtime-red: #ef4444;
+    --crealtime-red-soft: #fee2e2;
+    --crealtime-blue: #3b82f6;
+    --crealtime-highlight: #fffbeb;
+    
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--crealtime-text-main);
+    font-size: 14px;
+    line-height: 1.4;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.crealtime-root *, .crealtime-root *::before, .crealtime-root *::after {
+    box-sizing: inherit;
+}
+
+/* Typography Utilities */
+.crealtime-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+.crealtime-text-xs { font-size: 0.75rem; }
+.crealtime-text-sm { font-size: 0.85rem; }
+.crealtime-font-medium { font-weight: 500; }
+.crealtime-font-semibold { font-weight: 600; }
+.crealtime-font-bold { font-weight: 700; }
+.crealtime-text-muted { color: var(--crealtime-text-muted); }
+
+/* Layout Grids */
+.crealtime-layout {
+    display: grid;
+    grid-template-columns: 65fr 35fr;
+    gap: 12px;
+    align-items: start;
+}
+
+/* Priority Banner */
+.crealtime-priority-banner {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--crealtime-red-soft);
+    border: 1px solid #fca5a5;
+    border-radius: 8px;
+    padding: 8px 16px;
+    margin-bottom: 12px;
+    animation: crealtime-slide-down-fade 0.3s ease-out forwards;
+}
+.crealtime-priority-banner.crealtime-banner-active {
+    display: flex;
+}
+.crealtime-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #991b1b;
+    font-size: 0.85rem;
+}
+.crealtime-banner-actions {
+    display: flex;
+    gap: 8px;
+}
+.crealtime-banner-btn {
+    background: #fff;
+    border: 1px solid #fca5a5;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #991b1b;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.crealtime-banner-btn:hover {
+    background: #fee2e2;
+    border-color: #ef4444;
+}
+
+/* Top Strip */
+.crealtime-top-strip {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--crealtime-bg-soft);
+    border: 1px solid var(--crealtime-border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+}
+
+.crealtime-status-wrapper {
+    display: flex;
+    flex-direction: column;
+}
+
+.crealtime-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+/* Badges */
+.crealtime-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+}
+.crealtime-badge-good { background: var(--crealtime-green-soft); color: var(--crealtime-green); }
+.crealtime-badge-degraded { background: var(--crealtime-yellow-soft); color: var(--crealtime-yellow); }
+.crealtime-badge-critical { background: var(--crealtime-red-soft); color: var(--crealtime-red); }
+
+/* Trends */
+.crealtime-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 8px;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.crealtime-trend-up { color: var(--crealtime-yellow); background: var(--crealtime-yellow-soft); }
+.crealtime-trend-down { color: var(--crealtime-green); background: var(--crealtime-green-soft); }
+.crealtime-trend-stable { color: var(--crealtime-text-muted); background: var(--crealtime-bg-soft); }
+
+.crealtime-filters {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Controls */
+.crealtime-select {
+    border: 1px solid var(--crealtime-border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    background: #fff;
+    color: var(--crealtime-text-main);
+    outline: none;
+    cursor: pointer;
+}
+
+.crealtime-btn-group {
+    display: flex;
+    border: 1px solid var(--crealtime-border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.crealtime-btn {
+    background: #fff;
+    border: none;
+    border-right: 1px solid var(--crealtime-border);
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    color: var(--crealtime-text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.crealtime-btn:last-child { border-right: none; }
+.crealtime-btn:hover { background: var(--crealtime-bg-soft); }
+.crealtime-btn.crealtime-active {
+    background: var(--crealtime-bg-soft);
+    color: var(--crealtime-text-main);
+    font-weight: 600;
+}
+
+/* Toggle Switch */
+.crealtime-toggle-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--crealtime-text-muted);
+}
+.crealtime-toggle {
+    width: 28px;
+    height: 16px;
+    background: var(--crealtime-green);
+    border-radius: 10px;
+    position: relative;
+    cursor: pointer;
+}
+.crealtime-toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 14px;
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    transition: 0.2s;
+}
+.crealtime-toggle.crealtime-off { background: var(--crealtime-border); }
+.crealtime-toggle.crealtime-off::after { left: 2px; }
+
+/* Panels */
+.crealtime-panel {
+    background: var(--crealtime-bg-main);
+    border: 1px solid var(--crealtime-border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+}
+.crealtime-panel:last-child { margin-bottom: 0; }
+
+.crealtime-panel-header {
+    background: var(--crealtime-bg-soft);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--crealtime-border);
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.crealtime-panel-body {
+    padding: 10px 12px;
+}
+
+/* Scrollbar Utility */
+.crealtime-scroll {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+.crealtime-scroll::-webkit-scrollbar { width: 4px; }
+.crealtime-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+
+/* Status Dots */
+.crealtime-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.crealtime-dot-green { background: var(--crealtime-green); box-shadow: 0 0 4px var(--crealtime-green); }
+.crealtime-dot-yellow { background: var(--crealtime-yellow); }
+.crealtime-dot-red { background: var(--crealtime-red); box-shadow: 0 0 4px var(--crealtime-red); }
+
+/* Animations */
+@keyframes crealtime-pulse-anim {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 4px rgba(16, 185, 129, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+.crealtime-pulse { animation: crealtime-pulse-anim 2s infinite; }
+
+@keyframes crealtime-slide-down-fade {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes crealtime-highlight-flash {
+    0% { background-color: transparent; }
+    20% { background-color: var(--crealtime-highlight); }
+    80% { background-color: var(--crealtime-highlight); }
+    100% { background-color: transparent; }
+}
+.crealtime-is-highlighted {
+    animation: crealtime-highlight-flash 2.5s ease-out;
+}
+
+/* Event Feed */
+.crealtime-feed-list {
+    max-height: 280px;
+    display: flex;
+    flex-direction: column;
+}
+.crealtime-feed-item {
+    display: flex;
+    gap: 10px;
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--crealtime-bg-soft);
+    border-radius: 4px;
+    animation: crealtime-slide-down-fade 0.3s ease-out forwards;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.crealtime-feed-item:hover { background-color: var(--crealtime-bg-soft); }
+.crealtime-feed-item.crealtime-feed-critical { background-color: var(--crealtime-red-soft); border-bottom-color: #fca5a5; }
+.crealtime-feed-item:last-child { border-bottom: none; }
+
+.crealtime-feed-icon {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+}
+.crealtime-bg-green { background: var(--crealtime-green-soft); color: var(--crealtime-green); }
+.crealtime-bg-yellow { background: var(--crealtime-yellow-soft); color: var(--crealtime-yellow); }
+.crealtime-bg-red { background: var(--crealtime-red-soft); color: var(--crealtime-red); }
+
+.crealtime-feed-content { flex: 1; }
+.crealtime-feed-time {
+    font-size: 0.7rem;
+    color: var(--crealtime-text-muted);
+    white-space: nowrap;
+}
+
+/* Graph */
+.crealtime-graph-container {
+    height: 100px;
+    width: 100%;
+    position: relative;
+}
+
+/* Node Table */
+.crealtime-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.crealtime-table th {
+    text-align: left;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--crealtime-text-muted);
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--crealtime-border);
+}
+.crealtime-table tbody tr {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.crealtime-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--crealtime-bg-soft);
+    font-size: 0.8rem;
+}
+.crealtime-table tbody tr:hover { background: var(--crealtime-bg-soft); }
+.crealtime-table tbody tr.crealtime-row-critical { background-color: rgba(239, 68, 68, 0.05); }
+
+/* Alerts Panel */
+.crealtime-alert-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 160px;
+}
+.crealtime-alert-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 8px;
+    background: var(--crealtime-bg-soft);
+    border-left: 3px solid var(--crealtime-red);
+    border-radius: 0 4px 4px 0;
+    font-size: 0.8rem;
+    transition: opacity 0.2s;
+}
+.crealtime-alert-item.crealtime-warning { border-left-color: var(--crealtime-yellow); }
+.crealtime-alert-msg { font-weight: 600; color: var(--crealtime-text-main); }
+.crealtime-alert-dismiss {
+    background: transparent;
+    border: none;
+    color: var(--crealtime-text-muted);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 4px;
+}
+.crealtime-alert-dismiss:hover { color: var(--crealtime-text-main); }
+
+/* Enhancements CSS */
+.crealtime-metadata {
+    display: flex;
+    gap: 12px;
+    font-size: 0.7rem;
+    color: var(--crealtime-text-muted);
+    margin-top: 4px;
+}
+.crealtime-metadata span { display: flex; align-items: center; gap: 4px; }
+
+.crealtime-tag {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: inline-block;
+}
+.crealtime-tag-info { background: var(--crealtime-blue); color: #fff; }
+.crealtime-tag-warn { background: var(--crealtime-yellow); color: #fff; }
+.crealtime-tag-critical { background: var(--crealtime-red); color: #fff; }
+
+.crealtime-nav-link {
+    font-size: 0.75rem;
+    color: var(--crealtime-blue);
+    text-decoration: none;
+    font-weight: 500;
+}
+.crealtime-nav-link:hover { text-decoration: underline; }
+
+.crealtime-action-group {
+    display: flex;
+    gap: 4px;
+}
+
+/* Tooltip implementation */
+.crealtime-action-btn-wrap {
+    position: relative;
+    display: inline-flex;
+}
+.crealtime-action-btn {
+    background: transparent;
+    border: 1px solid var(--crealtime-border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.75rem;
+    color: var(--crealtime-text-muted);
+    cursor: pointer;
+    transition: 0.2s;
+    line-height: 1;
+}
+.crealtime-action-btn:hover { background: var(--crealtime-bg-soft); color: var(--crealtime-text-main); }
+.crealtime-action-btn.crealtime-flag:hover { background: var(--crealtime-red-soft); color: var(--crealtime-red); border-color: var(--crealtime-red-soft); }
+
+/* Tooltip text styling */
+.crealtime-action-btn-wrap::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    background: #1e293b;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 10;
+}
+.crealtime-action-btn-wrap:hover::after {
+    opacity: 1;
+}
+
+.crealtime-feed-header-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+
+</style>
+
+<!-- Main Component Structure -->
+<div class="crealtime-root">
+    
+    <!-- Priority Alert Banner (New) -->
+    <div id="crealtime-priority-banner" class="crealtime-priority-banner crealtime-banner-active">
+        <div class="crealtime-banner-content">
+            <span class="crealtime-banner-icon">🚨</span>
+            <span class="crealtime-banner-text">
+                <strong style="letter-spacing: 0.05em;">CRITICAL:</strong> 
+                <span id="crealtime-banner-msg">Node ND-99X Offline</span> 
+                (<span id="crealtime-banner-duration" class="crealtime-mono">2m 14s</span>)
+            </span>
+        </div>
+        <div class="crealtime-banner-actions">
+            <button class="crealtime-banner-btn">Restart Node</button>
+            <button class="crealtime-banner-btn">View Node ↗</button>
+        </div>
+    </div>
+
+    <!-- Top Strip -->
+    <div class="crealtime-top-strip">
+        <div class="crealtime-status-wrapper">
+            <div class="crealtime-status-indicator">
+                <span id="crealtime-global-pulse" class="crealtime-dot crealtime-pulse {{ system_pulse_class }}"></span>
+                System Status: 
+                <span id="crealtime-system-badge" class="crealtime-badge {{ system_status_badge_class }}">{{ system_status }}</span>
+            </div>
+            <div class="crealtime-metadata">
+                <span>Active Nodes: <b id="crealtime-active-nodes" style="color:var(--crealtime-text-main)">{{ active_node_count }}/{{ total_node_count }}</b></span> •
+                <span>Latency: <b style="color:var(--crealtime-text-main)">{{ latency_display }}</b></span> •
+                <span>Last Sync: <b id="crealtime-sync-time" style="color:var(--crealtime-text-main)">{{ latest_update }}</b></span>
+            </div>
+        </div>
+        
+        <div class="crealtime-filters">
+            <select class="crealtime-select" id="crealtime-zone-select">
+                <option value="all">All Nodes ({{ total_node_count }})</option>
+                {% for zone in zones %}
+                    <option value="{{ zone.label|slugify }}">{{ zone.label }} ({{ zone.count }})</option>
+                {% endfor %}
+            </select>
+            
+            <div class="crealtime-btn-group">
+                <button class="crealtime-btn crealtime-active">All</button>
+                <button class="crealtime-btn">Online</button>
+                <button class="crealtime-btn">Alerts</button>
+            </div>
+            
+            <select class="crealtime-select">
+                <option>Last 1m</option>
+                <option>Last 5m</option>
+                <option>Last 15m</option>
+            </select>
+
+            <div class="crealtime-toggle-wrapper">
+                Live
+                <div class="crealtime-toggle" id="crealtime-auto-refresh"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2-Column Layout -->
+    <div class="crealtime-layout">
+        
+        <!-- LEFT COLUMN (65%) -->
+        <div class="crealtime-col-left">
+            
+            <!-- Mini Live Graph -->
+            <div class="crealtime-panel">
+                <div class="crealtime-panel-header">
+                    <span>Aggregated Network AQI</span>
+                    <div style="display:flex; gap:12px; align-items:center;">
+                        <a href="#" class="crealtime-nav-link">View in Analytics ↗</a>
+                        <span class="crealtime-text-xs crealtime-text-muted crealtime-mono" style="display:flex; align-items:center;">
+                            Live: <span id="crealtime-live-aqi-val" class="crealtime-font-semibold" style="color:var(--crealtime-green); margin-left: 4px;">34.2</span>
+                            <span id="crealtime-trend-indicator" class="crealtime-trend crealtime-trend-stable">Stable →</span>
+                        </span>
+                    </div>
+                </div>
+                <div class="crealtime-panel-body" style="padding: 10px 10px 5px 10px;">
+                    <div class="crealtime-graph-container">
+                        <canvas id="crealtime-sparkline"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Event Feed -->
+            <div class="crealtime-panel">
+                <div class="crealtime-panel-header">
+                    <span>Live Event Feed</span>
+                    <span class="crealtime-text-xs crealtime-text-muted">Auto-scrolling</span>
+                </div>
+                <div class="crealtime-panel-body crealtime-scroll" style="padding: 0 12px;">
+                    <div class="crealtime-feed-list" id="crealtime-feed">
+                        {% for event in feed_events %}
+                            <div class="crealtime-feed-item {% if event.severity == 'critical' %}crealtime-feed-critical{% endif %}" data-node-id="{{ event.node_id }}" data-timestamp="{{ event.timestamp|date:'U' }}">
+                                <div class="crealtime-feed-icon {{ event.bg_class }}">{{ event.icon }}</div>
+                                <div class="crealtime-feed-content">
+                                    <div class="crealtime-feed-header-row">
+                                        <span class="crealtime-tag {{ event.tag_class }}">{{ event.tag_label }}</span>
+                                        <div class="crealtime-text-sm crealtime-font-medium">{{ event.title }}</div>
+                                    </div>
+                                    <div class="crealtime-text-xs crealtime-text-muted">{{ event.description }}</div>
+                                </div>
+                                <div class="crealtime-feed-time crealtime-mono crealtime-dynamic-time">Just now</div>
+                            </div>
+                        {% empty %}
+                            <div class="crealtime-feed-item" data-node-id="none" data-timestamp="{{ latest_update_timestamp }}">
+                                <div class="crealtime-feed-icon crealtime-bg-green">✓</div>
+                                <div class="crealtime-feed-content">
+                                    <div class="crealtime-feed-header-row">
+                                        <span class="crealtime-tag crealtime-tag-info">INFO</span>
+                                        <div class="crealtime-text-sm crealtime-font-medium">No recent events</div>
+                                    </div>
+                                    <div class="crealtime-text-xs crealtime-text-muted">The network is operating normally.</div>
+                                </div>
+                                <div class="crealtime-feed-time crealtime-mono crealtime-dynamic-time">Just now</div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT COLUMN (35%) -->
+        <div class="crealtime-col-right">
+            
+            <!-- Node Status Board -->
+            <div class="crealtime-panel">
+                <div class="crealtime-panel-header">
+                    <span>Node Status Board</span>
+                    <div style="display:flex; gap:12px; align-items:center;">
+                        <a href="#" class="crealtime-nav-link">View on Map ↗</a>
+                        <span class="crealtime-text-xs crealtime-text-muted">Top 5</span>
+                    </div>
+                </div>
+                <div class="crealtime-panel-body" style="padding: 0;">
+                    <table class="crealtime-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Zone</th>
+                                <th>Status</th>
+                                <th>AQI</th>
+                                <th>Last Seen</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="crealtime-node-table-body">
+                            {% for node in node_entries %}
+                            <tr data-node-id="{{ node.name }}" class="{% if node.status != 'active' or node.aqi is None or node.aqi > 100 %}crealtime-row-critical{% endif %}" data-timestamp="{{ node.timestamp|date:'U' }}">
+                                <td class="crealtime-mono crealtime-font-medium">{{ node.name }}</td>
+                                <td class="crealtime-text-xs">{{ node.zone }}</td>
+                                <td><span class="crealtime-dot {{ node.status_dot_class }}"></span></td>
+                                <td class="crealtime-mono">{% if node.aqi is not None %}{{ node.aqi }}{% else %}-{% endif %}</td>
+                                <td class="crealtime-text-xs crealtime-text-muted crealtime-dynamic-time">Just now</td>
+                                <td>
+                                    <div class="crealtime-action-group">
+                                        <div class="crealtime-action-btn-wrap" data-tooltip="Restart">
+                                            <button class="crealtime-action-btn">↻</button>
+                                        </div>
+                                        <div class="crealtime-action-btn-wrap" data-tooltip="Calibrate">
+                                            <button class="crealtime-action-btn">⚙</button>
+                                        </div>
+                                        <div class="crealtime-action-btn-wrap" data-tooltip="Flag Node">
+                                            <button class="crealtime-action-btn crealtime-flag">⚑</button>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="6" class="crealtime-text-xs crealtime-text-muted">No active node readings available.</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Active Alerts -->
+            <div class="crealtime-panel">
+                <div class="crealtime-panel-header">
+                    <span>Active Alerts</span>
+                    <span id="crealtime-alert-count" class="crealtime-text-xs crealtime-text-muted">{{ alert_entries|length }} Alerts</span>
+                </div>
+                <div class="crealtime-panel-body crealtime-scroll">
+                    <div class="crealtime-alert-list" id="crealtime-alert-list">
+                        {% for alert in alert_entries %}
+                            <div class="crealtime-alert-item {% if alert.severity == 'warning' %}crealtime-warning{% endif %} {% if alert.severity == 'critical' %}crealtime-feed-critical{% endif %}" data-node-id="{{ alert.node_name }}" data-timestamp="{{ alert.timestamp|date:'U' }}">
+                                <div>
+                                    <div class="crealtime-alert-msg" {% if alert.severity == 'critical' %}style="color:var(--crealtime-red)"{% endif %}>{{ alert.title }}</div>
+                                    <div class="crealtime-text-xs crealtime-text-muted">{{ alert.description }} <span class="crealtime-dynamic-time">Just now</span></div>
+                                </div>
+                                <button class="crealtime-alert-dismiss" aria-label="Dismiss">&times;</button>
+                            </div>
+                        {% empty %}
+                            <div class="crealtime-alert-item">
+                                <div>
+                                    <div class="crealtime-alert-msg">No active alerts</div>
+                                    <div class="crealtime-text-xs crealtime-text-muted">All monitored nodes are operating normally.</div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script id="crealtime-initial-data" type="application/json">{{ realtime_payload_json|safe }}</script>
+<script src="{% static 'AppEnviroNode/js/clientrealtime.js' %}"></script>
+{% endblock %}

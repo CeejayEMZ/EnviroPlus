@@ -1,0 +1,1251 @@
+{% extends 'AppEnviroNode/index.html' %}
+{% load static %}
+
+{% block title %}Admin - Dashboard - Environode{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+   .dashb-page-shell {
+      width: 100%;
+      max-width: 100%;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    .dashb-page-shell > .section,
+    .dashb-page-shell .section {
+      width: 100%;
+      box-sizing: border-box;
+    } 
+
+    main.main-container {
+      margin-top: 70px !important;
+      padding: 12px 14px 18px !important;
+      width: calc(100% - 20px) !important;
+      gap: 10px !important;
+    }
+
+    @media (max-width: 1024px) {
+      main.main-container {
+        width: calc(100% - 24px) !important;
+        margin-top: 62px !important;
+      }
+    }
+
+    @media (max-width: 640px) {
+      main.main-container {
+        width: calc(100% - 18px) !important;
+        margin-top: 58px !important;
+      }
+    }
+
+    .dashb-trend-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      background: #ffffff;
+      border: 1px solid rgba(41, 56, 72, 0.08);
+      box-shadow: 0 14px 32px rgba(20, 42, 66, 0.08);
+      border-radius: 20px;
+      padding: 18px;
+    }
+
+    /* Two-column layout without outer container */
+    .forecast-area-row {
+      display: grid;
+      grid-template-columns: 3fr 1fr;
+      gap: 18px;
+      align-items: stretch;
+      margin: 20px 0 16px 0;
+    }
+
+    .dashb-trend-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .dashb-trend-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #111827;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin: 0;
+    }
+
+    .dashb-trend-help {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 1px solid rgba(148, 163, 184, 0.26);
+      color: #475569;
+      font-size: 0.95rem;
+      cursor: pointer;
+      background: #ffffff;
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    .dashb-trend-help:hover {
+      background: rgba(59, 130, 246, 0.08);
+      color: #1d4ed8;
+    }
+
+    .dashb-trend-help-text {
+      display: none;
+      position: absolute;
+      top: 68px;
+      left: 18px;
+      right: 18px;
+      z-index: 20;
+      padding: 18px 20px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.98);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+      color: #334155;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    .dashb-trend-help-text.active {
+      display: block;
+    }
+
+    .dashb-trend-chart-wrap {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 320px;
+      height: 360px;
+      display: flex;
+      align-items: stretch;
+      background: #ffffff;
+      border-radius: 20px;
+      padding: 14px 12px 12px;
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+    }
+
+    .dashb-trend-chart-wrap canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .dashb-areas-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      background: #ffffff;
+      border: 1px solid rgba(41, 56, 72, 0.08);
+      box-shadow: 0 14px 32px rgba(20, 42, 66, 0.08);
+      border-radius: 20px;
+      padding: 20px;
+      height: 100%;
+    }
+
+    .dashb-areas-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+      padding-bottom: 12px;
+    }
+
+    .dashb-areas-title {
+      font-size: 1.08rem;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    .dashb-area-list {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      list-style: none;
+      width: 100%;
+    }
+
+    .dashb-area-list-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: #ffffff;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    }
+
+    .dashb-area-list-item.polluted {
+      background: #fef2f2;
+      border-color: rgba(239, 68, 68, 0.16);
+    }
+
+    .dashb-area-list-item.cleanest {
+      background: #ecfdf5;
+      border-color: rgba(16, 185, 129, 0.16);
+    }
+
+    .dashb-area-score {
+      min-width: 72px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: #eef2ff;
+      color: #3730a3;
+      font-size: 0.98rem;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .dashb-area-list-item.polluted .dashb-area-score {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .dashb-area-list-item.cleanest .dashb-area-score {
+      background: #dcfce7;
+      color: #047857;
+    }
+
+    .dashb-area-item-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .dashb-area-item-name {
+      font-size: 0.96rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .dashb-area-item-subtitle {
+      font-size: 0.85rem;
+      color: #475569;
+    }
+
+    .dashb-area-item-rank {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      display: inline-block;
+    }
+
+    .dashb-area-empty {
+      color: #64748b;
+      font-size: 0.95rem;
+      padding: 18px 14px;
+      border-radius: 14px;
+      background: #f8fafc;
+      text-align: center;
+      border: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    /* SENSOR METRICS SECTION - COMPACT & FULLY VISIBLE FLIPPED CONTENT */
+    .sensor-metrics-section {
+      margin: 20px 0 16px 0;
+    }
+
+    .section.grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    /* COMPACT METRIC CARD - NO overflow: hidden, FULLY VISIBLE FLIPPED CONTENT */
+    .metric-card {
+      position: relative;
+      min-height: 130px;
+      cursor: pointer;
+      perspective: 1000px;
+      overflow: visible;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      border-radius: 14px;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      background: #ffffff;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+    }
+
+    .metric-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 14px rgba(15, 23, 42, 0.1);
+    }
+
+    .metric-card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 130px;
+      transform-style: preserve-3d;
+      transition: transform 0.5s ease;
+      border-radius: inherit;
+      background: transparent;
+    }
+
+    .metric-card.flipped .metric-card-inner {
+      transform: rotateY(180deg);
+    }
+
+    .metric-card-front,
+    .metric-card-back {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 6px;
+      padding: 12px;
+      border-radius: inherit;
+      background: transparent;
+      overflow-wrap: break-word;
+      word-break: break-word;
+      white-space: normal;
+      min-height: 130px;
+      box-sizing: border-box;
+    }
+
+    .metric-card-front {
+      z-index: 2;
+      justify-content: center;
+      background: #ffffff;
+      border-radius: 14px;
+    }
+
+    .metric-card-back {
+      transform: rotateY(180deg);
+      color: #f8fafc;
+      z-index: 1;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      justify-content: center;
+      border-radius: 14px;
+    }
+
+    .metric-card-back::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 14px;
+      background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.08), transparent 40%);
+      pointer-events: none;
+      opacity: 0.9;
+    }
+
+    .metric-card-back .metric-top small {
+      color: #e2e8f0;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-weight: 700;
+      font-size: 0.7rem;
+      border-bottom: 1px solid rgba(226, 232, 240, 0.2);
+      padding-bottom: 5px;
+      display: inline-block;
+      margin-bottom: 8px;
+    }
+
+    .metric-card-back .metric-back-text {
+      font-size: 0.8rem;
+      line-height: 1.45;
+      color: rgba(226, 232, 240, 0.92);
+      max-width: 100%;
+    }
+
+    .metric-card-back .metric-card-action {
+      margin-top: 8px;
+      color: rgba(226, 232, 240, 0.85);
+      font-size: 0.7rem;
+    }
+
+    .metric-card .metric-top,
+    .metric-card .metric-value,
+    .metric-card .metric-unit {
+      position: relative;
+      z-index: 2;
+    }
+
+    .metric-card .metric-top small {
+      color: #64748b;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-weight: 700;
+      font-size: 0.7rem;
+    }
+
+    .metric-card .metric-value {
+      display: inline-block;
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.2;
+    }
+
+    .metric-card .metric-unit {
+      display: inline-block;
+      color: #94a3b8;
+      font-size: 0.75rem;
+      margin: 0 0 0 0.3rem;
+      letter-spacing: 0.02em;
+      vertical-align: bottom;
+    }
+
+    .metric-card-action {
+      display: inline-flex;
+      align-items: center;
+      color: #1e3a8a !important;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      margin-top: 6px;
+      opacity: 0.9;
+    }
+
+    .metric-card.flipped .metric-card-action {
+      color: #bfdbfe !important;
+    }
+
+    .metric-card-action::after {
+      content: '';
+      display: inline-block;
+      margin-left: 6px;
+      border-right: 2px solid currentColor;
+      border-top: 2px solid currentColor;
+      width: 0.35rem;
+      height: 0.35rem;
+      transform: rotate(45deg);
+      vertical-align: middle;
+      transition: transform 0.25s ease;
+    }
+
+    .metric-card.flipped .metric-card-action::after {
+      transform: rotate(-135deg);
+    }
+
+    .metric-humidity-sub {
+      font-size: 0.7rem;
+      color: #94a3b8;
+      margin-top: 4px;
+      display: block;
+    }
+
+    /* Balanced AQI Row */
+    .dashboard-aqi-row {
+      display: flex;
+      gap: 16px;
+      align-items: stretch;
+      justify-content: flex-start;
+      margin-bottom: 24px;
+    }
+
+    .dashboard-aqi-row .heatmap-card {
+      background: white;
+      border-radius: 18px;
+      box-shadow: 0 8px 20px rgba(18, 60, 100, 0.15);
+      padding: 18px 20px 16px 20px;
+      flex: 1 1 0;
+      border: 1.5px solid #dbe8f7;
+      display: flex;
+      flex-direction: column;
+      justify-content: stretch;
+      min-height: 460px;
+    }
+
+    .dashboard-aqi-row .aqi-card {
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 8px 20px rgba(18, 60, 100, 0.15);
+      padding: 20px 28px 22px 28px;
+      min-width: 320px;
+      max-width: 360px;
+      border: 1.5px solid #dbe8f7;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+      min-height: 460px;
+    }
+
+    .dashboard-aqi-row .subsection-title {
+      margin-bottom: 14px;
+      font-size: 1.1rem;
+      color: #0a2d5f;
+      font-weight: 700;
+    }
+
+    /* Color Bar Legend */
+    .aqi-bar-legend {
+      margin-top: 14px;
+      width: 100%;
+    }
+
+    .legend-bars-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 6px;
+      width: 100%;
+    }
+
+    .legend-bar-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .legend-color-bar {
+      width: 100%;
+      height: 12px;
+      border-radius: 20px;
+      margin-bottom: 8px;
+    }
+
+    .legend-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #6b7280;
+      letter-spacing: 0.02em;
+    }
+
+    .bar-good { background-color: #68c046; }
+    .bar-moderate { background-color: #ffef64; }
+    .bar-sensitive { background-color: #e88532; }
+    .bar-unhealthy { background-color: #db4836; }
+    .bar-very-unhealthy { background-color: #814396; }
+    .bar-hazardous { background-color: #701526; }
+
+    .dashboard-aqi-row .aqi-info-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #1a3352;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+
+    .dashboard-aqi-row .aqi-info-subtitle {
+      font-size: 0.75rem;
+      color: #6b7a8b;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .dashboard-aqi-row .aqi-circle {
+      margin: 0 auto 10px auto;
+      width: 150px;
+      height: 150px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .dashboard-aqi-row .aqi-circle svg {
+      width: 150px;
+      height: 150px;
+    }
+
+    .dashboard-aqi-row .aqi-circle svg circle:nth-child(1) {
+      stroke: #e6e6e6;
+      stroke-width: 11;
+      fill: none;
+    }
+
+    .dashboard-aqi-row .aqi-circle svg circle:nth-child(2) {
+      stroke: #23272f;
+      stroke-width: 11;
+      fill: none;
+      stroke-dasharray: 432;
+      stroke-dashoffset: 86;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+      transition: stroke-dashoffset 1s ease-in-out, stroke 0.5s ease;
+    }
+
+    .dashboard-aqi-row .aqi-circle-content {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .dashboard-aqi-row .aqi-circle-value {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: #23272f;
+    }
+
+    .dashboard-aqi-row .aqi-circle-label {
+      font-size: 0.85rem;
+      color: #23272f;
+      letter-spacing: 0.04em;
+    }
+
+    .dashboard-aqi-row .aqi-badge {
+      display: inline-block;
+      background: #fffbe6;
+      color: #7a5c1b;
+      border: 1.5px solid #e6c96b;
+      border-radius: 999px;
+      padding: 6px 20px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin: 0 auto 8px auto;
+    }
+
+    .dashboard-aqi-row .aqi-description {
+      font-size: 0.85rem;
+      color: #23272f;
+      margin-bottom: 14px;
+      margin-top: 6px;
+      text-align: center;
+      max-width: 280px;
+    }
+
+    .dashboard-aqi-row .aqi-ask {
+      margin-top: 10px;
+      text-align: right;
+      width: 100%;
+    }
+
+    .dashboard-aqi-row .aqi-ask span {
+      font-size: 0.78rem;
+      color: #23272f;
+    }
+
+    .dashboard-aqi-row .aqi-ask strong {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #23272f;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 2px;
+    }
+
+    /* Map container */
+    #admin-map {
+      flex: 1 1 auto;
+      border-radius: 12px;
+      min-height: 260px;
+      height: 260px;
+      z-index: 1;
+    }
+
+    /* Smaller Leaflet map controls */
+    .leaflet-control-zoom a,
+    .leaflet-control-zoom-in,
+    .leaflet-control-zoom-out {
+      width: 26px !important;
+      height: 26px !important;
+      line-height: 24px !important;
+      font-size: 14px !important;
+    }
+
+    .leaflet-control-zoom {
+      border-radius: 4px !important;
+    }
+
+    .leaflet-control-attribution {
+      font-size: 8px !important;
+    }
+
+    .leaflet-control-fullscreen a,
+    .leaflet-control-locate a,
+    .leaflet-bar a.leaflet-control-fullscreen,
+    .leaflet-bar a.leaflet-control-locate {
+      width: 26px !important;
+      height: 26px !important;
+      line-height: 26px !important;
+      font-size: 14px !important;
+    }
+
+    .leaflet-control-container .leaflet-bar {
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15) !important;
+    }
+
+    .leaflet-bar a {
+      border-radius: 3px !important;
+    }
+
+    .leaflet-control-custom {
+      width: 26px !important;
+      height: 26px !important;
+      line-height: 26px !important;
+    }
+
+    .leaflet-control-zoom.leaflet-bar {
+      margin-top: 8px !important;
+    }
+
+    @media (max-width: 1024px) {
+      .dashboard-aqi-row {
+        flex-wrap: wrap;
+        gap: 14px;
+      }
+      .dashboard-aqi-row .aqi-card {
+        min-width: 0;
+        max-width: 100%;
+        width: 100%;
+      }
+      .dashboard-aqi-row .heatmap-card {
+        min-height: 420px;
+      }
+      .dashboard-aqi-row .aqi-card {
+        min-height: 420px;
+      }
+      .section.grid-4 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .forecast-area-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .dashboard-aqi-row .aqi-card {
+        min-width: 0;
+        max-width: 100%;
+      }
+      .dashboard-aqi-row .heatmap-card {
+        min-height: 400px;
+      }
+      .dashboard-aqi-row .aqi-card {
+        min-height: 400px;
+      }
+      #admin-map {
+        min-height: 220px;
+        height: 220px;
+      }
+      .section.grid-4 {
+        grid-template-columns: 1fr;
+      }
+      .leaflet-control-zoom a,
+      .leaflet-control-zoom-in,
+      .leaflet-control-zoom-out {
+        width: 24px !important;
+        height: 24px !important;
+        line-height: 22px !important;
+        font-size: 12px !important;
+      }
+      .leaflet-control-fullscreen a,
+      .leaflet-control-locate a {
+        width: 24px !important;
+        height: 24px !important;
+        line-height: 24px !important;
+        font-size: 12px !important;
+      }
+      .legend-label {
+        font-size: 0.6rem;
+      }
+      .metric-card {
+        min-height: 120px;
+      }
+      .metric-card-front,
+      .metric-card-back {
+        min-height: 120px;
+        padding: 10px;
+      }
+      .metric-card .metric-value {
+        font-size: 1.4rem;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="overlay">
+  <div class="dashb-page-shell">
+  
+    <!-- Balanced AQI Row -->
+    <div class="dashboard-aqi-row">
+      <div class="heatmap-card">
+        <div class="subsection-title">Air Quality Map</div>
+        
+        <div id="admin-map"></div>
+        
+        <!-- Color Bar Legend -->
+        <div class="aqi-bar-legend">
+          <div class="legend-bars-container">
+            <div class="legend-bar-item">
+              <div class="legend-color-bar bar-good"></div>
+              <span class="legend-label">Good</span>
+            </div>
+            <div class="legend-bar-item">
+              <div class="legend-color-bar bar-moderate"></div>
+              <span class="legend-label">Moderate</span>
+            </div>
+            <div class="legend-bar-item">
+              <div class="legend-color-bar bar-sensitive"></div>
+              <span class="legend-label">Sensitive</span>
+            </div>
+            <div class="legend-bar-item">
+              <div class="legend-color-bar bar-unhealthy"></div>
+              <span class="legend-label">Unhealthy</span>
+            </div>
+            <div class="legend-bar-item">
+              <div class="legend-color-bar bar-very-unhealthy"></div>
+              <span class="legend-label">Very Unhealthy</span>
+            </div>
+            <div class="legend-bar-item">
+              <div class="legend-color-bar bar-hazardous"></div>
+              <span class="legend-label">Hazardous</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="aqi-card">
+        <div class="aqi-info-title">Average AQI</div>
+        <div class="aqi-info-subtitle">Last updated: {% if aggregate_data.latest_overall.timestamp %}{{ aggregate_data.latest_overall.timestamp|date:"M/d/Y, g:i A" }}{% else %}No readings yet{% endif %}</div>
+        
+        <div class="aqi-circle">
+          <svg width="150" height="150" id="aqiCircle">
+            <circle cx="75" cy="75" r="65" />
+            <circle cx="75" cy="75" r="65" id="aqiProgressRing" />
+          </svg>
+          <div class="aqi-circle-content">
+            <div class="aqi-circle-value" id="currentAqiVal">{% if aggregate_data.latest_overall.aqi %}{{ aggregate_data.latest_overall.aqi }}{% else %}60{% endif %}</div>
+            <div class="aqi-circle-label">AQI</div>
+          </div>
+        </div>
+        
+        <div class="aqi-badge" id="currentAqiLevel" data-level="{{ aggregate_data.latest_overall.aqi_level|default:'moderate' }}">
+          {% if aggregate_data.latest_overall.aqi_level_display %}{{ aggregate_data.latest_overall.aqi_level_display }}{% else %}Moderate{% endif %}
+        </div>
+        <div class="aqi-description">
+          The air has reached a high level of pollution and is unhealthy for sensitive groups. Reduce time spent outside if you are feeling symptoms such as difficulty breathing or throat irritation.
+        </div>
+        
+        <div class="aqi-ask">
+          <span>Ask more at</span>
+          <strong>EnviroAI <i class="fa-solid fa-robot" style="font-size: 0.9rem;"></i></strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- SENSOR METRICS SECTION -->
+    <div class="sensor-metrics-section">
+      <div class="section grid-4">
+        <article class="metric-card" data-metric="pm25">
+          <div class="metric-card-inner">
+            <div class="metric-card-front">
+              <div class="metric-top"><small>PM2.5</small></div>
+              <div>
+                <span class="metric-value">{% if aggregate_data.latest_overall.pm2_5 %}{{ aggregate_data.latest_overall.pm2_5|floatformat:1 }}{% else %}-{% endif %}</span>
+                <span class="metric-unit">µg/m³</span>
+              </div>
+            </div>
+            <div class="metric-card-back">
+              <div class="metric-top"><small>About PM2.5</small></div>
+              <div class="metric-back-text">Fine particles that penetrate deep into the respiratory system. Often comes from vehicle exhaust and combustion.</div>
+            </div>
+          </div>
+        </article>
+        <article class="metric-card" data-metric="pm10">
+          <div class="metric-card-inner">
+            <div class="metric-card-front">
+              <div class="metric-top"><small>PM10</small></div>
+              <div>
+                <span class="metric-value">{% if aggregate_data.latest_overall.pm10 %}{{ aggregate_data.latest_overall.pm10|floatformat:1 }}{% else %}-{% endif %}</span>
+                <span class="metric-unit">µg/m³</span>
+              </div>
+            </div>
+            <div class="metric-card-back">
+              <div class="metric-top"><small>About PM10</small></div>
+              <div class="metric-back-text">Coarse inhalable particles from dust and pollen that can irritate the nose and throat.</div>
+            </div>
+          </div>
+        </article>
+        <article class="metric-card" data-metric="pm1_0">
+          <div class="metric-card-inner">
+            <div class="metric-card-front">
+              <div class="metric-top"><small>PM1.0</small></div>
+              <div>
+                <span class="metric-value">{% if aggregate_data.latest_overall.pm1_0 %}{{ aggregate_data.latest_overall.pm1_0|floatformat:1 }}{% else %}-{% endif %}</span>
+                <span class="metric-unit">µg/m³</span>
+              </div>
+            </div>
+            <div class="metric-card-back">
+              <div class="metric-top"><small>About PM1.0</small></div>
+              <div class="metric-back-text">Ultrafine particles that easily enter the smallest airways and may affect lung function.</div>
+            </div>
+          </div>
+        </article>
+        <article class="metric-card" data-metric="temperature">
+          <div class="metric-card-inner">
+            <div class="metric-card-front">
+              <div class="metric-top"><small>Temperature</small></div>
+              <div>
+                <span class="metric-value">{% if aggregate_data.latest_overall.temperature %}{{ aggregate_data.latest_overall.temperature|floatformat:1 }}{% else %}-{% endif %}</span>
+                <span class="metric-unit">°C</span>
+              </div>
+              <div class="metric-humidity-sub">Humidity: {% if aggregate_data.latest_overall.humidity %}{{ aggregate_data.latest_overall.humidity|floatformat:0 }}{% else %}0{% endif %}%</div>
+            </div>
+            <div class="metric-card-back">
+              <div class="metric-top"><small>About Temperature</small></div>
+              <div class="metric-back-text">Ambient temperature measured by the sensor. It affects comfort and how air pollutants behave.</div>
+            </div>
+          </div>
+        </article>
+        <article class="metric-card" data-metric="humidity">
+          <div class="metric-card-inner">
+            <div class="metric-card-front">
+              <div class="metric-top"><small>Humidity</small></div>
+              <div>
+                <span class="metric-value">{% if aggregate_data.latest_overall.humidity %}{{ aggregate_data.latest_overall.humidity|floatformat:0 }}{% else %}-{% endif %}</span>
+                <span class="metric-unit">%</span>
+              </div>
+              <div class="metric-humidity-sub">Relative</div>
+            </div>
+            <div class="metric-card-back">
+              <div class="metric-top"><small>About Humidity</small></div>
+              <div class="metric-back-text">Relative humidity describes moisture in the air and can influence comfort and indoor air quality.</div>
+            </div>
+          </div>
+        </article>
+        <article class="metric-card" data-metric="pressure">
+          <div class="metric-card-inner">
+            <div class="metric-card-front">
+              <div class="metric-top"><small>Pressure</small></div>
+              <div>
+                <span class="metric-value">{% if aggregate_data.latest_overall.pressure %}{{ aggregate_data.latest_overall.pressure|floatformat:1 }}{% else %}-{% endif %}</span>
+                <span class="metric-unit">hPa</span>
+              </div>
+            </div>
+            <div class="metric-card-back">
+              <div class="metric-top"><small>About Pressure</small></div>
+              <div class="metric-back-text">Atmospheric pressure at the sensor. Changes can help identify weather shifts and air stability.</div>
+            </div>
+          </div>
+        </article>
+        <article class="metric-card" data-metric="vocs">
+          <div class="metric-card-inner">
+            <div class="metric-card-front">
+              <div class="metric-top"><small>VOCs</small></div>
+              <div>
+                <span class="metric-value">{% if aggregate_data.latest_overall.gas_resistance %}{{ aggregate_data.latest_overall.gas_resistance|floatformat:1 }}{% else %}-{% endif %}</span>
+                <span class="metric-unit">Index</span>
+              </div>
+            </div>
+            <div class="metric-card-back">
+              <div class="metric-top"><small>About VOCs</small></div>
+              <div class="metric-back-text">Volatile organic compounds from gases and chemicals. Elevated VOCs may irritate eyes, nose, and throat.</div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <!-- FORECAST AND AREA INSIGHTS - NO OUTER CONTAINER -->
+    <div class="forecast-area-row">
+      <!-- 24-Hour Air Quality Forecast - Chart only, no footer content -->
+      <div class="card-white dashb-trend-card">
+        <div class="dashb-trend-header">
+          <div class="dashb-trend-title">24-Hour Air Quality Forecast</div>
+          <div class="dashb-trend-help" data-help-target="forecastHelpText" title="Why this chart matters">?</div>
+        </div>
+        <div class="dashb-trend-help-text" id="forecastHelpText">
+          This chart shows how air quality changes hour by hour over the next 24 hours. It matters because it helps you plan outdoor time and avoid peak pollution periods.
+        </div>
+        <div class="dashb-trend-chart-wrap">
+          <canvas id="dashboardChart"></canvas>
+        </div>
+      </div>
+      
+      <!-- Area Insights Card -->
+      <div class="dashb-areas-card">
+        <div class="dashb-areas-header">
+          <div>
+            <div class="dashb-areas-title">Area Insights</div>
+          </div>
+          <div class="dashb-trend-help" data-help-target="areaInsightsHelpText" title="What this shows">?</div>
+        </div>
+        <div class="dashb-trend-help-text" id="areaInsightsHelpText">
+          This shows the area with the best air quality (Cleanest) and the area with the worst air quality (Most Polluted) based on current AQI readings.
+        </div>
+        <ul class="dashb-area-list">
+          <!-- Cleanest Area -->
+          {% if cleanest_areas and cleanest_areas|length > 0 %}
+            <li class="dashb-area-list-item cleanest">
+              <div class="dashb-area-item-meta">
+                <span class="dashb-area-item-rank">Cleanest</span>
+                <span class="dashb-area-item-name">{{ cleanest_areas.0.name }}</span>
+                <span class="dashb-area-item-subtitle">{{ cleanest_areas.0.location }}</span>
+              </div>
+              <span class="dashb-area-score">{{ cleanest_areas.0.aqi }}</span>
+            </li>
+          {% else %}
+            <li class="dashb-area-empty">No cleanest area data available.</li>
+          {% endif %}
+          
+          <!-- Most Polluted Area -->
+          {% if top_polluted_areas and top_polluted_areas|length > 0 %}
+            <li class="dashb-area-list-item polluted">
+              <div class="dashb-area-item-meta">
+                <span class="dashb-area-item-rank">Most Polluted</span>
+                <span class="dashb-area-item-name">{{ top_polluted_areas.0.name }}</span>
+                <span class="dashb-area-item-subtitle">{{ top_polluted_areas.0.location }}</span>
+              </div>
+              <span class="dashb-area-score">{{ top_polluted_areas.0.aqi }}</span>
+            </li>
+          {% else %}
+            <li class="dashb-area-empty">No polluted area data available.</li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+    <script>
+      window.DashboardRankings = {
+        polluted: {{ top_polluted_areas_json|safe }},
+        cleanest: {{ cleanest_areas_json|safe }}
+      };
+    </script>
+
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.1/dist/leaflet.markercluster.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.Default.css" />
+<script src="{% static 'AppEnviroNode/js/map-controls.js' %}"></script>
+<script src="{% static 'AppEnviroNode/js/dashboard-aqi-trend.js' %}"></script>
+<script src="{% static 'AppEnviroNode/js/dashboard-top-areas.js' %}"></script>
+
+<script>
+  console.log('📊 [Dashboard Module Initialized]');
+  
+  let dashboardController = {
+    mapInstance: null,
+    markerClusterGroup: null,
+    allMarkersMap: new Map(),
+    lastUpdateTime: null,
+    updateInterval: 30000,
+    maxNodesToLoad: 100,
+    
+    async fetchNodeData(status = 'all') {
+      try {
+        const url = `/api/dashboard/nodes/?limit=${this.maxNodesToLoad}&status=${status}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`API error: ${response.status}`);
+        const data = await response.json();
+        if (!data.success) throw new Error(data.error || 'Unknown API error');
+        console.log(`✅ Fetched ${data.nodes.length} nodes from API`);
+        return data.nodes;
+      } catch (error) {
+        console.error('❌ Failed to fetch node data:', error);
+        return [];
+      }
+    },
+    
+    getAqiStyle(aqi) {
+      if (aqi <= 50) return 'aqi-good';
+      if (aqi <= 100) return 'aqi-moderate';
+      if (aqi <= 150) return 'aqi-unhealthy-sensitive';
+      if (aqi <= 200) return 'aqi-unhealthy';
+      if (aqi <= 300) return 'aqi-very-unhealthy';
+      return 'aqi-hazardous';
+    },
+    
+    initializeMap() {
+      console.log('📍 Initializing dashboard map with marker clustering...');
+      if (typeof L === 'undefined') {
+        console.error('❌ Leaflet not loaded');
+        return false;
+      }
+      const mapContainer = document.getElementById('admin-map');
+      if (!mapContainer) {
+        console.error('❌ Map container not found');
+        return false;
+      }
+      try {
+        if (typeof EnviroMapController === 'undefined') {
+          console.error('❌ EnviroMapController not available');
+          return false;
+        }
+        this.mapInstance = new EnviroMapController('admin-map', 14.5631, 121.0192, 14);
+        this.mapInstance.initializeMap();
+        this.markerClusterGroup = L.markerClusterGroup({
+          maxClusterRadius: 60,
+          disableClusteringAtZoom: 16
+        });
+        this.mapInstance.map.addLayer(this.markerClusterGroup);
+        console.log('✅ Map initialized with clustering support');
+        return true;
+      } catch (error) {
+        console.error('❌ Map initialization error:', error);
+        return false;
+      }
+    },
+    
+    renderMarkers(nodesData) {
+      if (!this.mapInstance || !this.markerClusterGroup) {
+        console.warn('⚠️ Map not initialized');
+        return;
+      }
+      console.log(`🎨 Rendering ${nodesData.length} markers...`);
+      let markerCount = 0;
+      nodesData.forEach((item) => {
+        const node = item.node;
+        const pollutants = item.pollutants || {};
+        if (node && node.latitude && node.longitude) {
+          const aqi = pollutants.aqi || 0;
+          const aqiClass = this.getAqiStyle(aqi);
+          const marker = L.marker([node.latitude, node.longitude], {
+            icon: L.divIcon({
+              html: `<div class="waqi-marker"><div class="waqi-box ${aqiClass}">${Math.round(aqi)}</div><div class="waqi-pointer ${aqiClass}"></div></div>`,
+              iconSize: null,
+              className: '',
+              popupAnchor: [0, -50],
+            })
+          });
+          markerCount++;
+          const statusColor = item.status === 'active' ? '#28a745' : '#ffc107';
+          const popupContent = `
+            <div style="font-weight: 600; margin-bottom: 4px;">${node.name}</div>
+            <div style="margin-bottom: 4px;">📍 ${node.location || 'Unknown'}</div>
+            <div style="margin-bottom: 4px; font-size: 0.85rem; padding-bottom: 4px; border-bottom: 1px solid #ddd;">
+              Status: <strong style="color: ${statusColor};">${node.status.toUpperCase()}</strong>
+            </div>
+            <div style="margin-top: 8px; font-size: 0.85rem;">
+              <div><strong>AQI:</strong> ${Math.round(aqi)}</div>
+              <div><strong>PM2.5:</strong> ${pollutants.pm25 ? pollutants.pm25.toFixed(1) : 'N/A'} µg/m³</div>
+              <div><strong>PM10:</strong> ${pollutants.pm10 ? pollutants.pm10.toFixed(1) : 'N/A'} µg/m³</div>
+              <div><strong>Temp:</strong> ${pollutants.temperature ? pollutants.temperature.toFixed(1) : 'N/A'}°C</div>
+              <div><strong>Humidity:</strong> ${pollutants.humidity ? pollutants.humidity.toFixed(0) : 'N/A'}%</div>
+            </div>
+          `;
+          marker.bindPopup(popupContent);
+          this.allMarkersMap.set(node.id, marker);
+          this.markerClusterGroup.addLayer(marker);
+        }
+      });
+      console.log(`✅ Rendered ${markerCount} markers to map`);
+    },
+    
+    async updateDashboard() {
+      console.log('🔄 Updating dashboard data...');
+      try {
+        const nodesData = await this.fetchNodeData('all');
+        if (nodesData.length === 0) {
+          console.warn('⚠️ No nodes data received');
+          return;
+        }
+        this.markerClusterGroup.clearLayers();
+        this.allMarkersMap.clear();
+        this.renderMarkers(nodesData);
+        this.lastUpdateTime = new Date();
+        console.log(`✅ Dashboard updated at ${this.lastUpdateTime.toLocaleTimeString()}`);
+      } catch (error) {
+        console.error('❌ Dashboard update failed:', error);
+      }
+    }
+  };
+  
+  function initializeMetricCardPrompts() {
+    const metricCards = document.querySelectorAll('.metric-card');
+    metricCards.forEach(card => {
+      const front = card.querySelector('.metric-card-front');
+      const back = card.querySelector('.metric-card-back');
+      if (front && !front.querySelector('.metric-card-action')) {
+        const action = document.createElement('div');
+        action.className = 'metric-card-action';
+        action.textContent = 'Click to learn more';
+        front.appendChild(action);
+      }
+      if (back && !back.querySelector('.metric-card-action')) {
+        const action = document.createElement('div');
+        action.className = 'metric-card-action';
+        action.textContent = 'Click to close';
+        back.appendChild(action);
+      }
+    });
+  }
+
+  function initializeMetricCardFlips() {
+    const metricCards = document.querySelectorAll('.metric-card');
+    metricCards.forEach(card => {
+      card.addEventListener('click', () => {
+        card.classList.toggle('flipped');
+      });
+    });
+  }
+
+  function initializeHelpToggles() {
+    const helpButtons = document.querySelectorAll('.dashb-trend-help');
+    helpButtons.forEach(button => {
+      const targetId = button.dataset.helpTarget;
+      const helpText = targetId ? document.getElementById(targetId) : null;
+      if (!helpText) return;
+      button.addEventListener('click', () => {
+        const isOpen = helpText.classList.toggle('active');
+        helpText.hidden = !isOpen;
+      });
+    });
+  }
+
+  function syncAqiLayoutHeights() {
+    const container = document.querySelector('.dashboard-aqi-row');
+    if (container) {
+      const containers = container.querySelectorAll('.heatmap-card, .aqi-card');
+      if (containers.length >= 2) {
+        const left = containers[0];
+        const right = containers[1];
+        setTimeout(() => {
+          const maxHeight = Math.max(left.scrollHeight, right.scrollHeight);
+          left.style.height = maxHeight + 'px';
+          right.style.height = maxHeight + 'px';
+        }, 100);
+      }
+    }
+  }
+  
+  document.addEventListener('DOMContentLoaded', async function() {
+    console.log('🚀 DOM loaded - initializing optimized dashboard');
+    try {
+      syncAqiLayoutHeights();
+      initializeMetricCardPrompts();
+      initializeMetricCardFlips();
+      initializeHelpToggles();
+      const mapSuccess = dashboardController.initializeMap();
+      if (!mapSuccess) {
+        console.warn('⚠️ Map initialization failed');
+      } else {
+        await dashboardController.updateDashboard();
+      }
+      console.log('⏱️ Setting up incremental refresh (every 30s)');
+      setInterval(() => {
+        dashboardController.updateDashboard();
+      }, dashboardController.updateInterval);
+      console.log('✅ Dashboard fully initialized with async updates');
+      setTimeout(syncAqiLayoutHeights, 500);
+    } catch (error) {
+      console.error('❌ Dashboard initialization error:', error);
+    }
+  });
+</script>
+{% endblock %}

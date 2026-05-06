@@ -1,0 +1,381 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
+  <title>{% block title %}Environode{% endblock %}</title>
+
+  <link rel="stylesheet" href="{% static 'AppEnviroNode/css/Style.css' %}">
+  <link rel="stylesheet" href="{% static 'AppEnviroNode/css/clientStyle.css' %}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+
+  <style>
+    /* Global Toast Notification System */
+    #toast-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .toast {
+      background: white;
+      padding: 16px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-width: 280px;
+      max-width: 400px;
+      animation: slideIn 0.3s ease-out;
+      border-left: 4px solid #6b7480;
+    }
+
+    .toast.success {
+      border-left-color: #10b981;
+      background: #f0fdf4;
+    }
+
+    .toast.success::before {
+      content: '✓';
+      color: #10b981;
+      font-weight: bold;
+      margin-right: 8px;
+    }
+
+    .toast.error {
+      border-left-color: #ef4444;
+      background: #fef2f2;
+    }
+
+    .toast.error::before {
+      content: '✕';
+      color: #ef4444;
+      font-weight: bold;
+      margin-right: 8px;
+    }
+
+    .toast.warning {
+      border-left-color: #f59e0b;
+      background: #fffbeb;
+    }
+
+    .toast.warning::before {
+      content: '⚠';
+      color: #f59e0b;
+      margin-right: 8px;
+    }
+
+    .toast.info {
+      border-left-color: #3b82f6;
+      background: #eff6ff;
+    }
+
+    .toast.info::before {
+      content: 'ℹ';
+      color: #3b82f6;
+      margin-right: 8px;
+    }
+
+    .toast-message {
+      flex: 1;
+      color: #1f2937;
+      font-size: 0.95rem;
+    }
+
+    .toast-close {
+      background: none;
+      border: none;
+      color: #6b7480;
+      cursor: pointer;
+      font-size: 1.2rem;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.2s;
+    }
+
+    .toast-close:hover {
+      color: #1f2937;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideOut {
+      to {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+    }
+
+    .toast.removing {
+      animation: slideOut 0.3s ease-out forwards;
+    }
+
+    @media (max-width: 640px) {
+      #toast-container {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+      }
+
+      .toast {
+        min-width: unset;
+        max-width: unset;
+      }
+    }
+  </style>
+
+  <!-- Chart.js Library for Analytics & Charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+  <!-- Dynamic Navbar Switching -->
+  {% if user.is_authenticated %}
+    {% include 'AppEnviroNode/admin/client_navbar.html' %}
+  {% else %}
+    {% include 'AppEnviroNode/main/navbar.html' %}
+  {% endif %}
+
+  <!-- Global Toast Container for Messages -->
+  <div id="toast-container">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="toast {{ message.tags }}" data-message-id="{{ forloop.counter }}">
+          <span class="toast-message">{{ message }}</span>
+          <button class="toast-close" onclick="this.parentElement.classList.add('removing'); setTimeout(() => this.parentElement.remove(), 300);">×</button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+
+  <main class="main-container">
+    {% block content %}
+    {% endblock %}
+  </main>
+
+  {% block site_footer %}
+    <footer class="site-footer">
+      <div class="footer-content">
+        <p>&copy; 2026 Environode - EMBO Air Quality Monitoring. All rights reserved.</p>
+        <p>Barangay Pembo, Taguig City</p>
+        <div class="footer-links">
+          {% if user.is_authenticated %}
+            <a href="{% url 'app:client_dashboard' %}" class="admin-link">Admin Dashboard</a>
+            <span> | </span>
+            <form method="post" action="{% url 'app:logout' %}" style="display: inline;">
+              {% csrf_token %}
+              <button type="submit" style="background: none; border: none; color: inherit; cursor: pointer; text-decoration: none;">Logout</button>
+            </form>
+          {% else %}
+            <a href="{% url 'app:login' %}" class="admin-link">Admin Login</a>
+          {% endif %}
+        </div>
+      </div>
+    </footer>
+  {% endblock %}
+
+  {% block extra_js %}{% endblock %}
+
+  <!-- Global Alerts System -->
+  <script src="{% static 'AppEnviroNode/js/global-alerts.js' %}"></script>
+
+  <!-- Alert Drawer Overlay & Panel -->
+  <div class="alert-drawer-overlay" id="drawerOverlay"></div>
+  <div class="alert-drawer" id="alertDrawer">
+    <div class="drawer-header">
+      <h3><i class="fa-solid fa-bell"></i> Active Alerts</h3>
+      <button type="button" class="drawer-close" onclick="toggleAlertDrawer()" aria-label="Close alerts">
+        <i class="fa-solid fa-times"></i>
+      </button>
+    </div>
+    <div class="drawer-content" id="alertDrawerContent">
+      <!-- Content populated dynamically or by specific pages -->
+      <p style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 20px;">
+        <i class="fa-solid fa-check-circle" style="color: #10b981; font-size: 1.5rem; display: block; margin-bottom: 8px;"></i>
+        No critical alerts
+      </p>
+    </div>
+  </div>
+
+
+
+  <!-- Global Alert System Styles -->
+  <style>
+    /* Alert Drawer */
+    .alert-drawer-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0);
+      z-index: 1005;
+      transition: background 0.2s ease;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .alert-drawer-overlay.open {
+      background: rgba(0, 0, 0, 0.3);
+      pointer-events: auto;
+      opacity: 1;
+    }
+
+    .alert-drawer {
+      position: fixed;
+      top: 68px;
+      right: -360px;
+      width: 360px;
+      height: calc(100vh - 68px);
+      background: white;
+      z-index: 1006;
+      display: flex;
+      flex-direction: column;
+      box-shadow: -4px 0 16px rgba(0, 0, 0, 0.1);
+      transition: right 0.3s ease;
+      border-left: 1px solid #e2e8f0;
+    }
+
+    .alert-drawer.open {
+      right: 0;
+    }
+
+    .drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid #e2e8f0;
+      flex-shrink: 0;
+    }
+
+    .drawer-header h3 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #1a3352;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .drawer-close {
+      background: none;
+      border: none;
+      font-size: 1.2rem;
+      color: #94a3b8;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .drawer-close:hover {
+      background: #f1f5f9;
+      color: #1a3352;
+    }
+
+    .drawer-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 8px;
+    }
+
+    .alert-card {
+      margin: 8px;
+      padding: 12px;
+      border-radius: 8px;
+      background: #f8f9fa;
+      border-left: 4px solid #3b82f6;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .alert-card:hover {
+      background: #f1f5f9;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .alert-card[data-severity="critical"] {
+      border-left-color: #ef4444;
+      background: #fef2f2;
+    }
+
+    .alert-card[data-severity="warning"] {
+      border-left-color: #f59e0b;
+      background: #fffbeb;
+    }
+
+    .alert-card[data-severity="info"] {
+      border-left-color: #3b82f6;
+      background: #eff6ff;
+    }
+
+    .alert-time {
+      font-size: 0.7rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .alert-desc {
+      font-size: 0.85rem;
+      color: #475569;
+      margin: 8px 0 12px 0;
+      line-height: 1.4;
+    }
+
+   
+  </style>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const toasts = document.querySelectorAll('.toast');
+      toasts.forEach((toast, index) => {
+        setTimeout(function() {
+          if (toast.parentElement) {
+            toast.classList.add('removing');
+            setTimeout(() => {
+              if (toast.parentElement) {
+                toast.remove();
+              }
+            }, 300);
+          }
+        }, 4000);
+      });
+    });
+    window.addEventListener('beforeunload', function() {
+      const toasts = document.querySelectorAll('.toast');
+      toasts.forEach(toast => {
+        toast.style.display = 'none';
+      });
+    });
+  </script>
+
+</body>
+</html>

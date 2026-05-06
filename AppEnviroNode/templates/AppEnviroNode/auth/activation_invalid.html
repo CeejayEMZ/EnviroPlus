@@ -1,0 +1,133 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Activation Invalid - EnviroNode</title>
+  <link rel="stylesheet" href="{% static 'AppEnviroNode/css/Style.css' %}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .auth-container {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background-image: url("../images/pembo.jpg");
+    }
+
+    .auth-card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+      width: 100%;
+      max-width: 420px;
+      padding: 40px;
+      text-align: center; /* Center all text for the error alert style */
+    }
+
+    .auth-header {
+      margin-bottom: 25px;
+    }
+
+    .auth-header h1 {
+      font-size: 2rem;
+      color: #113460;
+      margin: 0 0 10px;
+      font-weight: 700;
+    }
+
+    .auth-header p {
+      color: #546a86;
+      font-size: 0.95rem;
+      margin: 0;
+    }
+
+    .error-icon {
+      color: #e53e3e; 
+      font-size: 3.5rem;
+      margin-bottom: 20px;
+    }
+
+    .message-content {
+      margin-bottom: 30px;
+    }
+
+    .message-content p.primary-msg {
+      font-size: 1.05rem;
+      color: #113460;
+      font-weight: 600;
+      margin: 0 0 10px 0;
+    }
+
+    .message-content p.secondary-msg {
+      font-size: 0.9rem;
+      color: #546a86;
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    .action-btn {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      background: #2d5bbe;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-sizing: border-box;
+    }
+
+    .action-btn:hover {
+      background: #1f3f89;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(45, 91, 190, 0.3);
+    }
+
+    .action-btn:active {
+      transform: translateY(0);
+    }
+
+    @media (max-width: 600px) {
+      .auth-card {
+        padding: 30px 20px;
+      }
+
+      .auth-header h1 {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-container">
+    <div class="auth-card">
+      
+      <div class="auth-header">
+        <h1>EnviroNode</h1>
+        <p>System Access Portal</p>
+      </div>
+
+      <div class="error-icon">
+        <i class="fas fa-exclamation-circle"></i>
+      </div>
+
+      <div class="message-content">
+        <p class="primary-msg">{{ message|default:"Activation Link Invalid" }}</p>
+        <p class="secondary-msg">Please request a new invitation from your administrator or contact support to proceed.</p>
+      </div>
+
+      <a href="{% url 'app:login' %}" class="action-btn">
+        Return to Login
+      </a>
+      
+    </div>
+  </div>
+</body>
+</html>
