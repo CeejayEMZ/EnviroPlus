@@ -1,3 +1,11 @@
+/**
+ * WAQI-Style Map Controls for Leaflet
+ * Unified, minimalist control panel at bottom-left
+ */
+
+// ============================================================================
+// UNIFIED BOTTOM-LEFT CONTROL
+// ============================================================================
 class UnifiedMapControl extends L.Control {
   constructor(options = {}) {
     super(options);
@@ -7,6 +15,7 @@ class UnifiedMapControl extends L.Control {
     this.filterMenu = null;
     this.filterMenuVisible = false;
     
+    // Pollutant filter state
     this.allMarkers = [];
     this.visibleMarkers = new Set();
     this.activePollutant = 'aqi';

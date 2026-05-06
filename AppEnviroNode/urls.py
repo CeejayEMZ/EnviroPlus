@@ -41,6 +41,7 @@ urlpatterns = [
     path('dashboard/map/node/<int:pk>/delete/', views.node_delete, name='node_delete'),
     path('dashboard/realtime/', views.client_realtime, name='client_realtime'),
     path('dashboard/reports/', views.client_reports, name='client_reports'),
+    path('api/client-reports/', views.api_client_reports, name='api_client_reports'),
     path('dashboard/settings/', views.client_settings, name='client_settings'),
     path('dashboard/users/', views.client_users, name='client_users'),
     path('dashboard/ai/', views.client_ai, name='client_ai'),

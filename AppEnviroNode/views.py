@@ -26,7 +26,7 @@ import base64
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from xhtml2pdf import pisa
+# from xhtml2pdf import pisa
 from openpyxl import Workbook
 from openpyxl.styles import Alignment
 from openpyxl.utils import get_column_letter
@@ -1685,6 +1685,8 @@ def client_reports(request):
                 key=lambda n: sum(node_aqi_avg[n]) / len(node_aqi_avg[n])
             )
     
+    date_to = timezone.now().date()
+    date_from = date_to - timedelta(days=7)
     context = {
         'report_period': f"{(timezone.now() - timedelta(days=7)).strftime('%b %d')} - {timezone.now().strftime('%b %d, %Y')}",
         'avg_aqi': round(avg_aqi),
@@ -1695,8 +1697,145 @@ def client_reports(request):
         'unhealthy_days': unhealthy_days,
         'most_affected_node': most_affected_node,
         'total_readings': readings.count(),
+        'date_from': date_from.isoformat(),
+        'date_to': date_to.isoformat(),
+        'selected_node': 'all',
     }
     return render(request, 'AppEnviroNode/admin/clientreports.html', context)
+
+@login_required(login_url='app:login')
+def api_client_reports(request):
+    """Return report JSON data for the client reports dashboard."""
+    from datetime import datetime
+
+    date_format = '%Y-%m-%d'
+    raw_from = request.GET.get('date_from')
+    raw_to = request.GET.get('date_to')
+    node_id = request.GET.get('node')
+
+    today = timezone.now().date()
+    try:
+        date_to = datetime.strptime(raw_to, date_format).date() if raw_to else today
+    except (ValueError, TypeError):
+        date_to = today
+
+    try:
+        date_from = datetime.strptime(raw_from, date_format).date() if raw_from else date_to - timedelta(days=6)
+    except (ValueError, TypeError):
+        date_from = date_to - timedelta(days=6)
+
+    if date_from > date_to:
+        date_from, date_to = date_to - timedelta(days=6), date_to
+
+    readings = SensorReading.objects.filter(
+        timestamp__date__gte=date_from,
+        timestamp__date__lte=date_to,
+        node__is_active=True
+    ).select_related('node')
+
+    if node_id and node_id != 'all':
+        try:
+            readings = readings.filter(node__id=int(node_id))
+        except (ValueError, TypeError):
+            pass
+
+    nodes_qs = SensorNode.objects.filter(is_active=True, status='active').order_by('name')
+    nodes = [
+        {
+            'id': node.pk,
+            'label': f"{node.name} ({node.location or 'Unknown Area'})"
+        }
+        for node in nodes_qs
+    ]
+
+    total_nodes = nodes_qs.count()
+    nodes_online = nodes_qs.filter(status='active').count()
+
+    aqi_values = [reading.aqi for reading in readings if reading.aqi is not None]
+    avg_aqi = round(sum(aqi_values) / len(aqi_values), 1) if aqi_values else 0
+    peak_reading = max((r for r in readings if r.aqi is not None), key=lambda r: r.aqi, default=None)
+    low_reading = min((r for r in readings if r.aqi is not None), key=lambda r: r.aqi, default=None)
+
+    good_days = readings.filter(aqi_level='good').values('timestamp__date').distinct().count()
+    moderate_days = readings.filter(aqi_level='moderate').values('timestamp__date').distinct().count()
+    unhealthy_days = readings.filter(aqi_level__in=['unhealthy', 'unhealthy_sensitive']).values('timestamp__date').distinct().count()
+    total_days = (date_to - date_from).days + 1
+
+    good_pct = round((good_days / total_days) * 100, 1) if total_days else 0
+    moderate_pct = round((moderate_days / total_days) * 100, 1) if total_days else 0
+    unhealthy_pct = round((unhealthy_days / total_days) * 100, 1) if total_days else 0
+
+    most_affected_node = None
+    if readings.exists():
+        node_aqi_totals = {}
+        for reading in readings:
+            if reading.aqi is not None:
+                node_aqi_totals.setdefault(reading.node.id, {'total': 0, 'count': 0, 'node': reading.node})
+                node_aqi_totals[reading.node.id]['total'] += reading.aqi
+                node_aqi_totals[reading.node.id]['count'] += 1
+        if node_aqi_totals:
+            best = max(node_aqi_totals.values(), key=lambda x: x['total'] / x['count'])
+            most_affected_node = best['node']
+
+    trend_labels = []
+    trend_values = []
+    for day in range(total_days):
+        day_date = date_from + timedelta(days=day)
+        day_readings = [r.aqi for r in readings if r.timestamp.date() == day_date and r.aqi is not None]
+        trend_labels.append(day_date.strftime('%b %d'))
+        trend_values.append(round(sum(day_readings) / len(day_readings), 1) if day_readings else 0)
+
+    report_type = 'Custom'
+    range_days = total_days
+    if range_days == 7:
+        report_type = 'Weekly'
+    elif range_days == 15:
+        report_type = 'Bi-Weekly'
+    elif range_days in (30, 31):
+        report_type = 'Monthly'
+
+    response_data = {
+        'nodes': nodes,
+        'avg_aqi': avg_aqi,
+        'peak_aqi': peak_reading.aqi if peak_reading else 0,
+        'peak_level': peak_reading.aqi_level if peak_reading else None,
+        'peak_date': peak_reading.timestamp.strftime('%Y-%m-%d') if peak_reading else None,
+        'low_aqi': low_reading.aqi if low_reading else 0,
+        'low_level': low_reading.aqi_level if low_reading else None,
+        'low_date': low_reading.timestamp.strftime('%Y-%m-%d') if low_reading else None,
+        'most_affected_node': {
+            'name': most_affected_node.name,
+            'location': most_affected_node.location or 'Unknown Area'
+        } if most_affected_node else None,
+        'good_days': good_days,
+        'moderate_days': moderate_days,
+        'unhealthy_days': unhealthy_days,
+        'good_pct': good_pct,
+        'moderate_pct': moderate_pct,
+        'unhealthy_pct': unhealthy_pct,
+        'generated_at': timezone.now().strftime('%Y-%m-%d %H:%M'),
+        'uptime_pct': 100,
+        'nodes_online': nodes_online,
+        'total_nodes': total_nodes,
+        'report_type': report_type,
+        'date_from': date_from.isoformat(),
+        'date_to': date_to.isoformat(),
+        'report_period': f"{date_from.strftime('%b %d')} - {date_to.strftime('%b %d, %Y')}",
+        'trend_labels': trend_labels,
+        'trend_values': trend_values,
+        'insights': [
+            'Air quality appears stable across the selected period.',
+            'Monitor peak days for any rapid AQI changes.'
+        ],
+        'actions': [
+            'Review nodes with the highest average AQI.',
+            'Check sensor maintenance schedules for outlier days.'
+        ],
+        'distribution_note': 'AQI distribution reflects the most recent readings for the chosen period.',
+        'total_days': total_days,
+    }
+
+    return JsonResponse(response_data)
 
 @login_required(login_url='app:login')
 def client_settings(request):
