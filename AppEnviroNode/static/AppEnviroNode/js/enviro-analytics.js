@@ -18,7 +18,6 @@ const AnalyticsState = {
   allLocations: [],
   overviewData: {},
   trendsData: [],
-  forecastData: [],
   nodeDetails: {},
   systemHealthData: {},
 
@@ -45,8 +44,9 @@ const AnalyticsState = {
     samplingRate: '10s',
   },
 
-  // ADDED: Performance optimization tracking
-  // Prevents unnecessary re-renders and API calls
+  pendingRequests: new Map(), // Track in-flight requests by key
+  requestTimestamps: {}, // Track last request time per endpoint
+  requestDebounceMs: 300, // Min time between same requests
   lastNodesListHash: null, // Hash of last rendered nodes list
   lastTrendsDataLength: 0, // Track trends data changes
   lastHeatmapHash: null, // Track heatmap data changes
@@ -54,28 +54,49 @@ const AnalyticsState = {
   lastSparklineTimeframe: null, // Cache last sparkline timeframe
   lastFilterValue: 'all', // Track filter selection
   lastTrendMetric: 'aqi', // Track last metric selection
-  trendChartUpdateInProgress: false // Prevent concurrent updates
+  trendChartUpdateInProgress: false, // Prevent concurrent updates
+
+  // ⚡ OPTIMIZATION: Request deduplication
+  lastRequestParams: {} // Track last params for each API call
 };
 
 // ============================================================================
 // API INTEGRATION
 // ============================================================================
+function getDedupKey(endpoint, params) {
+  const paramStr = new URLSearchParams(params).toString();
+  return `${endpoint}?${paramStr}`;
+}
+
+function shouldSkipRequest(endpoint, params, debounceMs = 300) {
+  const key = getDedupKey(endpoint, params);
+  const lastTime = AnalyticsState.requestTimestamps[key] || 0;
+  const now = Date.now();
+  
+  if (now - lastTime < debounceMs) {
+    console.log(`[Analytics] Skipping duplicate request: ${key}`);
+    return true;
+  }
+  
+  AnalyticsState.requestTimestamps[key] = now;
+  return false;
+}
 
 const API = {
-  /**
-   * Fetch overview analytics: current AQI, compositions, pollutants
-   */
   async getOverview() {
     try {
-      const params = new URLSearchParams({
+      const params = {
         timeframe: AnalyticsState.selectedTimeframe,
         node_id: AnalyticsState.selectedNode || 'all',
         location: AnalyticsState.selectedLocation || 'all',
         start_date: AnalyticsState.selectedTimeframe === 'custom' ? AnalyticsState.customDateStart || '' : '',
         end_date: AnalyticsState.selectedTimeframe === 'custom' ? AnalyticsState.customDateEnd || '' : ''
-      });
+      };
+      if (shouldSkipRequest('/api/analytics/overview/', params)) {
+        return AnalyticsState.overviewData;
+      }
 
-      const response = await fetch(`/api/analytics/overview/?${params}`, {
+      const response = await fetch(`/api/analytics/overview/?${new URLSearchParams(params)}`, {
         headers: { 'Accept': 'application/json' }
       });
 
@@ -87,15 +108,16 @@ const API = {
       return data;
     } catch (error) {
       console.error('[Analytics] Failed to fetch overview:', error);
-      return null;
+      return AnalyticsState.overviewData || null;
     }
   },
 
-  /**
-   * Fetch all sensor nodes for node selection
-   */
   async getNodes() {
     try {
+      if (shouldSkipRequest('/api/nodes/', {})) {
+        return AnalyticsState.allNodes;
+      }
+
       const response = await fetch('/api/nodes/', {
         headers: { 'Accept': 'application/json' }
       });
@@ -104,8 +126,6 @@ const API = {
       const data = await response.json();
       
       AnalyticsState.allNodes = data.results || data.nodes || [];
-      
-      // Extract unique locations for grouping
       const locationsSet = new Set();
       AnalyticsState.allNodes.forEach(node => {
         if (node.location) {
@@ -118,15 +138,20 @@ const API = {
       return AnalyticsState.allNodes;
     } catch (error) {
       console.error('[Analytics] Failed to fetch nodes:', error);
-      return [];
+      return AnalyticsState.allNodes || [];
     }
   },
 
-  /**
-   * Fetch detailed data for a specific node
-   */
   async getNodeDetail(nodeId) {
     try {
+      if (AnalyticsState.nodeDetails[nodeId]) {
+        return AnalyticsState.nodeDetails[nodeId];
+      }
+
+      if (shouldSkipRequest(`/api/nodes/${nodeId}/detail/`, {})) {
+        return AnalyticsState.nodeDetails[nodeId] || null;
+      }
+
       const response = await fetch(`/api/nodes/${nodeId}/detail/`, {
         headers: { 'Accept': 'application/json' }
       });
@@ -142,29 +167,28 @@ const API = {
       return null;
     }
   },
-
-  /**
-   * Fetch time-series trend data (for line chart and heatmap)
-   */
   async getTrends() {
     try {
-      const params = new URLSearchParams({
+      const params = {
         timeframe: AnalyticsState.selectedTimeframe,
         metric: AnalyticsState.selectedMetric,
         node_id: AnalyticsState.selectedNode || 'all',
         location: AnalyticsState.selectedLocation || 'all',
         start_date: AnalyticsState.selectedTimeframe === 'custom' ? AnalyticsState.customDateStart || '' : '',
         end_date: AnalyticsState.selectedTimeframe === 'custom' ? AnalyticsState.customDateEnd || '' : ''
-      });
+      };
+      if (shouldSkipRequest('/api/analytics/trends/', params)) {
+        return AnalyticsState.trendsData;
+      }
 
-      const response = await fetch(`/api/analytics/trends/?${params}`, {
+      const response = await fetch(`/api/analytics/trends/?${new URLSearchParams(params)}`, {
         headers: { 'Accept': 'application/json' }
       });
 
       if (!response.ok) throw new Error(`API error: ${response.status}`);
       const data = await response.json();
       
-      console.log('[Analytics] Trends data loaded:', data.datapoints?.length || 0, 'points');
+      console.log('[Analytics] Trends data loaded:', data.datapoints?.length || 0, 'points (aggregated)');
       AnalyticsState.trendsData = data.datapoints || [];
       return data;
     } catch (error) {
@@ -173,11 +197,12 @@ const API = {
     }
   },
 
-  /**
-   * Fetch system health metrics
-   */
   async getSystemHealth() {
     try {
+      if (shouldSkipRequest('/api/analytics/system-health/', {})) {
+        return AnalyticsState.systemHealthData;
+      }
+
       const response = await fetch('/api/analytics/system-health/', {
         headers: { 'Accept': 'application/json' }
       });
@@ -190,42 +215,6 @@ const API = {
       console.error('[Analytics] Failed to fetch system health:', error);
       return null;
     }
-  },
-
-  /**
-   * Fetch AI forecast predictions
-   */
-  async getForecast() {
-    try {
-      const params = new URLSearchParams({
-        timeframe: AnalyticsState.selectedTimeframe,
-        days_ahead: AnalyticsState.selectedTimeframe === '24h' ? 1 : 
-                    AnalyticsState.selectedTimeframe === '7d' ? 3 : 7,
-        metric: AnalyticsState.selectedMetric,
-        node_id: AnalyticsState.selectedNode || 'all',
-        location: AnalyticsState.selectedLocation || 'all',
-        start_date: AnalyticsState.selectedTimeframe === 'custom' ? AnalyticsState.customDateStart || '' : '',
-        end_date: AnalyticsState.selectedTimeframe === 'custom' ? AnalyticsState.customDateEnd || '' : ''
-      });
-
-      const response = await fetch(`/api/analytics/forecast/?${params}`, {
-        headers: { 'Accept': 'application/json' }
-      });
-
-      if (!response.ok) {
-        console.warn('[Analytics] Forecast API not available');
-        AnalyticsState.forecastData = [];
-        return null;
-      }
-      const data = await response.json();
-      AnalyticsState.forecastData = data.datapoints || [];
-      console.log('[Analytics] Forecast data loaded:', AnalyticsState.forecastData.length, 'points');
-      return data;
-    } catch (error) {
-      console.warn('[Analytics] Failed to fetch forecast:', error);
-      AnalyticsState.forecastData = [];
-      return null;
-    }
   }
 };
 
@@ -234,16 +223,11 @@ const API = {
 // ============================================================================
 
 const Charts = {
-  /**
-   * Initialize AQI donut chart (left panel top)
-   */
   initAQIDonut() {
     const canvas = document.getElementById('aqiDonutChart');
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
-    
-    // Get current AQI from overview data - GUARD: handle undefined/NaN
     let aqi = AnalyticsState.overviewData.aqi_current || 0;
     if (typeof aqi !== 'number' || isNaN(aqi)) {
       aqi = 0;
@@ -252,8 +236,6 @@ const Charts = {
     const maxAQI = 500; // EPA scale max
     const fillPercent = Math.min(aqi / maxAQI * 100, 100);
     const emptyPercent = 100 - fillPercent;
-
-    // Get color based on AQI level
     const color = Utils.getAQIColor(aqi);
 
     if (AnalyticsState.charts.aqiDonut) {
@@ -279,22 +261,14 @@ const Charts = {
 
     console.log('[Analytics] AQI Donut initialized:', { aqi, color });
   },
-
-  /**
-   * Initialize composition donut chart (left panel top right) - with interactive tooltips
-   */
   initCompDonut() {
     const canvas = document.getElementById('compDonutChart');
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
-    
-    // Get composition percentages from overview - GUARD: handle undefined/NaN
     let pm25Pct = AnalyticsState.overviewData.composition?.pm25 || 55;
     let pm10Pct = AnalyticsState.overviewData.composition?.pm10 || 25;
     let otherPct = AnalyticsState.overviewData.composition?.other || 20;
-    
-    // Ensure all values are valid numbers
     pm25Pct = (typeof pm25Pct === 'number' && !isNaN(pm25Pct)) ? pm25Pct : 55;
     pm10Pct = (typeof pm10Pct === 'number' && !isNaN(pm10Pct)) ? pm10Pct : 25;
     otherPct = (typeof otherPct === 'number' && !isNaN(otherPct)) ? otherPct : 20;
@@ -347,45 +321,36 @@ const Charts = {
     console.log('[Analytics] Composition Donut initialized with interactive tooltips');
   },
 
-  /**
-   * Initialize trend line chart (right panel) - with forecast overlay
-   * UPDATED: Apply downsampling and smoothing to reduce lag
-   * FIXED: Update chart data instead of full destroy/recreate when possible
-   * Only destroys chart if fundamental properties change
-   */
   initTrendLine() {
     const canvas = document.getElementById('dateTrendChart');
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
+    const maxPoints = {
+      '24h': 60,
+      '7d': 80,
+      '30d': 90
+    }[AnalyticsState.selectedTimeframe] || 60;
     
-    // UPDATED: Downsample and smooth data before generating time series
-    const downsampledData = Utils.downsampleData(AnalyticsState.trendsData, AnalyticsState.selectedTimeframe);
+    let trendData = AnalyticsState.trendsData || [];
+
+    if (trendData.length > maxPoints) {
+      const step = Math.ceil(trendData.length / maxPoints);
+      trendData = trendData.filter((_, i) => i % step === 0);
+      console.log(`[Analytics] Frontend downsampled ${AnalyticsState.trendsData.length} → ${trendData.length} points`);
+    }
+    
+    const downsampledData = Utils.downsampleData(trendData, AnalyticsState.selectedTimeframe);
     const smoothedData = Utils.smoothData(downsampledData, 3);
-    
-    // Generate full time-series with proper interpolation
     const fullTimeSeries = Utils.generateTimeSeriesRange(smoothedData, AnalyticsState.selectedTimeframe);
-    
     const labels = fullTimeSeries.map(d => d.label);
     const dataPoints = fullTimeSeries.map(d => d.value);
-
-    // Split real and forecast data
     const lastRealIndex = smoothedData.length - 1;
 
-    // FIXED: If chart exists and metric hasn't changed, just update data instead of recreate
-    // This preserves tooltips, legend, and animations while updating content
     if (AnalyticsState.charts.trendLine !== null && AnalyticsState.lastTrendMetric === AnalyticsState.selectedMetric) {
-      // Guard: ensure valid chart instance before updating
       if (AnalyticsState.charts.trendLine.data && AnalyticsState.charts.trendLine.data.datasets) {
-        // Update only the data
         AnalyticsState.charts.trendLine.data.labels = labels;
         AnalyticsState.charts.trendLine.data.datasets[0].data = dataPoints;
-        
-        // Update forecast dataset if present
-        if (AnalyticsState.forecastData.length > 0 && AnalyticsState.charts.trendLine.data.datasets.length > 1) {
-          const forecastPoints = AnalyticsState.forecastData.map(d => d.value);
-          AnalyticsState.charts.trendLine.data.datasets[1].data = forecastPoints;
-        }
         
         AnalyticsState.charts.trendLine.update('none'); // Update without animation
         console.log('[Analytics] Trend chart data updated (no destroy/recreate)');
@@ -393,94 +358,62 @@ const Charts = {
       }
     }
 
-    // Metric changed or chart doesn't exist - full recreate
     if (AnalyticsState.charts.trendLine) {
       AnalyticsState.charts.trendLine.destroy();
     }
     AnalyticsState.lastTrendMetric = AnalyticsState.selectedMetric;
 
-    const datasets = [{
-      label: Utils.getMetricLabel(AnalyticsState.selectedMetric),
-      data: dataPoints,
-      borderColor: '#2563eb',
-      backgroundColor: 'rgba(37, 99, 235, 0.1)',
-      borderWidth: 2.5,
-      pointRadius: 3,
-      pointBackgroundColor: '#fff',
-      pointBorderColor: '#2563eb',
-      fill: true,
-      tension: 0.4,
-      segment: {
-        borderColor: ctx => {
-          const dataIndex = typeof ctx.p0DataIndex === 'number' ? ctx.p0DataIndex : (typeof ctx.p0Index === 'number' ? ctx.p0Index : 0);
-          return dataIndex > lastRealIndex ? '#8b5cf6' : '#2563eb';
-        },
-        borderDash: ctx => {
-          const dataIndex = typeof ctx.p0DataIndex === 'number' ? ctx.p0DataIndex : (typeof ctx.p0Index === 'number' ? ctx.p0Index : 0);
-          return dataIndex > lastRealIndex ? [5, 5] : [];
-        }
+    // Get metric-specific color (use representative value for color mapping)
+    let representativeValue = 50; // Default moderate value
+    if (smoothedData && smoothedData.length > 0) {
+      const firstPoint = smoothedData[0];
+      if (firstPoint && typeof firstPoint.value === 'number') {
+        representativeValue = firstPoint.value;
       }
-    }];
-
-    // Add forecast overlay if available
-    if (AnalyticsState.forecastData.length > 0) {
-      const forecastPoints = AnalyticsState.forecastData.map(d => d.value);
-      
-      datasets.push({
-        label: 'Predicted ' + Utils.getMetricLabel(AnalyticsState.selectedMetric),
-        data: forecastPoints,
-        borderColor: '#a855f7',
-        borderWidth: 2,
-        pointRadius: 2,
-        pointBackgroundColor: '#d8b4fe',
-        pointBorderColor: '#a855f7',
-        fill: false,
-        tension: 0.3,
-        borderDash: [5, 5],
-        spanGaps: true
-      });
     }
+    const lineColor = Utils.getColorByMetric(AnalyticsState.selectedMetric, representativeValue);
 
     AnalyticsState.charts.trendLine = new Chart(ctx, {
       type: 'line',
       data: {
         labels: labels,
-        datasets: datasets
+        datasets: [
+          {
+            label: Utils.getMetricLabel(AnalyticsState.selectedMetric),
+            data: dataPoints,
+            borderColor: lineColor,
+            backgroundColor: Utils.hexToRgba(lineColor, 0.1),
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 2,
+            pointBackgroundColor: lineColor,
+            pointBorderColor: '#fff',
+            pointBorderWidth: 1,
+          }
+        ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        scales: {
-          y: { 
-            grid: { borderDash: [4, 4], color: '#e2e8f0' }, 
-            beginAtZero: true 
-          },
-          x: { grid: { display: false } }
+        plugins: {
+          legend: { display: true, position: 'top', labels: { usePointStyle: true, boxWidth: 6 } },
+          tooltip: { backgroundColor: 'rgba(0,0,0,0.8)', borderColor: '#64748b', borderWidth: 1 }
         },
-        plugins: { 
-          legend: { 
-            display: AnalyticsState.forecastData.length > 0,
-            position: 'top',
-            labels: { font: { size: 11 }, usePointStyle: true }
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: Utils.getMetricLabel(AnalyticsState.selectedMetric) },
+            grid: { color: 'rgba(0,0,0,0.05)' }
           },
-          tooltip: {
-            mode: 'index',
-            intersect: false,
-            callbacks: {
-              afterLabel: function(context) {
-                if (context.dataIndex > lastRealIndex) {
-                  return '(Predicted)';
-                }
-                return '';
-              }
-            }
+          x: {
+            grid: { display: false }
           }
         }
       }
     });
 
-    console.log('[Analytics] Trend chart initialized with', dataPoints.length, 'points (downsampled & smoothed)');
+    console.log('[Analytics] Trend chart initialized with', dataPoints.length, 'points (optimized)');
   },
 
   /**
@@ -551,13 +484,22 @@ const Charts = {
     const downsampledData = Utils.downsampleData(filteredData, AnalyticsState.selectedTimeframe);
     const smoothedData = Utils.smoothData(downsampledData, 3);
 
-    const labels = smoothedData.map(d => d.label || d.timestamp);
+    // Create clean timestamp labels with proper time progression
+    const labels = smoothedData.map((d, idx) => {
+      if (d.timestamp) {
+        const date = new Date(d.timestamp);
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+      }
+      return d.label || `${idx}h`;
+    });
     
     // Extract multi-metric data from smoothed data
-    const aqiPoints = smoothedData.map(d => d.aqi || d.value);
-    const pm25Points = smoothedData.map(d => d.pm2_5 || null);
-    const pm10Points = smoothedData.map(d => d.pm10 || null);
-    const tempPoints = smoothedData.map(d => d.temperature || null);
+    const aqiPoints = smoothedData.map(d => (typeof d.aqi === 'number' ? d.aqi : d.value) || null);
+    const pm25Points = smoothedData.map(d => typeof d.pm2_5 === 'number' ? d.pm2_5 : null);
+    const pm10Points = smoothedData.map(d => typeof d.pm10 === 'number' ? d.pm10 : null);
+    const tempPoints = smoothedData.map(d => typeof d.temperature === 'number' ? d.temperature : null);
 
     const aqiColor = Utils.getAQIColor(nodeData.aqi_current || 0);
 
@@ -668,18 +610,46 @@ const Charts = {
             enabled: true,
             mode: 'index',
             intersect: false,
-            backgroundColor: 'rgba(0,0,0,0.8)',
+            backgroundColor: 'rgba(0,0,0,0.9)',
             titleColor: '#fff',
             bodyColor: '#fff',
             borderColor: aqiColor,
-            borderWidth: 1
+            borderWidth: 1,
+            padding: 8,
+            titleFont: { size: 12, weight: 'bold' },
+            bodyFont: { size: 11 },
+            callbacks: {
+              title: function(context) {
+                if (!context || context.length === 0) return 'No Data';
+                const idx = context[0].dataIndex;
+                if (idx < 0 || idx >= smoothedData.length) return 'No Data';
+                const point = smoothedData[idx];
+                if (!point) return 'No Data';
+                
+                if (point.timestamp) {
+                  const date = new Date(point.timestamp);
+                  if (!isNaN(date.getTime())) {
+                    return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                  }
+                }
+                return point.label ? String(point.label) : 'Data Point';
+              },
+              label: function(context) {
+                const metric = context.dataset.label || 'Unknown';
+                const value = Math.round(context.parsed.y * 10) / 10;
+                let unit = '';
+                if (metric === 'AQI') unit = '';
+                else if (metric === 'PM2.5' || metric === 'PM10') unit = ' µg/m³';
+                else if (metric === 'Temp') unit = ' °C';
+                return `${metric}: ${value}${unit}`;
+              }
+            }
           } 
         },
         layout: { padding: { top: 10, bottom: 5 } }
       }
     });
 
-    // FIXED: Cache nodeId and timeframe to prevent unnecessary reinits
     AnalyticsState.lastSparklineNodeId = nodeId;
     AnalyticsState.lastSparklineTimeframe = AnalyticsState.selectedTimeframe;
 
@@ -692,9 +662,6 @@ const Charts = {
 // ============================================================================
 
 const DOM = {
-  /**
-   * Update AQI value and badge in left panel
-   */
   updateAQIDisplay() {
     const aqi = Math.round(AnalyticsState.overviewData.aqi_current || 0);
     const level = Utils.getAQILevel(aqi);
@@ -712,9 +679,6 @@ const DOM = {
     console.log('[Analytics] AQI display updated:', { aqi, level });
   },
 
-  /**
-   * Update pollutant bars (PM2.5, PM10, TVOC, Temp)
-   */
   updatePollutantBars() {
     const data = AnalyticsState.overviewData;
     if (!data) return;
@@ -733,7 +697,6 @@ const DOM = {
       const existingItem = gasList.querySelector(`[data-pollutant="${item.id}"]`);
       if (!existingItem) return;
 
-      // Guard against NaN/Infinity
       const safeValue = isNaN(item.value) ? 0 : item.value;
       const fillPercent = Math.min((safeValue / item.max) * 100, 100);
       const color = Utils.getPollutantColor(item.id, safeValue);
@@ -750,22 +713,16 @@ const DOM = {
     console.log('[Analytics] Pollutant bars updated');
   },
 
-  /**
-   * Populate node tiles dynamically (bottom left section) - OPTIMIZED + DEDUPED
-   * Clears container before rendering, deduplicates by ID, respects filters
-   * FIXED: Skip re-render if node list hasn't changed (performance optimization)
-   */
   updateNodeTiles() {
     const nodeTilesContainer = document.querySelector('.node-tiles');
     if (!nodeTilesContainer || !AnalyticsState.allNodes) return;
 
-    // Guard: ensure allNodes is an array
+
     if (!Array.isArray(AnalyticsState.allNodes)) {
       console.warn('[Analytics] allNodes is not an array');
       return;
     }
 
-    // DEDUP: Filter nodes by node ID to remove duplicates, then by location/node filters
     const deduplicatedNodes = [];
     const seenIds = new Set();
     
@@ -782,19 +739,13 @@ const DOM = {
       deduplicatedNodes.push(node);
     });
 
-    // FIXED: Check if nodes list has actually changed before re-rendering
-    // This prevents unnecessary DOM mutations and re-renders on every data reload
     const currentHash = Utils.hashNodesList(deduplicatedNodes);
     if (!Utils.hasDataChanged(currentHash, AnalyticsState.lastNodesListHash)) {
       console.log('[Analytics] Node list unchanged, skipping re-render');
       return;
     }
     AnalyticsState.lastNodesListHash = currentHash;
-
-    // CLEAR: Remove all existing tiles before re-rendering (prevents ghost elements)
     nodeTilesContainer.innerHTML = '';
-
-    // Render deduplicated tiles
     deduplicatedNodes.forEach(node => {
       const aqi = node.aqi_current || 0;
       const color = Utils.getAQIColor(aqi);
@@ -871,31 +822,27 @@ const DOM = {
     console.log('[Analytics] Drilldown updated for node:', nodeId);
   },
 
-  /**
-   * Update heatmap with dynamic data and visible values - FIXED event listener leaks
-   * Uses title attribute instead of dynamic tooltip creation to avoid DOM leaks
-   * FIXED: Only rebuild when trendsData actually changes (performance optimization)
-   */
   updateHeatmap() {
     const heatmapWrapper = document.getElementById('heatmapWrapper');
     if (!heatmapWrapper || !AnalyticsState.trendsData) return;
 
-    // FIXED: Check if trends data has actually changed before rebuilding
-    // This prevents unnecessary DOM mutations on every reload
+    // ⚡ OPTIMIZATION: Skip rebuild if data hasn't changed
     const currentDataLength = AnalyticsState.trendsData.length;
-    if (currentDataLength === AnalyticsState.lastTrendsDataLength && currentDataLength > 0) {
+    const dataSignature = `${currentDataLength}-${AnalyticsState.selectedMetric}`;
+    if (dataSignature === AnalyticsState.lastHeatmapHash && currentDataLength > 0) {
       console.log('[Analytics] Heatmap data unchanged, skipping rebuild');
       return;
     }
-    AnalyticsState.lastTrendsDataLength = currentDataLength;
+    AnalyticsState.lastHeatmapHash = dataSignature;
 
-    heatmapWrapper.innerHTML = ''; // Clear
-
-    // Group trend data by day with proper normalization
-    const dayGroups = Utils.groupDataByDay(AnalyticsState.trendsData);
+    // ⚡ OPTIMIZATION: Limit max datapoints to display in heatmap (max 8 days)
+    const heatmapData = AnalyticsState.trendsData.slice(-8 * 24); // Max ~8 days of hourly data
+    
+    heatmapWrapper.innerHTML = ''; 
+    const dayGroups = Utils.groupDataByDay(heatmapData);
     if (dayGroups.length === 0) return;
 
-    dayGroups.forEach(day => {
+    dayGroups.slice(-8).forEach(day => { // Limit to 8 day columns
       const col = document.createElement('div');
       col.className = 'heatmap-col';
 
@@ -904,16 +851,17 @@ const DOM = {
       label.innerText = day.label || 'N/A';
       col.appendChild(label);
 
-      // Guard: ensure values is an array
       if (!Array.isArray(day.values)) return;
 
-      day.values.forEach(value => {
-        // Guard: validate value
+      // Limit cells per day to max 10 for performance
+      const cellValues = day.values.slice(0, 10);
+      cellValues.forEach(value => {
         if (typeof value !== 'number' || isNaN(value)) return;
 
         const cell = document.createElement('div');
         cell.className = 'heatmap-cell';
-        cell.style.background = Utils.getAQIColor(value);
+        // Use dynamic color function based on selected metric
+        cell.style.background = Utils.getColorByMetric(AnalyticsState.selectedMetric, value);
         cell.style.display = 'flex';
         cell.style.alignItems = 'center';
         cell.style.justifyContent = 'center';
@@ -922,10 +870,8 @@ const DOM = {
         cell.style.fontWeight = '700';
         cell.style.color = 'white';
         cell.innerHTML = `<span style="text-shadow: 0 1px 2px rgba(0,0,0,0.3);">${Math.round(value)}</span>`;
-        // Use title attribute for built-in tooltip - avoids event listener leaks
-        cell.title = `${Utils.getAQILevel(value)} - AQI: ${Math.round(value)}`;
-        // Add data attribute for CSS tooltip if needed (cleaner than dynamic creation)
-        cell.setAttribute('data-aqi', Math.round(value));
+        cell.title = `${Utils.getMetricLabel(AnalyticsState.selectedMetric)}: ${Math.round(value)}`;
+        cell.setAttribute('data-value', Math.round(value));
 
         col.appendChild(cell);
       });
@@ -933,7 +879,7 @@ const DOM = {
       heatmapWrapper.appendChild(col);
     });
 
-    console.log('[Analytics] Heatmap updated with', dayGroups.length, 'days');
+    console.log('[Analytics] Heatmap updated with', dayGroups.length, 'days (metric:', AnalyticsState.selectedMetric, ')');
   },
 
   /**
@@ -1020,18 +966,11 @@ const DOM = {
     console.log('[Analytics] Risk distribution updated');
   },
 
-  /**
-   * Update system health metrics - FULLY DYNAMIC
-   * Based on: node status, freshness, anomalies, data quality
-   * FIXED: Added guards for missing DOM elements and invalid data
-   */
   updateSystemHealth(healthData) {
-    // Guard: ensure healthData is an object
     if (!healthData || typeof healthData !== 'object') {
       healthData = {};
     }
 
-    // Calculate system status from nodes - FIXED with guards
     const onlineNodes = Array.isArray(AnalyticsState.allNodes) 
       ? AnalyticsState.allNodes.filter(n => n && n.status === 'active').length 
       : 0;
@@ -1060,15 +999,13 @@ const DOM = {
       statusIcon = 'fa-exclamation-circle';
     }
 
-    // Get performance metrics from API response or use defaults - FIXED with type checks
+
     let latency = (typeof healthData.latency === 'number') ? healthData.latency : 1.2;
     let anomalies = (typeof healthData.anomalies === 'number') ? healthData.anomalies : 0;
     
-    // Guard: ensure values are not NaN
     latency = isNaN(latency) ? 1.2 : latency;
     anomalies = isNaN(anomalies) ? 0 : anomalies;
 
-    // Update reliability item - GUARD: check DOM element exists
     const reliabilityItem = document.querySelector('.canalytics-health-item');
     if (reliabilityItem) {
       const icon = reliabilityItem.querySelector('.canalytics-health-icon');
@@ -1087,7 +1024,6 @@ const DOM = {
       }
     }
 
-    // Update performance item - GUARD: check DOM element exists
     const healthItems = document.querySelectorAll('.canalytics-health-item');
     const performanceItem = healthItems.length > 1 ? healthItems[1] : null;
     if (performanceItem) {
@@ -1100,7 +1036,6 @@ const DOM = {
       }
     }
 
-    // Update data quality item - GUARD: check DOM element exists
     const qualityItem = healthItems.length > 2 ? healthItems[2] : null;
     if (qualityItem) {
       const value = qualityItem.querySelector('.canalytics-health-value');
@@ -1127,16 +1062,11 @@ const DOM = {
 // ============================================================================
 // UI INTERACTIONS
 // ============================================================================
-
 const UI = {
-  /**
-   * Preview node on hover (before locking)
-   */
   previewNode(nodeId) {
     const regionEl = document.getElementById('dd-region');
     if (regionEl) regionEl.innerText = 'Previewing...';
-    
-    // Fetch if not cached
+
     if (!AnalyticsState.nodeDetails[nodeId]) {
       API.getNodeDetail(nodeId).then(() => {
         DOM.updateDrilldown(nodeId);
@@ -1146,9 +1076,6 @@ const UI = {
     }
   },
 
-  /**
-   * Clear preview and return to locked node
-   */
   clearPreview() {
     const regionEl = document.getElementById('dd-region');
     if (regionEl) regionEl.innerText = 'Focus Node';
@@ -1158,19 +1085,14 @@ const UI = {
     }
   },
 
-  /**
-   * Lock node selection and update all panels
-   */
   lockNode(nodeId) {
     AnalyticsState.lockedNodeId = nodeId;
     AnalyticsState.selectedNode = nodeId;
 
-    // Update tile styling
     document.querySelectorAll('.node-tile').forEach(t => t.classList.remove('active'));
     const tile = document.getElementById(`tile-${nodeId}`);
     if (tile) tile.classList.add('active');
 
-    // Fetch and display
     if (!AnalyticsState.nodeDetails[nodeId]) {
       API.getNodeDetail(nodeId).then(() => {
         DOM.updateDrilldown(nodeId);
@@ -1184,16 +1106,10 @@ const UI = {
     console.log('[Analytics] Node locked:', nodeId);
   },
 
-  /**
-   * Toggle trend view (line vs heatmap) - FIXED strict toggle
-   */
   toggleTrendView(view, element) {
-    // Ensure only ONE view is visible
     if (AnalyticsState.isTrendView === view) return; // Already active
     
     AnalyticsState.isTrendView = view;
-
-    // Update button styling
     const toggleGroups = document.querySelectorAll('.gas-toggles');
     const viewButtons = toggleGroups.length ? toggleGroups[0].querySelectorAll('.gas-btn') : [];
     viewButtons.forEach(btn => btn.classList.remove('active'));
@@ -1205,53 +1121,40 @@ const UI = {
         : null;
       if (defaultBtn) defaultBtn.classList.add('active');
     }
-
-    // Strictly show/hide containers - only ONE visible
     const lineWrapper = document.getElementById('lineChartWrapper');
     const heatmapWrapper = document.getElementById('heatmapWrapper');
-
     if (view === 'line') {
       if (lineWrapper) lineWrapper.style.display = 'block';
       if (heatmapWrapper) heatmapWrapper.style.display = 'none';
-      // Ensure chart is initialized
       if (AnalyticsState.charts.trendLine === null) {
         Charts.initTrendLine();
       }
     } else if (view === 'heatmap') {
       if (lineWrapper) lineWrapper.style.display = 'none';
       if (heatmapWrapper) heatmapWrapper.style.display = 'grid';
-      // Generate heatmap
       DOM.updateHeatmap();
     }
 
     console.log('[Analytics] Trend view toggled to:', view);
   },
-
-  /**
-   * Update trend chart metric (AQI, PM2.5, PM10, Temp) - OPTIMIZED
-   * Only reloads trends data, not full re-initialization
-   */
   updateTrendChart(metric, element) {
     AnalyticsState.selectedMetric = metric;
-
-    // Update button state
     const toggleGroups = document.querySelectorAll('.gas-toggles');
     const metricButtons = toggleGroups.length ? toggleGroups[toggleGroups.length - 1].querySelectorAll('.gas-btn') : [];
-    metricButtons.forEach(btn => {
-      btn.classList.remove('active');
-    });
+    metricButtons.forEach(btn => btn.classList.remove('active'));
     if (element) element.classList.add('active');
-
-    // Fetch new trend data and update visualization
+    
     API.getTrends().then(data => {
       if (data) {
-        // Update current view
+        // Reset heatmap cache to force rebuild with new metric
+        AnalyticsState.lastHeatmapHash = null;
+        
         if (AnalyticsState.isTrendView === 'line') {
           Charts.initTrendLine();
         } else if (AnalyticsState.isTrendView === 'heatmap') {
           DOM.updateHeatmap();
         }
-        DOM.updateKPIRow(); // Update KPI with new metric
+        DOM.updateKPIRow(); 
       }
     }).catch(err => {
       console.warn('[Analytics] Failed to update metric:', err);
@@ -1260,12 +1163,7 @@ const UI = {
     console.log('[Analytics] Trend metric changed to:', metric);
   },
 
-  /**
-   * Handle timeframe selection - OPTIMIZED to avoid full re-initialization
-   * Only reloads data, not chart recreation
-   */
   setTimeframe(timeframe, element) {
-    // Auto-disable custom date mode if switching away from it
     if (timeframe !== 'custom') {
       AnalyticsState.isCustomDate = false;
       const customGroup = document.getElementById('customDateGroup');
@@ -1273,36 +1171,30 @@ const UI = {
     }
 
     AnalyticsState.selectedTimeframe = timeframe;
-
-    // Update all filter pills to remove active, then set only the clicked one
     const pills = document.querySelectorAll('.range-pill');
     pills.forEach(pill => pill.classList.remove('active'));
     
     if (element) {
       element.classList.add('active');
     } else {
-      // Fallback: find by text
       pills.forEach(pill => {
         if (pill.textContent.includes(timeframe.toUpperCase())) {
           pill.classList.add('active');
         }
       });
     }
-
-    // Reload only data, not full re-initialization
+    
+    // Reset sparkline/heatmap caches when timeframe changes
+    AnalyticsState.lastSparklineTimeframe = null;
+    AnalyticsState.lastHeatmapHash = null;
+    
     debouncedReloadAnalyticsData();
 
     console.log('[Analytics] Timeframe changed to:', timeframe);
   },
 
-  /**
-   * Toggle custom date picker - FIXED state management
-   * Prevents auto-showing, ensures exclusive activation
-   */
   toggleCustomDate(isCustom, element) {
     AnalyticsState.isCustomDate = isCustom;
-    
-    // Remove active from all pills first
     const pills = document.querySelectorAll('.range-pill');
     pills.forEach(p => p.classList.remove('active'));
     
@@ -1316,18 +1208,42 @@ const UI = {
     }
 
     if (isCustom) {
-      // Extract dates from inputs and set timeframe to 'custom'
-      const dateInputs = customGroup ? Array.from(customGroup.querySelectorAll('input[type="date"]')) : [];
-      const startInput = dateInputs[0];
-      const endInput = dateInputs[dateInputs.length - 1];
+      const startInput = document.getElementById('customDateStart');
+      const endInput = document.getElementById('customDateEnd');
       
       if (startInput && endInput) {
         AnalyticsState.customDateStart = startInput.value;
         AnalyticsState.customDateEnd = endInput.value;
         AnalyticsState.selectedTimeframe = 'custom';
+        
+        // Add change listeners for custom date inputs
+        startInput.addEventListener('change', () => {
+          AnalyticsState.customDateStart = startInput.value;
+          if (Utils.isCustomDateRangeValid()) {
+            debouncedReloadAnalyticsData();
+          }
+        });
+        
+        endInput.addEventListener('change', () => {
+          AnalyticsState.customDateEnd = endInput.value;
+          if (Utils.isCustomDateRangeValid()) {
+            debouncedReloadAnalyticsData();
+          }
+        });
+        
         if (Utils.isCustomDateRangeValid()) {
           debouncedReloadAnalyticsData();
         }
+      }
+    } else {
+      // Remove change listeners when exiting custom mode
+      const startInput = document.getElementById('customDateStart');
+      const endInput = document.getElementById('customDateEnd');
+      if (startInput) {
+        startInput.removeEventListener('change', arguments.callee);
+      }
+      if (endInput) {
+        endInput.removeEventListener('change', arguments.callee);
       }
     }
 
@@ -1338,11 +1254,8 @@ const UI = {
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
-
 const Utils = {
-  /**
-   * Get AQI color based on value
-   */
+
   getAQIColor(aqi) {
     // Guard: handle undefined/null/NaN values
     if (typeof aqi !== 'number' || isNaN(aqi)) {
@@ -1356,9 +1269,49 @@ const Utils = {
     return '#4b0000'; // hazardous - maroon
   },
 
-  /**
-   * Get AQI level text
-   */
+  getPM25Color(pm25) {
+    // PM2.5 specific color mapping (µg/m³)
+    if (typeof pm25 !== 'number' || isNaN(pm25)) return '#64748b';
+    if (pm25 <= 12) return '#10b981';  // good - green
+    if (pm25 <= 35.4) return '#f59e0b'; // moderate - amber
+    if (pm25 <= 55.4) return '#f97316'; // unhealthy-sensitive - orange
+    if (pm25 <= 150.4) return '#ef4444'; // unhealthy - red
+    if (pm25 <= 250.4) return '#991b1b'; // very unhealthy - dark red
+    return '#4b0000'; // hazardous - maroon
+  },
+
+  getPM10Color(pm10) {
+    // PM10 specific color mapping (µg/m³)
+    if (typeof pm10 !== 'number' || isNaN(pm10)) return '#64748b';
+    if (pm10 <= 54) return '#10b981';  // good - green
+    if (pm10 <= 154) return '#f59e0b'; // moderate - amber
+    if (pm10 <= 254) return '#f97316'; // unhealthy-sensitive - orange
+    if (pm10 <= 354) return '#ef4444'; // unhealthy - red
+    if (pm10 <= 424) return '#991b1b'; // very unhealthy - dark red
+    return '#4b0000'; // hazardous - maroon
+  },
+
+  getTempColor(temp) {
+    // Temperature color mapping (°C) - represents comfort/stability
+    if (typeof temp !== 'number' || isNaN(temp)) return '#64748b';
+    if (temp >= 15 && temp <= 25) return '#10b981';  // optimal - green
+    if (temp >= 10 && temp < 15 || temp > 25 && temp <= 30) return '#f59e0b'; // moderate - amber
+    if (temp >= 5 && temp < 10 || temp > 30 && temp <= 35) return '#f97316'; // warm/cold - orange
+    if (temp >= 0 && temp < 5 || temp > 35) return '#ef4444'; // extreme - red
+    return '#4b0000'; // severe - maroon
+  },
+
+  getColorByMetric(metric, value) {
+    // Dynamic color selection based on current metric
+    switch(metric) {
+      case 'aqi': return this.getAQIColor(value);
+      case 'pm25': return this.getPM25Color(value);
+      case 'pm10': return this.getPM10Color(value);
+      case 'temp': return this.getTempColor(value);
+      default: return this.getAQIColor(value);
+    }
+  },
+
   getAQILevel(aqi) {
     if (aqi <= 50) return 'Good';
     if (aqi <= 100) return 'Moderate';
@@ -1368,17 +1321,11 @@ const Utils = {
     return 'Hazardous';
   },
 
-  /**
-   * Get pollutant color for bars
-   */
   getPollutantColor(pollutant, value) {
     const aqi = value; // Simplified - use value as proxy
     return Utils.getAQIColor(aqi);
   },
 
-  /**
-   * Get metric label for chart
-   */
   getMetricLabel(metric) {
     const labels = {
       'aqi': 'AQI',
@@ -1389,9 +1336,6 @@ const Utils = {
     return labels[metric] || metric;
   },
 
-  /**
-   * Convert hex color to RGBA
-   */
   hexToRgba(hex, alpha = 1) {
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
@@ -1399,23 +1343,16 @@ const Utils = {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   },
 
-  /**
-   * ADDED: Downsample data based on timeframe
-   * Reduces rendered points: 24h→100, 7d→140, 30d→180
-   * Uses bucket-based averaging to maintain trends
-   */
   downsampleData(data, timeframe) {
     if (!Array.isArray(data) || data.length === 0) return [];
 
-    // Determine max points based on timeframe
-    const maxPoints = timeframe === '24h' ? 100 : 
-                      timeframe === '7d' ? 140 : 
-                      timeframe === '30d' ? 180 : 100;
+    // ⚡ OPTIMIZATION: More aggressive downsampling limits for large datasets
+    const maxPoints = timeframe === '24h' ? 60 :      // 1 point per ~24 minutes
+                      timeframe === '7d' ? 80 :       // 1 point per ~2 hours
+                      timeframe === '30d' ? 90 : 60;  // 1 point per ~8 hours
 
-    // If data is already small, return as-is
     if (data.length <= maxPoints) return data;
 
-    // Calculate bucket size (how many points to average per bucket)
     const bucketSize = Math.ceil(data.length / maxPoints);
     const downsampled = [];
 
@@ -1442,15 +1379,8 @@ const Utils = {
     return downsampled;
   },
 
-  /**
-   * ADDED: Apply moving average smoothing to reduce noise
-   * Window size 3-5, processes only numeric values
-   * Does NOT modify original data
-   */
   smoothData(data, windowSize = 3) {
     if (!Array.isArray(data) || data.length < 2) return data;
-
-    // Guard: ensure windowSize is valid
     windowSize = Math.max(1, Math.min(windowSize, data.length));
 
     const smoothed = data.map((point, idx) => {
@@ -1461,13 +1391,9 @@ const Utils = {
       if (windowSize === 1) {
         return { ...point }; // No smoothing needed
       }
-
-      // Calculate window boundaries
       const halfWindow = Math.floor(windowSize / 2);
       const start = Math.max(0, idx - halfWindow);
       const end = Math.min(data.length - 1, idx + halfWindow);
-
-      // Average values in window
       let sum = 0;
       let count = 0;
       for (let i = start; i <= end; i++) {
@@ -1490,9 +1416,6 @@ const Utils = {
     return smoothed;
   },
 
-  /**
-   * Debounce async functions to prevent repeated API requests
-   */
   debounce(fn, delay = 300) {
     let timer = null;
     let pendingReject = null;
@@ -1518,10 +1441,6 @@ const Utils = {
       });
     };
   },
-
-  /**
-   * Validate custom date range before requesting analytics data
-   */
   isCustomDateRangeValid() {
     if (AnalyticsState.selectedTimeframe !== 'custom') return true;
     const start = AnalyticsState.customDateStart;
@@ -1539,13 +1458,8 @@ const Utils = {
     return true;
   },
 
-  /**
-   * ADDED: Generate simple hash of node list for deduplication checks
-   * Detects if nodes list has actually changed (ID + count comparison)
-   */
   hashNodesList(nodes) {
     if (!Array.isArray(nodes) || nodes.length === 0) return '';
-    // Create hash from sorted node IDs and location filter
     const ids = nodes
       .filter(n => n && n.id)
       .map(n => String(n.id))
@@ -1554,26 +1468,16 @@ const Utils = {
     return `${ids}_${AnalyticsState.selectedLocation || 'all'}`;
   },
 
-  /**
-   * ADDED: Check if data has meaningfully changed
-   * Prevents unnecessary re-renders when data structure hasn't changed
-   */
   hasDataChanged(currentHash, lastHash) {
     return currentHash !== lastHash;
   },
-
-  /**
-   * Group trend data by day - FIXED timestamp normalization
-   */
   groupDataByDay(data) {
     if (!Array.isArray(data)) return [];
     
     const grouped = {};
     
     data.forEach(point => {
-      if (!point) return; // Guard: skip null/undefined
-      
-      // Extract date in consistent format (YYYY-MM-DD)
+      if (!point) return; 
       let date = null;
       if (point.date) {
         date = point.date.split('T')[0]; // Handle ISO format
@@ -1584,13 +1488,12 @@ const Utils = {
         date = point.label.split(' ')[0];
       }
       
-      if (!date) return; // Skip if no valid date
+      if (!date) return; 
       
       if (!grouped[date]) {
         grouped[date] = { label: date, values: [] };
       }
-      
-      // Guard: ensure value is valid number
+
       if (typeof point.value === 'number' && !isNaN(point.value)) {
         grouped[date].values.push(point.value);
       }
@@ -1601,14 +1504,8 @@ const Utils = {
       .slice(-8);
   },
 
-  /**
-   * Generate full time-series range with interpolation
-   * Fills missing dates based on timeframe selection
-   */
   generateTimeSeriesRange(trendsData, timeframe) {
     if (trendsData.length === 0) return [];
-
-    // Sort by timestamp or fallback to date string
     const sorted = [...trendsData].sort((a, b) => {
       const aDate = new Date(a.timestamp || a.date);
       const bDate = new Date(b.timestamp || b.date);
@@ -1619,7 +1516,6 @@ const Utils = {
     const startDate = new Date(sorted[0].timestamp || sorted[0].date);
     const endDate = new Date(sorted[sorted.length - 1].timestamp || sorted[sorted.length - 1].date);
 
-    // Determine interval based on timeframe
     let intervalMs = 3600000; // 1 hour default
     let labelFormat = 'short'; // 'short' = HH:MM, 'long' = MMM DD
 
@@ -1634,11 +1530,9 @@ const Utils = {
       labelFormat = 'date';
     }
 
-    // Generate date range
     let currentDate = new Date(startDate);
     const dataMap = new Map();
-    
-    // Map existing data by rounded timestamp
+ 
     sorted.forEach(point => {
       const timestamp = new Date(point.timestamp || point.date);
       if (isNaN(timestamp)) return;
@@ -1648,7 +1542,6 @@ const Utils = {
       }
     });
 
-    // Fill range
     while (currentDate <= endDate) {
       const key = Math.floor(currentDate.getTime() / intervalMs);
       const existingData = dataMap.get(key);
@@ -1677,12 +1570,6 @@ const Utils = {
 // ============================================================================
 // FILTER MANAGEMENT
 // ============================================================================
-
-/**
- * Populate node group filter dropdown with Nodes + Locations - FIXED duplicate listeners
- * Uses flag to prevent re-adding event listeners
- * FIXED: Prevent redundant API calls when selecting same filter value
- */
 let nodeFilterListenerAttached = false;
 
 function populateNodeFilter() {
@@ -1732,15 +1619,10 @@ function populateNodeFilter() {
     filterSelect.appendChild(locationsOptGroup);
   }
 
-  // Restore or reset selection
   filterSelect.value = currentValue;
-
-  // FIXED: Only add listener once, not on every populate call
   if (!nodeFilterListenerAttached) {
     filterSelect.addEventListener('change', (e) => {
       const value = e.target.value;
-      
-      // FIXED: Skip if same filter value selected (prevents redundant API calls)
       if (value === AnalyticsState.lastFilterValue) {
         console.log('[Analytics] Same filter value selected, skipping reload');
         return;
@@ -1752,14 +1634,12 @@ function populateNodeFilter() {
         AnalyticsState.selectedLocation = null;
       } else if (value.startsWith('node_')) {
         AnalyticsState.selectedNode = value.replace('node_', '');
-        AnalyticsState.selectedLocation = null; // Clear location filter
+        AnalyticsState.selectedLocation = null; 
       } else if (value.startsWith('location_')) {
-        // IMPLEMENTED: Location-based filtering
         AnalyticsState.selectedLocation = value.replace('location_', '');
-        AnalyticsState.selectedNode = null; // Clear node filter
+        AnalyticsState.selectedNode = null; 
         console.log('[Analytics] Location filter selected:', AnalyticsState.selectedLocation);
       }
-      // Only reload data, not full initialize
       debouncedReloadAnalyticsData();
     });
     nodeFilterListenerAttached = true;
@@ -1768,12 +1648,6 @@ function populateNodeFilter() {
   console.log('[Analytics] Node filter populated');
 }
 
-/**
- * Reload analytics data without full re-initialization
- * Separates data loading from chart initialization for better performance
- * UPDATED: Also reloads sparkline when timeframe changes
- * FIXED: Prevent redundant chart updates when data hasn't changed
- */
 async function reloadAnalyticsData() {
   console.log('[Analytics] Reloading data for current filters...');
 
@@ -1782,15 +1656,19 @@ async function reloadAnalyticsData() {
     return;
   }
 
-  if (AnalyticsState.isLoading) return; // Prevent concurrent requests
+  // ⚡ OPTIMIZATION: Prevent concurrent reloads (single in-flight request at a time)
+  if (AnalyticsState.isLoading) {
+    console.log('[Analytics] Data reload already in progress, skipping duplicate request');
+    return;
+  }
+
   AnalyticsState.isLoading = true;
 
   try {
-    // Load data in parallel
+    // Load data in parallel (but backend caching prevents unnecessary work)
     await Promise.allSettled([
       API.getOverview(),
-      API.getTrends(),
-      API.getForecast()
+      API.getTrends()
     ]);
 
     // Update affected UI elements only
@@ -1800,7 +1678,7 @@ async function reloadAnalyticsData() {
     DOM.updateKPIRow();
     DOM.updateNodeTiles(); // UPDATED: Refresh node tiles on reload
 
-    // FIXED: Only update trend charts if view is currently active and data changed
+    // ⚡ OPTIMIZATION: Only update trend charts if view is currently active and data changed
     // Skip unnecessary recreates when switching between views
     if (AnalyticsState.isTrendView === 'line') {
       // initTrendLine now checks if metric changed and updates data instead of recreate
@@ -1810,7 +1688,7 @@ async function reloadAnalyticsData() {
       DOM.updateHeatmap();
     }
 
-    // FIXED: Only reinit sparkline if nodeId and timeframe have actually changed
+    // ⚡ OPTIMIZATION: Only reinit sparkline if nodeId and timeframe have actually changed
     // This prevents expensive recalculations on every data reload
     if (AnalyticsState.lockedNodeId && AnalyticsState.nodeDetails[AnalyticsState.lockedNodeId]) {
       // Charts.initSparkline now checks if nodeId/timeframe changed and skips if not
@@ -1843,8 +1721,7 @@ async function initialize() {
       API.getOverview(),
       API.getNodes(),
       API.getTrends(),
-      API.getSystemHealth(),
-      API.getForecast()
+      API.getSystemHealth()
     ]);
 
     // Populate filters with dynamic data
@@ -1901,8 +1778,6 @@ async function initialize() {
 // ============================================================================
 // EXPORT FOR TEMPLATE ACCESS
 // ============================================================================
-
-// Make functions available to template onclick handlers
 window.toggleCustomDate = UI.toggleCustomDate;
 window.toggleTrendView = UI.toggleTrendView;
 window.updateTrendChart = UI.updateTrendChart;
@@ -1919,7 +1794,6 @@ window.closeAIModal = () => {
   if (modal) modal.classList.remove('active');
 };
 
-// Initialize on DOM ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initialize);
 } else {

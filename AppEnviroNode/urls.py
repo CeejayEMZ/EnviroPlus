@@ -56,13 +56,10 @@ urlpatterns = [
     path('api/analytics/top-areas/', views.api_analytics_top_areas, name='api_analytics_top_areas'),
     path('api/dashboard/nodes/', views.api_dashboard_nodes, name='api_dashboard_nodes'),
     path('api/realtime-data/', views.api_realtime_data, name='api_realtime_data'),
-    path('api/daily-forecast/', views.api_daily_forecast, name='api_daily_forecast'),
-    #path('api/realtime-export/', views.api_realtime_export_csv, name='api_realtime_export_csv'),
     
     # API ENDPOINTS for Dynamic Analytics Dashboard
     path('api/analytics/overview/', views.api_analytics_overview, name='api_analytics_overview'),
     path('api/analytics/trends/', views.api_analytics_trends, name='api_analytics_trends'),
-    path('api/analytics/forecast/', views.api_daily_forecast, name='api_analytics_forecast'),
     path('api/analytics/top-areas/', views.api_analytics_top_areas, name='api_analytics_top_areas'),
     path('api/analytics/aqi-trend/', views.api_analytics_aqi_trend, name='api_analytics_aqi_trend'),
     path('api/analytics/system-health/', views.api_analytics_system_health, name='api_analytics_system_health'),
