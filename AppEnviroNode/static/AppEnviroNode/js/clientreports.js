@@ -1,14 +1,14 @@
 (function () {
     'use strict';
 
-    const REPORT_TYPES = ['Weekly', 'Bi-Weekly', 'Monthly', 'Custom'];
+    const REPORT_TYPES = ['24hrs', 'Weekly', 'Monthly', 'Custom'];
     const DEFAULT_NODE = { id: 'all', label: 'All Nodes' };
     const POLL_INTERVAL_MS = 300000;
     const DEBOUNCE_DELAY_MS = 300;
 
     const state = {
         reportUrl: '',
-        reportType: 'Bi-Weekly',
+        reportType: '24hrs',
         selectedNode: 'all',
         dateFrom: '',
         dateTo: '',
@@ -20,6 +20,7 @@
         lastInsightsHash: '',
         lastActionsHash: '',
         lastButtonsHash: '',
+        lastNodeOptionsHash: '',
     };
 
     const elements = {};
@@ -123,10 +124,14 @@
         if (!elements.reportTypeContainer) return;
         
         const btnHash = simpleHash(state.reportType);
-        if (state.lastButtonsHash === btnHash) return;
+        if (state.lastButtonsHash === btnHash) {
+            const buttons = elements.reportTypeContainer.querySelectorAll('.creports-segmented__btn');
+            buttons.forEach(btn => btn.classList.toggle('is-active', btn.textContent === state.reportType));
+            return;
+        }
         state.lastButtonsHash = btnHash;
         
-        elements.reportTypeContainer.innerHTML = '';
+        const frag = document.createDocumentFragment();
         REPORT_TYPES.forEach((type) => {
             const button = document.createElement('button');
             button.type = 'button';
@@ -137,21 +142,28 @@
                 e.stopPropagation();
                 setReportType(type);
             });
-            elements.reportTypeContainer.appendChild(button);
+            frag.appendChild(button);
         });
+        elements.reportTypeContainer.innerHTML = '';
+        elements.reportTypeContainer.appendChild(frag);
     }
 
     function renderNodeOptions(newNodes) {
         if (!elements.nodeDropdownMenu) return;
         
-        const prevIds = state.nodes.map(n => n.id).join('|');
-        const nextIds = [DEFAULT_NODE.id, ...(newNodes || []).map(n => n.id)].join('|');
+        const nodeList = [DEFAULT_NODE].concat(newNodes || []);
+        const nextHash = simpleHash(JSON.stringify(nodeList.map(n => n.id)));
         
-        if (prevIds === nextIds) return;
+        if (state.lastNodeOptionsHash === nextHash && state.nodes.length === nodeList.length) {
+            const activeNode = state.nodes.find((item) => item.id === state.selectedNode) || DEFAULT_NODE;
+            if (elements.nodeDisplay) elements.nodeDisplay.textContent = activeNode.label;
+            return;
+        }
         
-        state.nodes = [DEFAULT_NODE].concat(newNodes || []);
-        elements.nodeDropdownMenu.innerHTML = '';
-
+        state.lastNodeOptionsHash = nextHash;
+        state.nodes = nodeList;
+        
+        const frag = document.createDocumentFragment();
         state.nodes.forEach((node) => {
             const button = document.createElement('button');
             button.type = 'button';
@@ -161,8 +173,10 @@
                 setSelectedNode(node.id, node.label);
                 closeDropdowns();
             });
-            elements.nodeDropdownMenu.appendChild(button);
+            frag.appendChild(button);
         });
+        elements.nodeDropdownMenu.innerHTML = '';
+        elements.nodeDropdownMenu.appendChild(frag);
 
         const activeNode = state.nodes.find((item) => item.id === state.selectedNode) || DEFAULT_NODE;
         if (elements.nodeDisplay) {
@@ -179,10 +193,10 @@
         const today = new Date();
         let fromDate = new Date();
         
-        if (type === 'Weekly') {
+        if (type === '24hrs') {
+            fromDate.setDate(today.getDate() - 1);
+        } else if (type === 'Weekly') {
             fromDate.setDate(today.getDate() - 6);
-        } else if (type === 'Bi-Weekly') {
-            fromDate.setDate(today.getDate() - 14);
         } else if (type === 'Monthly') {
             fromDate.setDate(today.getDate() - 29);
         } else {
@@ -303,13 +317,44 @@
             return;
         }
         
-        const labelsChanged = JSON.stringify(state.chartInstance.data.labels) !== JSON.stringify(labels);
+        if (!Array.isArray(labels) || !Array.isArray(values)) {
+            labels = [];
+            values = [];
+        }
+        
+        const currentLabels = state.chartInstance.data.labels || [];
+        let labelsChanged = currentLabels.length !== labels.length;
+        if (!labelsChanged) {
+            for (let i = 0; i < labels.length; i++) {
+                if (currentLabels[i] !== labels[i]) {
+                    labelsChanged = true;
+                    break;
+                }
+            }
+        }
+        
         if (labelsChanged) {
             state.chartInstance.data.labels = labels;
         }
         
-        state.chartInstance.data.datasets[0].data = values;
-        state.chartInstance.update('none');
+        const currentData = state.chartInstance.data.datasets[0].data || [];
+        let dataChanged = currentData.length !== values.length;
+        if (!dataChanged) {
+            for (let i = 0; i < values.length; i++) {
+                if (currentData[i] !== values[i]) {
+                    dataChanged = true;
+                    break;
+                }
+            }
+        }
+        
+        if (dataChanged) {
+            state.chartInstance.data.datasets[0].data = values;
+        }
+        
+        if (labelsChanged || dataChanged) {
+            state.chartInstance.update('none');
+        }
     }
 
     function setMetricText(element, value) {
@@ -327,21 +372,22 @@
         if (hashKey && state[hashKey] === contentHash) return;
         if (hashKey) state[hashKey] = contentHash;
         
-        container.innerHTML = '';
+        const frag = document.createDocumentFragment();
         if (!Array.isArray(items) || !items.length) {
             const item = document.createElement('li');
             item.className = styleClass;
             item.innerHTML = `<div class="creports-list__bullet" style="background-color: ${bulletColor}"></div><span>No data available.</span>`;
-            container.appendChild(item);
-            return;
+            frag.appendChild(item);
+        } else {
+            items.forEach((text) => {
+                const item = document.createElement('li');
+                item.className = styleClass;
+                item.innerHTML = `<div class="creports-list__bullet" style="background-color: ${bulletColor}"></div><span>${text}</span>`;
+                frag.appendChild(item);
+            });
         }
-
-        items.forEach((text) => {
-            const item = document.createElement('li');
-            item.className = styleClass;
-            item.innerHTML = `<div class="creports-list__bullet" style="background-color: ${bulletColor}"></div><span>${text}</span>`;
-            container.appendChild(item);
-        });
+        container.innerHTML = '';
+        container.appendChild(frag);
     }
 
     async function fetchJson(url) {
@@ -360,7 +406,8 @@
     }
 
     async function fetchAndRenderReport() {
-        if (!state.reportUrl || state.isFetching) return;
+        if (!state.reportUrl) return;
+        if (state.isFetching) return;
         if (!hasStateChanged()) return;
 
         state.isFetching = true;
@@ -376,10 +423,15 @@
         try {
             const data = await fetchJson(url.toString());
             
-            if (getStateKey() !== currentStateKey) return;
+            if (getStateKey() !== currentStateKey) {
+                state.isFetching = false;
+                return;
+            }
             
             state.lastFetchState = currentStateKey;
-            renderNodeOptions(data.nodes);
+            if (data.nodes && Array.isArray(data.nodes)) {
+                renderNodeOptions(data.nodes);
+            }
             renderView(data);
         } catch (error) {
             if (error.name !== 'AbortError') {
@@ -409,15 +461,15 @@
         setMetricText(elements.moderateDays, data.moderate_days);
         setMetricText(elements.unhealthyDays, data.unhealthy_days);
 
-        if (elements.goodPctBar) {
+        if (elements.goodPctBar && (elements.goodPctBar.style.width !== `${data.good_pct}%` || elements.goodPctBar.textContent !== `${data.good_pct}%`)) {
             elements.goodPctBar.style.width = `${data.good_pct}%`;
             elements.goodPctBar.textContent = `${data.good_pct}%`;
         }
-        if (elements.moderatePctBar) {
+        if (elements.moderatePctBar && (elements.moderatePctBar.style.width !== `${data.moderate_pct}%` || elements.moderatePctBar.textContent !== `${data.moderate_pct}%`)) {
             elements.moderatePctBar.style.width = `${data.moderate_pct}%`;
             elements.moderatePctBar.textContent = `${data.moderate_pct}%`;
         }
-        if (elements.unhealthyPctBar) {
+        if (elements.unhealthyPctBar && (elements.unhealthyPctBar.style.width !== `${data.unhealthy_pct}%` || elements.unhealthyPctBar.textContent !== `${data.unhealthy_pct}%`)) {
             elements.unhealthyPctBar.style.width = `${data.unhealthy_pct}%`;
             elements.unhealthyPctBar.textContent = `${data.unhealthy_pct}%`;
         }
@@ -434,8 +486,10 @@
         if (elements.dateFromInput) elements.dateFromInput.value = data.date_from || state.dateFrom;
         if (elements.dateToInput) elements.dateToInput.value = data.date_to || state.dateTo;
         
-        state.reportType = data.report_type || state.reportType;
-        renderReportTypeButtons();
+        if (state.reportType !== data.report_type) {
+            state.reportType = data.report_type || state.reportType;
+            renderReportTypeButtons();
+        }
         updateDateDisplays();
 
         setMetricText(elements.chartTitle, `AQI Trend (${data.total_days || 0} Days)`);
@@ -550,10 +604,25 @@
 
     function loadInitialState(root) {
         state.reportUrl = root.dataset.reportUrl || '';
-        state.dateFrom = root.dataset.dateFrom || state.dateFrom;
-        state.dateTo = root.dataset.dateTo || state.dateTo;
-        state.selectedNode = root.dataset.selectedNode || state.selectedNode;
-        state.lastFetchState = getStateKey();
+        
+        let hasValidDates = false;
+        if (root.dataset.dateFrom && root.dataset.dateTo) {
+            state.dateFrom = root.dataset.dateFrom;
+            state.dateTo = root.dataset.dateTo;
+            hasValidDates = true;
+        }
+        
+        if (!hasValidDates) {
+            const today = new Date();
+            state.dateTo = today.toISOString().slice(0, 10);
+            const fromDate = new Date(today);
+            fromDate.setDate(today.getDate() - 1);
+            state.dateFrom = fromDate.toISOString().slice(0, 10);
+        }
+        
+        state.selectedNode = root.dataset.selectedNode || 'all';
+        state.reportType = '24hrs';
+        state.lastFetchState = null;
     }
 
     function setupPolling() {
@@ -572,10 +641,12 @@
 
         loadInitialState(root);
         initializeElements(root);
-        updateDateDisplays();
         renderReportTypeButtons();
         updateDateInputs();
+        updateDateDisplays();
         attachEventListeners();
+        
+        state.lastFetchState = null;
         fetchAndRenderReport();
 
         if (window.lucide && typeof window.lucide.createIcons === 'function') {

@@ -1842,8 +1842,8 @@ def api_client_reports(request):
     peak_aqi = agg['max_aqi'] or 0
     low_aqi = agg['min_aqi'] or 0
 
-    peak_reading = readings_qs.filter(aqi=peak_aqi).only('aqi', 'aqi_level', 'timestamp').first() if peak_aqi else None
-    low_reading = readings_qs.filter(aqi=low_aqi).only('aqi', 'aqi_level', 'timestamp').first() if low_aqi else None
+    peak_reading = readings_qs.filter(aqi=peak_aqi).first() if peak_aqi else None
+    low_reading = readings_qs.filter(aqi=low_aqi).first() if low_aqi else None
 
     good_days = readings_qs.filter(aqi_level='good').values('timestamp__date').distinct().count()
     moderate_days = readings_qs.filter(aqi_level='moderate').values('timestamp__date').distinct().count()
@@ -1888,10 +1888,10 @@ def api_client_reports(request):
             trend_values.append(round(item['avg_val'], 1) if item['avg_val'] else 0)
 
     report_type = 'Custom'
-    if total_days == 7:
+    if total_days == 1:
+        report_type = '24hrs'
+    elif total_days == 7:
         report_type = 'Weekly'
-    elif total_days == 15:
-        report_type = 'Bi-Weekly'
     elif total_days in (30, 31):
         report_type = 'Monthly'
 
@@ -4397,8 +4397,8 @@ def export_report_excel(request):
 def export_report_print(request):
     date_from_obj, date_to_obj, selected_node = parse_export_params(request)
     summary = build_report_summary(date_from_obj, date_to_obj, selected_node)
-    chart_image = base64.b64encode(build_chart_image(summary).getvalue()).decode('ascii')
-    chart_explanation = build_chart_explanation(summary)
+    chart_image = base64.b64encode(build_chart_image(summary['summary']).getvalue()).decode('ascii')
+    chart_explanation = build_chart_explanation(summary['summary'])
     
     node_name = 'All Nodes'
     if selected_node != 'all':
@@ -4416,15 +4416,33 @@ def export_report_print(request):
 def export_report_pdf(request):
     date_from_obj, date_to_obj, selected_node = parse_export_params(request)
     summary = build_report_summary(date_from_obj, date_to_obj, selected_node)
+    chart_image = base64.b64encode(build_chart_image(summary['summary']).getvalue()).decode('ascii')
+    chart_explanation = build_chart_explanation(summary['summary'])
+    
     node_name = 'All Nodes'
     
     if selected_node != 'all':
         node = SensorNode.objects.filter(pk=selected_node).first()
         node_name = node.name if node else node_name
-        
-    chart_image = base64.b64encode(build_chart_image(summary).getvalue()).decode('ascii')
-    chart_explanation = build_chart_explanation(summary)
+
+    html_string = render_to_string('AppEnviroNode/admin/clientreports_print.html', {
+        'summary': summary,
+        'chart_image': chart_image,
+        'chart_explanation': chart_explanation,
+        'node_name': node_name,
+    })
+
+    result = io.BytesIO()
+    pdf = pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), result)
     
+    if not pdf.err:
+        response = HttpResponse(result.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = (
+            f'attachment; filename="Environode-report-{date_from_obj.isoformat()}_to_{date_to_obj.isoformat()}.pdf"'
+        )
+        return response
+    return HttpResponse('Error generating PDF')
+
 @login_required(login_url='app:login')
 def client_ai(request):
     return render(request, 'AppEnviroNode/admin/clientai.html')
@@ -4654,8 +4672,8 @@ def export_report_excel(request):
 def export_report_print(request):
     date_from_obj, date_to_obj, selected_node = parse_export_params(request)
     summary = build_report_summary(date_from_obj, date_to_obj, selected_node)
-    chart_image = base64.b64encode(build_chart_image(summary).getvalue()).decode('ascii')
-    chart_explanation = build_chart_explanation(summary)
+    chart_image = base64.b64encode(build_chart_image(summary['summary']).getvalue()).decode('ascii')
+    chart_explanation = build_chart_explanation(summary['summary'])
     
     node_name = 'All Nodes'
     if selected_node != 'all':
@@ -4673,15 +4691,15 @@ def export_report_print(request):
 def export_report_pdf(request):
     date_from_obj, date_to_obj, selected_node = parse_export_params(request)
     summary = build_report_summary(date_from_obj, date_to_obj, selected_node)
-    chart_image = base64.b64encode(build_chart_image(summary).getvalue()).decode('ascii')
-    chart_explanation = build_chart_explanation(summary)
+    chart_image = base64.b64encode(build_chart_image(summary['summary']).getvalue()).decode('ascii')
+    chart_explanation = build_chart_explanation(summary['summary'])
     
     node_name = 'All Nodes'
     if selected_node != 'all':
         node = SensorNode.objects.filter(pk=selected_node).first()
         node_name = node.name if node else node_name
 
-    html_string = render_to_string('AppEnviroNode/admin/clientreports_pdf.html', {
+    html_string = render_to_string('AppEnviroNode/admin/clientreports_print.html', {
         'summary': summary,
         'chart_image': chart_image,
         'chart_explanation': chart_explanation,
