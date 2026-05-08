@@ -48,6 +48,34 @@ def calculate_aqi(pm2_5):
     return 500, 'hazardous'
 
 
+def get_aqi_category(aqi):
+    """
+    Get AQI category from AQI score.
+    
+    Args:
+        aqi (float): AQI score
+        
+    Returns:
+        str: Category ('good', 'moderate', 'unhealthy_sensitive', etc)
+    """
+    if aqi is None:
+        return 'unknown'
+    
+    aqi = float(aqi)
+    if aqi <= 50:
+        return 'good'
+    elif aqi <= 100:
+        return 'moderate'
+    elif aqi <= 150:
+        return 'unhealthy_sensitive'
+    elif aqi <= 200:
+        return 'unhealthy'
+    elif aqi <= 300:
+        return 'very_unhealthy'
+    else:
+        return 'hazardous'
+
+
 def get_aqi_health_advice(aqi_level):
     """
     Get health advice based on AQI level.
@@ -95,6 +123,144 @@ def get_pm2_5_category(pm2_5):
         return 'very_unhealthy'
     else:
         return 'hazardous'
+
+
+# ============================================================================
+# FORECAST & TREND ANALYSIS
+# ============================================================================
+
+def calculate_weighted_average(values, weights=None):
+    """
+    Calculate weighted moving average for trend smoothing.
+    
+    Args:
+        values: List of numeric values
+        weights: List of weights (optional, defaults to linear weights)
+        
+    Returns:
+        float: Weighted average
+    """
+    if not values:
+        return None
+    
+    if weights is None:
+        # Linear weights: more recent values weighted higher
+        weights = [i + 1 for i in range(len(values))]
+    
+    total_weight = sum(weights)
+    if total_weight == 0:
+        return sum(values) / len(values) if values else None
+    
+    weighted_sum = sum(v * w for v, w in zip(values, weights))
+    return weighted_sum / total_weight
+
+
+def calculate_simple_trend(values, period=3):
+    """
+    Calculate simple trend direction based on recent values.
+    
+    Args:
+        values: List of numeric values (ordered chronologically)
+        period: Number of recent values to compare (default 3)
+        
+    Returns:
+        tuple: (trend_direction, strength)
+            - trend_direction: 'up', 'down', or 'stable'
+            - strength: Float -1.0 to 1.0 (negative=down, 0=stable, positive=up)
+    """
+    if not values or len(values) < 2:
+        return 'stable', 0.0
+    
+    # Compare recent period vs previous period
+    if len(values) < period * 2:
+        # Not enough data, use simple comparison
+        recent = values[-1]
+        previous = values[0]
+    else:
+        recent = sum(values[-period:]) / period
+        previous = sum(values[-(period*2):-period]) / period
+    
+    if recent > previous:
+        strength = min(1.0, (recent - previous) / max(previous, 1))
+        return 'up', strength
+    elif recent < previous:
+        strength = min(1.0, (previous - recent) / max(previous, 1))
+        return 'down', -strength
+    else:
+        return 'stable', 0.0
+
+
+def predict_next_day_aqi(historical_readings, confidence_threshold=0.6):
+    """
+    Predict AQI for next day using historical trend analysis.
+    
+    Args:
+        historical_readings: List of (timestamp, aqi) tuples
+        confidence_threshold: Minimum data confidence (0-1)
+        
+    Returns:
+        dict: {
+            'predicted_aqi': float,
+            'confidence': float (0-1),
+            'trend': 'up' | 'down' | 'stable',
+            'range': {'min': float, 'max': float}
+        }
+    """
+    if not historical_readings:
+        return {
+            'predicted_aqi': None,
+            'confidence': 0.0,
+            'trend': 'unknown',
+            'range': {'min': None, 'max': None}
+        }
+    
+    # Extract AQI values only
+    aqi_values = [aqi for _, aqi in historical_readings if aqi is not None]
+    
+    if not aqi_values:
+        return {
+            'predicted_aqi': None,
+            'confidence': 0.0,
+            'trend': 'unknown',
+            'range': {'min': None, 'max': None}
+        }
+    
+    # Calculate basic statistics
+    avg_aqi = sum(aqi_values) / len(aqi_values)
+    min_aqi = min(aqi_values)
+    max_aqi = max(aqi_values)
+    
+    # Determine trend
+    trend, strength = calculate_simple_trend(aqi_values)
+    
+    # Predict next value using weighted average
+    recent_weight = calculate_weighted_average(aqi_values[-5:] if len(aqi_values) >= 5 else aqi_values)
+    
+    # If trend is strong, adjust prediction
+    if trend == 'up' and strength > 0.3:
+        predicted = recent_weight * 1.05 if recent_weight else avg_aqi * 1.05
+    elif trend == 'down' and strength < -0.3:
+        predicted = recent_weight * 0.95 if recent_weight else avg_aqi * 0.95
+    else:
+        predicted = recent_weight if recent_weight else avg_aqi
+    
+    # Clamp prediction to reasonable range (don't predict outside observed extremes)
+    predicted = max(min_aqi, min(max_aqi * 1.1, predicted))
+    
+    # Calculate confidence based on data consistency
+    if len(aqi_values) < 5:
+        confidence = 0.4  # Low confidence with few data points
+    elif max_aqi - min_aqi < 20:
+        confidence = 0.9  # High confidence when readings are stable
+    else:
+        confidence = 0.6  # Medium confidence with variation
+    
+    return {
+        'predicted_aqi': round(predicted, 1),
+        'confidence': round(confidence, 2),
+        'trend': trend,
+        'range': {'min': min_aqi, 'max': max_aqi}
+    }
 
 
 # ============================================================================
