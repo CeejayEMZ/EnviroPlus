@@ -1146,22 +1146,124 @@
       });
       console.log(`✅ Rendered ${markerCount} markers to map`);
     },
+
+    // ⚡ OPTIMIZATION: Incremental marker diffing instead of full rebuild
+    updateMarkersDiff(newNodesData) {
+      if (!this.mapInstance || !this.markerClusterGroup) {
+        console.warn('⚠️ Map not initialized');
+        return false;
+      }
+
+      try {
+        const newNodeIds = new Set();
+        let added = 0, updated = 0, removed = 0;
+
+        // Process new/updated nodes
+        newNodesData.forEach((item) => {
+          const node = item.node;
+          if (!node || !node.latitude || !node.longitude) return;
+
+          const nodeId = node.id;
+          newNodeIds.add(nodeId);
+          
+          const aqi = (item.pollutants || {}).aqi || 0;
+          
+          // Check if marker exists
+          if (this.allMarkersMap.has(nodeId)) {
+            // Update existing marker (simple approach: remove and re-add)
+            // In production, you might update marker icon and popup
+            const oldMarker = this.allMarkersMap.get(nodeId);
+            this.markerClusterGroup.removeLayer(oldMarker);
+            this.allMarkersMap.delete(nodeId);
+            updated++;
+          } else {
+            added++;
+          }
+
+          // Re-create marker with latest data
+          const aqiClass = this.getAqiStyle(aqi);
+          const marker = L.marker([node.latitude, node.longitude], {
+            icon: L.divIcon({
+              html: `<div class="waqi-marker"><div class="waqi-box ${aqiClass}">${Math.round(aqi)}</div><div class="waqi-pointer ${aqiClass}"></div></div>`,
+              iconSize: null,
+              className: '',
+              popupAnchor: [0, -50],
+            })
+          });
+
+          const statusColor = item.status === 'active' ? '#28a745' : '#ffc107';
+          const pollutants = item.pollutants || {};
+          const popupContent = `
+            <div style="font-weight: 600; margin-bottom: 4px;">${node.name}</div>
+            <div style="margin-bottom: 4px;">📍 ${node.location || 'Unknown'}</div>
+            <div style="margin-bottom: 4px; font-size: 0.85rem; padding-bottom: 4px; border-bottom: 1px solid #ddd;">
+              Status: <strong style="color: ${statusColor};">${node.status.toUpperCase()}</strong>
+            </div>
+            <div style="margin-top: 8px; font-size: 0.85rem;">
+              <div><strong>AQI:</strong> ${Math.round(aqi)}</div>
+              <div><strong>PM2.5:</strong> ${pollutants.pm25 ? pollutants.pm25.toFixed(1) : 'N/A'} µg/m³</div>
+              <div><strong>PM10:</strong> ${pollutants.pm10 ? pollutants.pm10.toFixed(1) : 'N/A'} µg/m³</div>
+              <div><strong>Temp:</strong> ${pollutants.temperature ? pollutants.temperature.toFixed(1) : 'N/A'}°C</div>
+              <div><strong>Humidity:</strong> ${pollutants.humidity ? pollutants.humidity.toFixed(0) : 'N/A'}%</div>
+            </div>
+          `;
+          marker.bindPopup(popupContent);
+          this.allMarkersMap.set(nodeId, marker);
+          this.markerClusterGroup.addLayer(marker);
+        });
+
+        // Remove deleted nodes
+        for (const [nodeId, marker] of this.allMarkersMap.entries()) {
+          if (!newNodeIds.has(nodeId)) {
+            this.markerClusterGroup.removeLayer(marker);
+            this.allMarkersMap.delete(nodeId);
+            removed++;
+          }
+        }
+
+        console.log(`🔄 Marker diff: +${added} ~${updated} -${removed}`);
+        return true;
+      } catch (error) {
+        console.error('❌ Marker diff failed, falling back to full rebuild:', error);
+        return false;
+      }
+    },
     
     async updateDashboard() {
+      // ⚡ OPTIMIZATION: Prevent duplicate simultaneous requests
+      if (this.isFetching) {
+        console.log('⏳ Already fetching, skipping duplicate request');
+        return;
+      }
+
       console.log('🔄 Updating dashboard data...');
+      this.isFetching = true;
+      
       try {
         const nodesData = await this.fetchNodeData('all');
         if (nodesData.length === 0) {
           console.warn('⚠️ No nodes data received');
+          this.isFetching = false;
           return;
         }
-        this.markerClusterGroup.clearLayers();
-        this.allMarkersMap.clear();
-        this.renderMarkers(nodesData);
+        
+        // ⚡ OPTIMIZATION: Try incremental diffing first
+        const diffSuccess = this.updateMarkersDiff(nodesData);
+        
+        if (!diffSuccess) {
+          // Fallback to full rebuild if diff fails
+          console.log('↩️ Falling back to full rebuild');
+          this.markerClusterGroup.clearLayers();
+          this.allMarkersMap.clear();
+          this.renderMarkers(nodesData);
+        }
+
         this.lastUpdateTime = new Date();
         console.log(`✅ Dashboard updated at ${this.lastUpdateTime.toLocaleTimeString()}`);
       } catch (error) {
         console.error('❌ Dashboard update failed:', error);
+      } finally {
+        this.isFetching = false;
       }
     }
   };

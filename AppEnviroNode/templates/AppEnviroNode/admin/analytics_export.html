@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EnviroNode Analytics Report</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 15mm 18mm;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: white;
+            color: #000;
+        }
+        .report {
+            max-width: 100%;
+            margin: 0 auto;
+        }
+        .report-header {
+            text-align: left;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+        }
+        .report-title h1 {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .report-meta {
+            font-size: 11px;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+        .section {
+            margin-bottom: 18px;
+            page-break-inside: avoid;
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .metric-card {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+            background: #f9f9f9;
+        }
+        .metric-label {
+            font-size: 10px;
+            color: #666;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .metric-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #000;
+        }
+        .chart-area {
+            text-align: center;
+            margin: 15px 0;
+        }
+        .chart-area img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+        }
+        table th,
+        table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            font-size: 11px;
+        }
+        table th {
+            background: #f0f0f0;
+            font-weight: 600;
+        }
+        .distribution-bar {
+            display: flex;
+            gap: 0;
+            margin: 10px 0;
+            border-radius: 4px;
+            overflow: hidden;
+            height: 30px;
+        }
+        .dist-segment {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .dist-good {
+            background-color: #10b981;
+        }
+        .dist-moderate {
+            background-color: #f59e0b;
+        }
+        .dist-unhealthy {
+            background-color: #ef4444;
+        }
+        .insights-list {
+            list-style: none;
+            margin: 10px 0;
+        }
+        .insights-list li {
+            padding: 6px 0;
+            padding-left: 16px;
+            position: relative;
+            font-size: 11px;
+        }
+        .insights-list li:before {
+            content: "•";
+            position: absolute;
+            left: 0;
+        }
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="report">
+        <!-- Report Header -->
+        <div class="report-header">
+            <div class="report-title">
+                <h1>ENVIRONODE ANALYTICS REPORT</h1>
+            </div>
+            <div class="report-meta">
+                <span><strong>Period:</strong> {{ report_period }}</span>
+                <span><strong>Scope:</strong> {{ node_name }}</span>
+                <span><strong>Generated:</strong> {{ generated_at }}</span>
+            </div>
+        </div>
+
+        <!-- Key Metrics -->
+        <div class="section">
+            <div class="section-title">Key Metrics</div>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Average AQI</div>
+                    <div class="metric-value">{{ avg_aqi }}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Peak AQI</div>
+                    <div class="metric-value">{{ peak_aqi }}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Lowest AQI</div>
+                    <div class="metric-value">{{ low_aqi }}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Most Affected Area</div>
+                    <div class="metric-value" style="font-size: 12px;">{{ most_affected_node }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AQI Trend Chart -->
+        <div class="section">
+            <div class="section-title">AQI Trend</div>
+            <p style="font-size: 11px; margin-bottom: 10px; line-height: 1.6;">{{ chart_explanation }}</p>
+            <div class="chart-area">
+                {% if chart_image %}
+                <img src="data:image/png;base64,{{ chart_image }}" alt="AQI Trend Chart">
+                {% else %}
+                <p style="color: #999;">Chart data not available</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Distribution Summary -->
+        <div class="section">
+            <div class="section-title">Air Quality Distribution</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Good Days</th>
+                        <th>Moderate Days</th>
+                        <th>Unhealthy Days</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{{ good_days }} ({{ good_pct }}%)</td>
+                        <td>{{ moderate_days }} ({{ moderate_pct }}%)</td>
+                        <td>{{ unhealthy_days }} ({{ unhealthy_pct }}%)</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="distribution-bar">
+                {% if good_pct > 0 %}
+                <div class="dist-segment dist-good" style="width: {{ good_pct }}%;">{{ good_pct }}%</div>
+                {% endif %}
+                {% if moderate_pct > 0 %}
+                <div class="dist-segment dist-moderate" style="width: {{ moderate_pct }}%;">{{ moderate_pct }}%</div>
+                {% endif %}
+                {% if unhealthy_pct > 0 %}
+                <div class="dist-segment dist-unhealthy" style="width: {{ unhealthy_pct }}%;">{{ unhealthy_pct }}%</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Summary Notes -->
+        <div class="section">
+            <div class="section-title">Summary</div>
+            <p style="font-size: 11px; line-height: 1.6;">
+                This report summarizes air quality metrics for the selected period and location(s).
+                Data is aggregated from all active sensor nodes and represents the most recent 
+                available readings.
+            </p>
+        </div>
+    </div>
+
+    {% if not pdf_export %}
+    <script>
+        window.onload = function() {
+            window.print();
+        };
+    </script>
+    {% endif %}
+</body>
+</html>

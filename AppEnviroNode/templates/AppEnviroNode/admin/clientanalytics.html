@@ -198,9 +198,10 @@
         <input type="date" class="filter-control" id="customDateEnd" value="2026-04-16">
       </div>
       
-      <div style="margin-left: auto; display: flex; gap: 8px;">
-        <button class="btn"><i class="fas fa-sync"></i> Reset</button>
-        <button class="btn btn-primary"><i class="fas fa-download"></i> Export PDF</button>
+      <div style="margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap;">
+        <button id="analyticsExportPdfBtn" class="btn" title="Export as PDF" onclick="exportAnalyticsAsPDF()"><i class="fas fa-file-pdf"></i> PDF</button>
+        <button id="analyticsExportCsvBtn" class="btn" title="Export as CSV" onclick="exportAnalyticsAsCSV()"><i class="fas fa-file-csv"></i> CSV</button>
+        <button id="analyticsPrintBtn" class="btn" title="Print Report" onclick="printAnalyticsReport()"><i class="fas fa-print"></i> Print</button>
       </div>
     </div>
 
