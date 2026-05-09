@@ -4590,3 +4590,153 @@ def api_notifications_mark_all_read(request):
         }, status=200)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@require_http_methods(["GET"])
+@cache_page(300)
+def api_daily_forecast(request):
+    try:
+        from .utils import predict_next_day_aqi, get_aqi_category
+        
+        now = timezone.now()
+        today = now.astimezone(timezone.get_current_timezone()).date()
+        
+        readings = SensorReading.objects.filter(
+            timestamp__gte=now - timedelta(days=30),
+            timestamp__lte=now,
+            aqi__isnull=False
+        ).select_related('node').only(
+            'aqi', 'pm2_5', 'temperature', 'timestamp'
+        ).order_by('timestamp')
+        
+        daily_groups = {}
+        for reading in readings:
+            if not reading.timestamp:
+                continue
+            try:
+                reading_date = reading.timestamp.astimezone(timezone.get_current_timezone()).date()
+            except (TypeError, AttributeError):
+                continue
+            
+            if reading_date not in daily_groups:
+                daily_groups[reading_date] = {
+                    'aqi_values': [],
+                    'pm2_5_values': [],
+                    'temp_values': [],
+                    'count': 0
+                }
+            
+            if reading.aqi is not None:
+                daily_groups[reading_date]['aqi_values'].append(reading.aqi)
+            if reading.pm2_5 is not None:
+                daily_groups[reading_date]['pm2_5_values'].append(reading.pm2_5)
+            if reading.temperature is not None:
+                daily_groups[reading_date]['temp_values'].append(reading.temperature)
+            daily_groups[reading_date]['count'] += 1
+        
+        daily_aggregates = []
+        sorted_dates = sorted(daily_groups.keys())
+        
+        for date in sorted_dates:
+            group = daily_groups[date]
+            daily_aggregates.append({
+                'date': date,
+                'aqi_values': group['aqi_values'],
+                'pm2_5_values': group['pm2_5_values'],
+                'temp_values': group['temp_values'],
+                'avg_aqi': round(sum(group['aqi_values']) / len(group['aqi_values']), 1) if group['aqi_values'] else None,
+                'avg_pm2_5': round(sum(group['pm2_5_values']) / len(group['pm2_5_values']), 1) if group['pm2_5_values'] else None,
+                'avg_temperature': round(sum(group['temp_values']) / len(group['temp_values']), 1) if group['temp_values'] else None,
+            })
+        
+        if len(daily_aggregates) == 0:
+            return JsonResponse({
+                'success': True,
+                'forecast': [],
+                'message': 'No data available',
+                'generated_at': now.isoformat(),
+                'confidence_level': 'low'
+            }, status=200)
+        
+        recent_aqi_all = [d['avg_aqi'] for d in daily_aggregates if d['avg_aqi'] is not None]
+        recent_pm2_5_all = [d['avg_pm2_5'] for d in daily_aggregates if d['avg_pm2_5'] is not None]
+        recent_temp_all = [d['avg_temperature'] for d in daily_aggregates if d['avg_temperature'] is not None]
+        
+        forecast_list = []
+        
+        history_start = today - timedelta(days=6)
+        
+        for i in range(-6, 4):
+            forecast_date = today + timedelta(days=i)
+            is_current = (forecast_date == today)
+            is_predicted = (forecast_date > today)
+            is_historical = (forecast_date < today)
+            
+            actual_data = next((d for d in daily_aggregates if d['date'] == forecast_date), None)
+            
+            if actual_data:
+                aqi_level = get_aqi_category(actual_data['avg_aqi']) if actual_data['avg_aqi'] else 'unknown'
+                forecast_list.append({
+                    'date': forecast_date.isoformat(),
+                    'day_label': forecast_date.strftime('%A')[:3],
+                    'day_subtitle': forecast_date.strftime('%b %d, %Y'),
+                    'avg_aqi': actual_data['avg_aqi'],
+                    'aqi_level': aqi_level,
+                    'avg_pm2_5': actual_data['avg_pm2_5'],
+                    'avg_temperature': actual_data['avg_temperature'],
+                    'confidence': 1.0,
+                    'trend': 'stable',
+                    'is_predicted': False,
+                    'is_current': is_current,
+                    'is_historical': is_historical,
+                    'data_points': len(actual_data['aqi_values'])
+                })
+            elif is_predicted:
+                if recent_aqi_all:
+                    prediction = predict_next_day_aqi(
+                        [(i, aqi) for i, aqi in enumerate(recent_aqi_all[-7:])],
+                        confidence_threshold=0.5
+                    )
+                    predicted_aqi = prediction.get('predicted_aqi') if prediction else None
+                    predicted_confidence = prediction.get('confidence', 0.5) if prediction else 0.5
+                    predicted_trend = prediction.get('trend', 'stable') if prediction else 'stable'
+                else:
+                    predicted_aqi = None
+                    predicted_confidence = 0.0
+                    predicted_trend = 'stable'
+                
+                if predicted_aqi is not None:
+                    forecast_list.append({
+                        'date': forecast_date.isoformat(),
+                        'day_label': forecast_date.strftime('%A')[:3],
+                        'day_subtitle': forecast_date.strftime('%b %d, %Y'),
+                        'avg_aqi': predicted_aqi,
+                        'aqi_level': get_aqi_category(predicted_aqi),
+                        'avg_pm2_5': sum(recent_pm2_5_all) / len(recent_pm2_5_all) if recent_pm2_5_all else None,
+                        'avg_temperature': sum(recent_temp_all) / len(recent_temp_all) if recent_temp_all else None,
+                        'confidence': predicted_confidence,
+                        'trend': predicted_trend,
+                        'is_predicted': True,
+                        'is_current': False,
+                        'is_historical': False,
+                        'data_points': 0
+                    })
+        
+        overall_confidence = 'high' if len(daily_aggregates) >= 14 else ('medium' if len(daily_aggregates) >= 7 else 'low')
+        
+        return JsonResponse({
+            'success': True,
+            'forecast': forecast_list[-7:] if len(forecast_list) > 7 else forecast_list,
+            'generated_at': now.isoformat(),
+            'confidence_level': overall_confidence,
+            'data_coverage_days': len(daily_aggregates),
+            'history_span_days': (sorted_dates[-1] - sorted_dates[0]).days if len(sorted_dates) > 1 else 0
+        }, status=200)
+        
+    except Exception as e:
+        logger.error(f'Forecast error: {str(e)[:200]}', exc_info=True)
+        return JsonResponse({
+            'success': True,
+            'forecast': [],
+            'generated_at': timezone.now().isoformat(),
+            'confidence_level': 'low'
+        }, status=200)
