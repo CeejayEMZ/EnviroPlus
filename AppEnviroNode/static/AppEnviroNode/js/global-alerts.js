@@ -851,26 +851,7 @@ function appendChatMessage(text, sender = 'ai') {
   body.scrollTop = body.scrollHeight;
 }
 
-function getAIResponse(message) {
-  const cleaned = message.toLowerCase();
-
-  if (cleaned.includes('aqi')) {
-    return 'AQI stands for Air Quality Index. Lower values mean cleaner air; higher values require more caution. Ask me for current node status or health tips to learn more.';
-  }
-  if (cleaned.includes('health')) {
-    return 'For current air quality, vulnerable people should limit outdoor activity, wear masks when needed, and stay indoors during peak pollution periods.';
-  }
-  if (cleaned.includes('node') || cleaned.includes('sensor')) {
-    return 'All active nodes are being monitored in real time. You can filter nodes in the dashboard to see status and readings for each location.';
-  }
-  if (cleaned.includes('forecast')) {
-    return 'Forecast results show short-term air quality trends. Use this to prepare for changes in pollution levels throughout the day.';
-  }
-
-  return 'Thanks for the question! I can help with AQI definitions, health guidance, node status, and forecast insights. Try asking "What is AQI?" or "How is the air today?".';
-}
-
-function sendAIChatMessage() {
+async function sendAIChatMessage() {
   const input = document.getElementById('aiChatInput');
   if (!input) return;
 
@@ -881,11 +862,42 @@ function sendAIChatMessage() {
   input.value = '';
   input.disabled = true;
 
-  setTimeout(() => {
-    appendChatMessage(getAIResponse(text), 'ai');
+  // Show typing indicator
+  appendChatMessage('...', 'ai');
+  const body = document.getElementById('aiChatBody');
+  const typingMsg = body ? body.lastElementChild : null;
+
+  try {
+    const csrfToken = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('csrftoken='))
+      ?.split('=')[1] || '';
+
+    const apiUrl = window.ENVIRO_CHAT_API_URL || '/api/chat/';
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+      body: JSON.stringify({ message: text })
+    });
+
+    const data = await response.json();
+    if (typingMsg) typingMsg.remove();
+
+    if (data.success && data.reply) {
+      appendChatMessage(data.reply, 'ai');
+    } else {
+      appendChatMessage("Sorry, I couldn't get a response. Please try again.", 'ai');
+    }
+  } catch (err) {
+    if (typingMsg) typingMsg.remove();
+    appendChatMessage("Connection error. Please try again.", 'ai');
+  } finally {
     input.disabled = false;
     input.focus();
-  }, 700);
+  }
 }
 
 function setupAIChatOverlayClose() {

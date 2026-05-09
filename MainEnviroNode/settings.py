@@ -204,3 +204,6 @@ LOGGING = {
         },
     },
 }
+
+# AI Configuration
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')  # ← add this here

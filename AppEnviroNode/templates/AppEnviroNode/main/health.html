@@ -647,7 +647,7 @@
 
 {% block extra_js %}
   <script>
-    // Initialize Lucide icons globally
     lucide.createIcons();
+    window.ENVIRO_CHAT_API_URL = "{% url 'app:api_enviro_ai_chat' %}";
   </script>
 {% endblock %}

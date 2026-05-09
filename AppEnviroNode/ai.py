@@ -16,7 +16,6 @@ GROQ_MODEL   = "llama-3.3-70b-versatile"  # ← fixed: was llama3-8b-8192
 def _get_api_key():
     """Read GROQ_API_KEY from environment / Django settings."""
     key = os.environ.get("GROQ_API_KEY", getattr(settings, "GROQ_API_KEY", ""))
-    print(f"[DEBUG] API key loaded: {'YES' if key else 'NO'}")
     return key
 
 # ── Public EnviroAI chat ─────────────────────────────────────
@@ -68,8 +67,6 @@ Your job is to:
             json=payload,
             timeout=15
         )
-        print(f"Groq status: {response.status_code}")
-        print(f"Groq response: {response.text}")
         data  = response.json()
         reply = (
             data.get("choices", [{}])[0]
