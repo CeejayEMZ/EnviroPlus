@@ -3001,134 +3001,234 @@ def build_realtime_chart_data(readings_qs, selected_range):
 @csrf_exempt
 @require_http_methods(["GET"])
 def api_realtime_data(request):
+    """
+    GET /api/realtime-data/
+    
+    Returns real-time data for the monitoring dashboard.
+    Optimized for frequent polling with lightweight responses.
+    """
     try:
-        from .utils import get_aqi_category
-        from django.db.models.functions import TruncHour, TruncDay, TruncMinute
+        from django.db.models import Avg, Q, Count
+        from datetime import timedelta
+        from django.db.models.functions import TruncMinute
         
-        timeframe, time_threshold, time_end, days = parse_analytics_date_window(request)
-        range_label = {
-            '24h': 'Last 24 hours',
-            '7d': 'Last 7 days',
-            '30d': 'Last 30 days',
-            'custom': f'{request.GET.get("start_date", "")} to {request.GET.get("end_date", "")}' if timeframe == 'custom' else 'Custom'
-        }.get(timeframe, 'Last 7 days')
+        # Get filter parameters (with defaults for real-time view)
+        node_filter = request.GET.get('filter', 'all')
+        zone = request.GET.get('zone', 'all')
+        time_range = request.GET.get('time_range', '15m')
         
-        readings_qs = SensorReading.objects.filter(
-            timestamp__gte=time_threshold,
-            timestamp__lte=time_end
-        ).select_related('node').only(
-            'id', 'aqi', 'pm2_5', 'pm10', 'temperature', 'timestamp', 'node_id', 'node__name', 'node__location'
-        )
+        now = timezone.now()
         
-        readings_qs = apply_analytics_filters(readings_qs, request)
-        
-        latest_reading = readings_qs.order_by('-timestamp').first()
-        latest_node = latest_reading.node if latest_reading else None
-        
-        agg = readings_qs.aggregate(
-            avg_aqi=Avg('aqi'),
-            max_aqi=Max('aqi'),
-            min_aqi=Min('aqi'),
-            count=Count('id')
-        )
-        
-        strategy = get_aggregation_strategy(days)
-        
-        if strategy == 'minute':
-            trunc_func = TruncMinute
-            max_points = 60
-        elif strategy == 'hour':
-            trunc_func = TruncHour
-            max_points = 48
+        # Parse time range for recent readings
+        if time_range == '1m':
+            time_start = now - timedelta(minutes=1)
+            limit_points = 60
+        elif time_range == '5m':
+            time_start = now - timedelta(minutes=5)
+            limit_points = 60
+        elif time_range == '15m':
+            time_start = now - timedelta(minutes=15)
+            limit_points = 60
+        elif time_range == '1h':
+            time_start = now - timedelta(hours=1)
+            limit_points = 60
+        elif time_range == '24h':
+            time_start = now - timedelta(hours=24)
+            limit_points = 100
         else:
-            trunc_func = TruncDay
-            max_points = 30
+            time_start = now - timedelta(minutes=15)
+            limit_points = 60
         
-        chart_data_raw = readings_qs.annotate(
-            period=trunc_func('timestamp')
-        ).values('period').annotate(
-            avg_aqi=Avg('aqi'),
-            avg_pm2_5=Avg('pm2_5'),
-            avg_pm10=Avg('pm10'),
-            avg_temperature=Avg('temperature'),
-            count=Count('id')
-        ).order_by('period')
+        # Build node queryset with latest readings
+        latest_reading = SensorReading.objects.filter(
+            node=models.OuterRef('pk')
+        ).order_by('-timestamp')
         
-        chart_data_list = []
-        for item in chart_data_raw:
-            if item['period'] is None:
-                continue
-            chart_data_list.append({
-                'period': item['period'].isoformat() if hasattr(item['period'], 'isoformat') else str(item['period']),
-                'date': item['period'].strftime('%Y-%m-%d %H:%M') if hasattr(item['period'], 'strftime') else str(item['period']),
-                'avg_aqi': round(item['avg_aqi'] or 0, 1),
-                'avg_pm2_5': round(item['avg_pm2_5'] or 0, 2) if item['avg_pm2_5'] is not None else None,
-                'avg_pm10': round(item['avg_pm10'] or 0, 2) if item['avg_pm10'] is not None else None,
-                'avg_temperature': round(item['avg_temperature'] or 0, 1) if item['avg_temperature'] is not None else None,
-                'count': item['count']
+        nodes_qs = SensorNode.objects.filter(is_active=True).annotate(
+            latest_aqi=models.Subquery(latest_reading.values('aqi')[:1]),
+            latest_pm2_5=models.Subquery(latest_reading.values('pm2_5')[:1]),
+            latest_pm10=models.Subquery(latest_reading.values('pm10')[:1]),
+            latest_temperature=models.Subquery(latest_reading.values('temperature')[:1]),
+            latest_humidity=models.Subquery(latest_reading.values('humidity')[:1]),
+            latest_timestamp=models.Subquery(latest_reading.values('timestamp')[:1]),
+        )
+        
+        # Apply zone filter
+        if zone != 'all' and zone:
+            nodes_qs = nodes_qs.filter(location__iexact=zone)
+        
+        # Apply filter
+        if node_filter == 'online':
+            nodes_qs = nodes_qs.filter(status='active')
+        elif node_filter == 'alerts':
+            # Get nodes with active critical/warning alerts
+            alert_nodes = Alert.objects.filter(
+                is_active=True,
+                severity__in=['warning', 'critical']
+            ).values_list('node_id', flat=True).distinct()
+            nodes_qs = nodes_qs.filter(id__in=alert_nodes)
+        
+        # Build node data array
+        nodes_data = []
+        total_active = 0
+        total_nodes_count = nodes_qs.count()
+        
+        for node in nodes_qs.order_by('name')[:50]:
+            # Determine status based on latest reading timestamp
+            if node.latest_timestamp:
+                minutes_since_update = (now - node.latest_timestamp).total_seconds() / 60
+                if minutes_since_update > 10:
+                    status = 'inactive'
+                else:
+                    status = node.status or 'active'
+            else:
+                status = 'inactive'
+            
+            if status == 'active':
+                total_active += 1
+            
+            nodes_data.append({
+                'node_id': node.id,
+                'name': node.name,
+                'location': node.location or 'Unknown',
+                'zone': node.location or 'Unknown',
+                'status': status,
+                'aqi': round(node.latest_aqi, 1) if node.latest_aqi is not None else None,
+                'pm2_5': round(node.latest_pm2_5, 1) if node.latest_pm2_5 is not None else None,
+                'temperature': round(node.latest_temperature, 1) if node.latest_temperature is not None else None,
+                'humidity': round(node.latest_humidity, 1) if node.latest_humidity is not None else None,
+                'timestamp': node.latest_timestamp.timestamp() if node.latest_timestamp else None,
             })
         
-        if len(chart_data_list) > max_points:
-            step = len(chart_data_list) // max_points
-            downsampled = [chart_data_list[i] for i in range(0, len(chart_data_list), step)]
-            if downsampled[-1] != chart_data_list[-1]:
-                downsampled.append(chart_data_list[-1])
-            chart_data = downsampled
-        else:
-            chart_data = chart_data_list
+        # Calculate average AQI
+        aqi_values = [n['aqi'] for n in nodes_data if n['aqi'] is not None]
+        avg_aqi = round(sum(aqi_values) / len(aqi_values), 1) if aqi_values else None
         
-        node_filter = request.GET.get('node', 'all')
-        location_filter = request.GET.get('location', 'all')
+        # Get recent events from SystemLog
+        recent_events = SystemLog.objects.filter(
+            created_at__gte=now - timedelta(minutes=30)
+        ).select_related('node').order_by('-created_at')[:15]
         
-        if node_filter != 'all':
-            if node_filter.startswith('node:'):
-                try:
-                    node_id = int(node_filter.split(':')[1])
-                    node = SensorNode.objects.only('name', 'location').get(id=node_id)
-                    location_label = f"Location: {node.location or 'Unknown Location'}"
-                except (ValueError, SensorNode.DoesNotExist):
-                    location_label = "Location: Unknown"
-            elif node_filter.startswith('location:'):
-                loc = node_filter.split(':', 1)[1] if ':' in node_filter else 'Unknown'
-                location_label = f"Location: {loc}"
+        feed_events = []
+        for log in recent_events:
+            severity = getattr(log, 'severity', 'info')
+            if severity == 'critical':
+                tag_class = 'crealtime-tag-critical'
+                bg_class = 'crealtime-bg-red'
+                icon = '⚠'
+                tag_label = 'CRITICAL'
+            elif severity == 'warning':
+                tag_class = 'crealtime-tag-warn'
+                bg_class = 'crealtime-bg-yellow'
+                icon = '!'
+                tag_label = 'WARN'
             else:
-                location_label = "Location: Unknown"
-        elif location_filter != 'all':
-            location_label = f"Location: {location_filter}"
-        else:
-            location_label = "Location: All Nodes"
+                tag_class = 'crealtime-tag-info'
+                bg_class = 'crealtime-bg-green'
+                icon = '✓'
+                tag_label = 'INFO'
+            
+            feed_events.append({
+                'node_id': log.node.id if log.node else None,
+                'title': log.event_type.replace('_', ' ').title() if log.event_type else 'Event',
+                'description': log.message[:100] if log.message else '',
+                'severity': severity,
+                'tag_class': tag_class,
+                'bg_class': bg_class,
+                'icon': icon,
+                'tag_label': tag_label,
+                'timestamp_unix': log.created_at.timestamp(),
+                'timestamp': log.created_at.timestamp(),
+            })
         
-        active_nodes = SensorNode.objects.filter(status='active').count()
+        # If no events, add a system online event
+        if not feed_events:
+            feed_events.append({
+                'node_id': None,
+                'title': 'System Online',
+                'description': 'All systems operational',
+                'severity': 'info',
+                'tag_class': 'crealtime-tag-info',
+                'bg_class': 'crealtime-bg-green',
+                'icon': '✓',
+                'tag_label': 'INFO',
+                'timestamp_unix': now.timestamp(),
+                'timestamp': now.timestamp(),
+            })
+        
+        # Get active alerts
+        active_alerts = Alert.objects.filter(
+            is_active=True
+        ).select_related('node').order_by('-triggered_at')[:10]
+        
+        alerts_data = []
+        for alert in active_alerts:
+            alerts_data.append({
+                'node_name': alert.node.name if alert.node else 'System',
+                'title': alert.title,
+                'description': alert.description[:100] if alert.description else '',
+                'severity': alert.severity,
+                'timestamp_unix': alert.triggered_at.timestamp(),
+                'timestamp': alert.triggered_at.timestamp(),
+            })
+        
+        # Get AQI history for graph (last 30 points)
+        history_qs = SensorReading.objects.filter(
+            timestamp__gte=time_start,
+            timestamp__lte=now,
+            aqi__isnull=False
+        )
+        
+        if zone != 'all' and zone:
+            history_qs = history_qs.filter(node__location__iexact=zone)
+        
+        # Aggregate by minute for smooth graph
+        history_agg = history_qs.annotate(
+            period=TruncMinute('timestamp')
+        ).values('period').annotate(
+            avg_aqi=Avg('aqi')
+        ).order_by('period')[:limit_points]
+        
+        chart_values = [round(h['avg_aqi'] or 0, 1) for h in history_agg]
+        
+        # Ensure we have enough data points for the chart
+        if len(chart_values) < 30:
+            # Pad with recent average or 40
+            pad_value = chart_values[-1] if chart_values else 40
+            while len(chart_values) < 30:
+                chart_values.append(pad_value)
+        
+        # Get zones for filter dropdown
+        zones_list = list(SensorNode.objects.filter(
+            is_active=True, location__isnull=False
+        ).exclude(location='').values_list('location', flat=True).distinct())
         
         return JsonResponse({
-            'success': True,
-            'summary': {
-                'avg_aqi': round(agg['avg_aqi'] or 0, 1),
-                'latest_aqi': round(latest_reading.aqi or 0, 1) if latest_reading and latest_reading.aqi else None,
-                'latest_node_id': latest_node.id if latest_node else None,
-                'latest_node_name': latest_node.name if latest_node else 'Unknown',
-                'latest_node_location': latest_node.location if latest_node else 'Unknown Location',
-                'latest_timestamp': latest_reading.timestamp.isoformat() if latest_reading else None,
-                'total_readings': agg['count'],
-                'active_nodes': active_nodes,
-                'range_label': range_label
-            },
-            'chart_data': chart_data,
-            'location_label': location_label
-        }, status=200)
+            'status': 'success',
+            'data': nodes_data,
+            'feed': feed_events,
+            'alerts': alerts_data,
+            'chart_values': chart_values,
+            'live_aqi': avg_aqi,
+            'active_nodes': total_active,
+            'total_nodes': total_nodes_count,
+            'zones': zones_list,
+            'timestamp': now.isoformat(),
+        })
         
     except Exception as e:
-        logger.error(f'Realtime data error: {e}', exc_info=True)
+        logger.error(f"API realtime data error: {e}", exc_info=True)
         return JsonResponse({
-            'success': False,
-            'error': 'Unable to load realtime data',
-            'summary': {
-                'avg_aqi': None,
-                'latest_aqi': None,
-                'total_readings': 0,
-                'active_nodes': 0
-            },
-            'chart_data': []
+            'status': 'error',
+            'message': str(e),
+            'data': [],
+            'feed': [],
+            'alerts': [],
+            'chart_values': [],
+            'live_aqi': None,
+            'active_nodes': 0,
+            'total_nodes': 0,
+            'zones': [],
         }, status=500)
 
 

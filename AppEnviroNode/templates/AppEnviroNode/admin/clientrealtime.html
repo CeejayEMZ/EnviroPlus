@@ -245,7 +245,7 @@
 }
 
 .crealtime-panel-body {
-    padding: 10px 12px;
+    padding: 12px 12px 8px 12px;
 }
 
 /* Scrollbar Utility */
@@ -332,11 +332,19 @@
     white-space: nowrap;
 }
 
-/* Graph */
+/* Graph - ENLARGED for better visibility */
 .crealtime-graph-container {
-    height: 100px;
+    height: 240px;
     width: 100%;
     position: relative;
+    margin: 4px 0;
+}
+
+/* Ensure canvas fills container properly */
+.crealtime-graph-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
 }
 
 /* Node Table */
@@ -480,14 +488,14 @@
 <!-- Main Component Structure -->
 <div class="crealtime-root">
     
-    <!-- Priority Alert Banner (New) -->
-    <div id="crealtime-priority-banner" class="crealtime-priority-banner crealtime-banner-active">
+    <!-- Priority Alert Banner -->
+    <div id="crealtime-priority-banner" class="crealtime-priority-banner">
         <div class="crealtime-banner-content">
             <span class="crealtime-banner-icon">🚨</span>
             <span class="crealtime-banner-text">
                 <strong style="letter-spacing: 0.05em;">CRITICAL:</strong> 
-                <span id="crealtime-banner-msg">Node ND-99X Offline</span> 
-                (<span id="crealtime-banner-duration" class="crealtime-mono">2m 14s</span>)
+                <span id="crealtime-banner-msg">System Alert</span> 
+                (<span id="crealtime-banner-duration" class="crealtime-mono">--</span>)
             </span>
         </div>
         <div class="crealtime-banner-actions">
@@ -500,23 +508,20 @@
     <div class="crealtime-top-strip">
         <div class="crealtime-status-wrapper">
             <div class="crealtime-status-indicator">
-                <span id="crealtime-global-pulse" class="crealtime-dot crealtime-pulse {{ system_pulse_class }}"></span>
+                <span id="crealtime-global-pulse" class="crealtime-dot crealtime-pulse crealtime-dot-green"></span>
                 System Status: 
-                <span id="crealtime-system-badge" class="crealtime-badge {{ system_status_badge_class }}">{{ system_status }}</span>
+                <span id="crealtime-system-badge" class="crealtime-badge crealtime-badge-good">GOOD</span>
             </div>
             <div class="crealtime-metadata">
-                <span>Active Nodes: <b id="crealtime-active-nodes" style="color:var(--crealtime-text-main)">{{ active_node_count }}/{{ total_node_count }}</b></span> •
-                <span>Latency: <b style="color:var(--crealtime-text-main)">{{ latency_display }}</b></span> •
-                <span>Last Sync: <b id="crealtime-sync-time" style="color:var(--crealtime-text-main)">{{ latest_update }}</b></span>
+                <span>Active Nodes: <b id="crealtime-active-nodes" style="color:var(--crealtime-text-main)">0/0</b></span> •
+                <span>Latency: <b style="color:var(--crealtime-text-main)">&lt; 100ms</b></span> •
+                <span>Last Sync: <b id="crealtime-sync-time" style="color:var(--crealtime-text-main)">--:--:--</b></span>
             </div>
         </div>
         
         <div class="crealtime-filters">
             <select class="crealtime-select" id="crealtime-zone-select">
-                <option value="all">All Nodes ({{ total_node_count }})</option>
-                {% for zone in zones %}
-                    <option value="{{ zone.label|slugify }}">{{ zone.label }} ({{ zone.count }})</option>
-                {% endfor %}
+                <option value="all">All Nodes</option>
             </select>
             
             <div class="crealtime-btn-group">
@@ -525,10 +530,10 @@
                 <button class="crealtime-btn">Alerts</button>
             </div>
             
-            <select class="crealtime-select">
-                <option>Last 1m</option>
-                <option>Last 5m</option>
-                <option>Last 15m</option>
+            <select class="crealtime-select" id="crealtime-time-range">
+                <option value="1m">Last 1m</option>
+                <option value="5m">Last 5m</option>
+                <option value="15m" selected>Last 15m</option>
             </select>
 
             <div class="crealtime-toggle-wrapper">
@@ -544,19 +549,19 @@
         <!-- LEFT COLUMN (65%) -->
         <div class="crealtime-col-left">
             
-            <!-- Mini Live Graph -->
+            <!-- Mini Live Graph - ENLARGED -->
             <div class="crealtime-panel">
                 <div class="crealtime-panel-header">
                     <span>Aggregated Network AQI</span>
                     <div style="display:flex; gap:12px; align-items:center;">
-                        <a href="#" class="crealtime-nav-link">View in Analytics ↗</a>
+                        <a href="#" class="crealtime-nav-link" id="crealtime-analytics-link">View in Analytics ↗</a>
                         <span class="crealtime-text-xs crealtime-text-muted crealtime-mono" style="display:flex; align-items:center;">
-                            Live: <span id="crealtime-live-aqi-val" class="crealtime-font-semibold" style="color:var(--crealtime-green); margin-left: 4px;">34.2</span>
+                            Live: <span id="crealtime-live-aqi-val" class="crealtime-font-semibold" style="color:var(--crealtime-green); margin-left: 4px;">--</span>
                             <span id="crealtime-trend-indicator" class="crealtime-trend crealtime-trend-stable">Stable →</span>
                         </span>
                     </div>
                 </div>
-                <div class="crealtime-panel-body" style="padding: 10px 10px 5px 10px;">
+                <div class="crealtime-panel-body">
                     <div class="crealtime-graph-container">
                         <canvas id="crealtime-sparkline"></canvas>
                     </div>
@@ -571,31 +576,17 @@
                 </div>
                 <div class="crealtime-panel-body crealtime-scroll" style="padding: 0 12px;">
                     <div class="crealtime-feed-list" id="crealtime-feed">
-                        {% for event in feed_events %}
-                            <div class="crealtime-feed-item {% if event.severity == 'critical' %}crealtime-feed-critical{% endif %}" data-node-id="{{ event.node_id }}" data-timestamp="{{ event.timestamp|date:'U' }}">
-                                <div class="crealtime-feed-icon {{ event.bg_class }}">{{ event.icon }}</div>
-                                <div class="crealtime-feed-content">
-                                    <div class="crealtime-feed-header-row">
-                                        <span class="crealtime-tag {{ event.tag_class }}">{{ event.tag_label }}</span>
-                                        <div class="crealtime-text-sm crealtime-font-medium">{{ event.title }}</div>
-                                    </div>
-                                    <div class="crealtime-text-xs crealtime-text-muted">{{ event.description }}</div>
+                        <div class="crealtime-feed-item" data-node-id="none" data-timestamp="">
+                            <div class="crealtime-feed-icon crealtime-bg-green">✓</div>
+                            <div class="crealtime-feed-content">
+                                <div class="crealtime-feed-header-row">
+                                    <span class="crealtime-tag crealtime-tag-info">INFO</span>
+                                    <div class="crealtime-text-sm crealtime-font-medium">Loading events...</div>
                                 </div>
-                                <div class="crealtime-feed-time crealtime-mono crealtime-dynamic-time">Just now</div>
+                                <div class="crealtime-text-xs crealtime-text-muted">Waiting for data</div>
                             </div>
-                        {% empty %}
-                            <div class="crealtime-feed-item" data-node-id="none" data-timestamp="{{ latest_update_timestamp }}">
-                                <div class="crealtime-feed-icon crealtime-bg-green">✓</div>
-                                <div class="crealtime-feed-content">
-                                    <div class="crealtime-feed-header-row">
-                                        <span class="crealtime-tag crealtime-tag-info">INFO</span>
-                                        <div class="crealtime-text-sm crealtime-font-medium">No recent events</div>
-                                    </div>
-                                    <div class="crealtime-text-xs crealtime-text-muted">The network is operating normally.</div>
-                                </div>
-                                <div class="crealtime-feed-time crealtime-mono crealtime-dynamic-time">Just now</div>
-                            </div>
-                        {% endfor %}
+                            <div class="crealtime-feed-time crealtime-mono crealtime-dynamic-time">Just now</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -610,8 +601,8 @@
                 <div class="crealtime-panel-header">
                     <span>Node Status Board</span>
                     <div style="display:flex; gap:12px; align-items:center;">
-                        <a href="#" class="crealtime-nav-link">View on Map ↗</a>
-                        <span class="crealtime-text-xs crealtime-text-muted">Top 5</span>
+                        <a href="#" class="crealtime-nav-link" id="crealtime-map-link">View on Map ↗</a>
+                        <span class="crealtime-text-xs crealtime-text-muted">Active Nodes</span>
                     </div>
                 </div>
                 <div class="crealtime-panel-body" style="padding: 0;">
@@ -627,32 +618,9 @@
                             </tr>
                         </thead>
                         <tbody id="crealtime-node-table-body">
-                            {% for node in node_entries %}
-                            <tr data-node-id="{{ node.name }}" class="{% if node.status != 'active' or node.aqi is None or node.aqi > 100 %}crealtime-row-critical{% endif %}" data-timestamp="{{ node.timestamp|date:'U' }}">
-                                <td class="crealtime-mono crealtime-font-medium">{{ node.name }}</td>
-                                <td class="crealtime-text-xs">{{ node.zone }}</td>
-                                <td><span class="crealtime-dot {{ node.status_dot_class }}"></span></td>
-                                <td class="crealtime-mono">{% if node.aqi is not None %}{{ node.aqi }}{% else %}-{% endif %}</td>
-                                <td class="crealtime-text-xs crealtime-text-muted crealtime-dynamic-time">Just now</td>
-                                <td>
-                                    <div class="crealtime-action-group">
-                                        <div class="crealtime-action-btn-wrap" data-tooltip="Restart">
-                                            <button class="crealtime-action-btn">↻</button>
-                                        </div>
-                                        <div class="crealtime-action-btn-wrap" data-tooltip="Calibrate">
-                                            <button class="crealtime-action-btn">⚙</button>
-                                        </div>
-                                        <div class="crealtime-action-btn-wrap" data-tooltip="Flag Node">
-                                            <button class="crealtime-action-btn crealtime-flag">⚑</button>
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
-                        {% empty %}
                             <tr>
-                                <td colspan="6" class="crealtime-text-xs crealtime-text-muted">No active node readings available.</td>
+                                <td colspan="6" class="crealtime-text-xs crealtime-text-muted">Loading nodes...</td>
                             </tr>
-                        {% endfor %}
                         </tbody>
                     </table>
                 </div>
@@ -662,26 +630,16 @@
             <div class="crealtime-panel">
                 <div class="crealtime-panel-header">
                     <span>Active Alerts</span>
-                    <span id="crealtime-alert-count" class="crealtime-text-xs crealtime-text-muted">{{ alert_entries|length }} Alerts</span>
+                    <span id="crealtime-alert-count" class="crealtime-text-xs crealtime-text-muted">0 Alerts</span>
                 </div>
                 <div class="crealtime-panel-body crealtime-scroll">
                     <div class="crealtime-alert-list" id="crealtime-alert-list">
-                        {% for alert in alert_entries %}
-                            <div class="crealtime-alert-item {% if alert.severity == 'warning' %}crealtime-warning{% endif %} {% if alert.severity == 'critical' %}crealtime-feed-critical{% endif %}" data-node-id="{{ alert.node_name }}" data-timestamp="{{ alert.timestamp|date:'U' }}">
-                                <div>
-                                    <div class="crealtime-alert-msg" {% if alert.severity == 'critical' %}style="color:var(--crealtime-red)"{% endif %}>{{ alert.title }}</div>
-                                    <div class="crealtime-text-xs crealtime-text-muted">{{ alert.description }} <span class="crealtime-dynamic-time">Just now</span></div>
-                                </div>
-                                <button class="crealtime-alert-dismiss" aria-label="Dismiss">&times;</button>
+                        <div class="crealtime-alert-item">
+                            <div>
+                                <div class="crealtime-alert-msg">No active alerts</div>
+                                <div class="crealtime-text-xs crealtime-text-muted">All monitored nodes are operating normally.</div>
                             </div>
-                        {% empty %}
-                            <div class="crealtime-alert-item">
-                                <div>
-                                    <div class="crealtime-alert-msg">No active alerts</div>
-                                    <div class="crealtime-text-xs crealtime-text-muted">All monitored nodes are operating normally.</div>
-                                </div>
-                            </div>
-                        {% endfor %}
+                        </div>
                     </div>
                 </div>
             </div>
