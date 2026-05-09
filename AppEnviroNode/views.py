@@ -38,6 +38,7 @@ import urllib.parse
 from .forms import CustomAuthenticationForm, CustomUserCreationForm, PasswordResetRequestForm, SensorNodeForm
 from .models import SensorNode, SensorReading, Alert, SystemLog, AdminActionLog
 from .services import EmailService
+from .utils import get_aqi_category
 from django.contrib.auth import get_user_model
 
 logger = logging.getLogger(__name__)
@@ -1783,127 +1784,160 @@ def client_reports(request):
 @login_required(login_url='app:login')
 @cache_api_response(ttl_seconds=45)
 def api_client_reports(request):
-    """Return optimized report JSON data with adaptive aggregation."""
+    """
+    Return optimized report JSON with rolling date windows per report_type.
+    
+    Parameters:
+    - report_type: '24hrs', 'Weekly', 'Monthly', or 'Custom'
+    - date_from, date_to: Custom dates (only used if report_type='Custom')
+    - node: Node filter (optional)
+    """
     from datetime import datetime
     from django.db.models.functions import TruncDay, TruncHour, TruncMinute
 
-    date_format = '%Y-%m-%d'
-    raw_from = request.GET.get('date_from')
-    raw_to = request.GET.get('date_to')
-    node_id = request.GET.get('node')
-
-    today = timezone.now().date()
-    try:
-        date_to = datetime.strptime(raw_to, date_format).date() if raw_to else today
-    except (ValueError, TypeError):
-        date_to = today
-
-    try:
-        date_from = datetime.strptime(raw_from, date_format).date() if raw_from else date_to - timedelta(days=6)
-    except (ValueError, TypeError):
-        date_from = date_to - timedelta(days=6)
-
-    if date_from > date_to:
-        date_from, date_to = date_to - timedelta(days=6), date_to
-
-    total_days = (date_to - date_from).days + 1
-
+    # === ROLLING DATE WINDOW COMPUTATION ===
+    report_type = request.GET.get('report_type', '24hrs').strip()
+    node_id = request.GET.get('node', 'all').strip()
+    
+    now = timezone.now()
+    
+    # Compute time range based on report_type
+    if report_type == '24hrs':
+        time_start = now - timedelta(hours=24)
+        time_end = now
+        agg_strategy = 'hour'
+        display_fmt = '%b %d %H:00'
+        total_days = 1
+    elif report_type == 'Weekly':
+        time_start = now - timedelta(days=7)
+        time_end = now
+        agg_strategy = 'hour'
+        display_fmt = '%b %d %H:00'
+        total_days = 7
+    elif report_type == 'Monthly':
+        time_start = now - timedelta(days=30)
+        time_end = now
+        agg_strategy = 'day'
+        display_fmt = '%b %d'
+        total_days = 30
+    else:  # Custom
+        date_format = '%Y-%m-%d'
+        date_from = request.GET.get('date_from')
+        date_to = request.GET.get('date_to')
+        
+        try:
+            date_from_dt = datetime.strptime(date_from, date_format).date() if date_from else (now.date() - timedelta(days=6))
+            date_to_dt = datetime.strptime(date_to, date_format).date() if date_to else now.date()
+        except (ValueError, TypeError):
+            date_from_dt = now.date() - timedelta(days=6)
+            date_to_dt = now.date()
+        
+        if date_from_dt > date_to_dt:
+            date_from_dt, date_to_dt = date_to_dt - timedelta(days=6), date_to_dt
+        
+        time_start = timezone.make_aware(datetime.combine(date_from_dt, datetime.min.time()))
+        time_end = timezone.make_aware(datetime.combine(date_to_dt, datetime.max.time()))
+        total_days = (date_to_dt - date_from_dt).days + 1
+        agg_strategy = get_aggregation_strategy(total_days)
+        display_fmt = '%b %d' if agg_strategy == 'day' else ('%b %d %H:00' if agg_strategy == 'hour' else '%H:%M')
+        report_type = 'Custom'
+    
+    # === OPTIMIZED QUERY WITH AGGREGATION ===
     readings_qs = SensorReading.objects.filter(
-        timestamp__date__gte=date_from,
-        timestamp__date__lte=date_to,
-        node__is_active=True
+        timestamp__gte=time_start,
+        timestamp__lte=time_end,
+        node__is_active=True,
+        aqi__isnull=False
     ).select_related('node')
-
+    
     if node_id and node_id != 'all':
         try:
             readings_qs = readings_qs.filter(node__id=int(node_id))
         except (ValueError, TypeError):
             pass
-
-    nodes_qs = SensorNode.objects.filter(is_active=True, status='active').only('id', 'name', 'location').order_by('name')
+    
+    # Get active nodes list (compact)
+    nodes_qs = SensorNode.objects.filter(is_active=True, status='active').values_list('id', 'name', 'location')
     nodes = [
         {
-            'id': node.pk,
-            'label': f"{node.name} ({node.location or 'Unknown Area'})"
+            'id': node_id,
+            'label': f"{name} ({location or 'Unknown Area'})"
         }
-        for node in nodes_qs
+        for node_id, name, location in nodes_qs
     ]
-
-    total_nodes = nodes_qs.count()
-    nodes_online = nodes_qs.count()
-
+    
+    total_nodes = len(nodes)
+    nodes_online = total_nodes
+    
+    # === AGGREGATED METRICS (single efficient query) ===
     agg = readings_qs.aggregate(
         avg_aqi=Avg('aqi'),
         max_aqi=Max('aqi'),
         min_aqi=Min('aqi')
     )
-
+    
     avg_aqi = round(agg['avg_aqi'], 1) if agg['avg_aqi'] is not None else 0
     peak_aqi = agg['max_aqi'] or 0
     low_aqi = agg['min_aqi'] or 0
-
-    peak_reading = readings_qs.filter(aqi=peak_aqi).first() if peak_aqi else None
-    low_reading = readings_qs.filter(aqi=low_aqi).first() if low_aqi else None
-
-    good_days = readings_qs.filter(aqi_level='good').values('timestamp__date').distinct().count()
-    moderate_days = readings_qs.filter(aqi_level='moderate').values('timestamp__date').distinct().count()
-    unhealthy_days = readings_qs.filter(aqi_level__in=['unhealthy', 'unhealthy_sensitive']).values('timestamp__date').distinct().count()
-
+    
+    # Fetch peak/low details separately (correct approach for non-aggregate fields)
+    peak_reading = readings_qs.filter(aqi=peak_aqi).order_by('-timestamp').values('aqi_level', 'timestamp').first() if peak_aqi else None
+    low_reading = readings_qs.filter(aqi=low_aqi).order_by('timestamp').values('aqi_level', 'timestamp').first() if low_aqi else None
+    
+    # === DISTRIBUTION COUNTS (optimized) ===
+    distribution = readings_qs.values('aqi_level').annotate(count=Count('timestamp__date', distinct=True)).order_by('aqi_level')
+    good_days = next((x['count'] for x in distribution if x['aqi_level'] == 'good'), 0)
+    moderate_days = next((x['count'] for x in distribution if x['aqi_level'] == 'moderate'), 0)
+    unhealthy_days = sum(x['count'] for x in distribution if x['aqi_level'] in ['unhealthy', 'unhealthy_sensitive'])
+    
     good_pct = round((good_days / total_days) * 100, 1) if total_days else 0
     moderate_pct = round((moderate_days / total_days) * 100, 1) if total_days else 0
     unhealthy_pct = round((unhealthy_days / total_days) * 100, 1) if total_days else 0
-
+    
+    # === MOST AFFECTED NODE (optimized) ===
     most_affected_qs = readings_qs.values('node__id', 'node__name', 'node__location').annotate(
         avg_node_aqi=Avg('aqi')
     ).order_by('-avg_node_aqi').first()
-
+    
     most_affected_node = {
         'name': most_affected_qs['node__name'],
         'location': most_affected_qs['node__location'] or 'Unknown Area'
     } if most_affected_qs else None
-
-    strategy = get_aggregation_strategy(total_days)
-    trend_labels = []
-    trend_values = []
-
-    if strategy == 'day':
+    
+    # === TREND DATA (database-side limit for 24hrs/weekly, limit charts to 90 points) ===
+    if agg_strategy == 'day':
         trunc_func = TruncDay
-        date_fmt = '%b %d'
-    elif strategy == 'hour':
+    elif agg_strategy == 'hour':
         trunc_func = TruncHour
-        date_fmt = '%b %d %H:00'
     else:
         trunc_func = TruncMinute
-        date_fmt = '%H:%M'
-
+    
     trend_data = readings_qs.annotate(
         period=trunc_func('timestamp')
     ).values('period').annotate(
         avg_val=Avg('aqi')
-    ).order_by('period')
-
-    for item in trend_data[:90]:
+    ).order_by('period')[:90]  # Limit at database level
+    
+    trend_labels = []
+    trend_values = []
+    for item in trend_data:
         if item['period']:
-            trend_labels.append(item['period'].strftime(date_fmt))
+            trend_labels.append(item['period'].strftime(display_fmt))
             trend_values.append(round(item['avg_val'], 1) if item['avg_val'] else 0)
-
-    report_type = 'Custom'
-    if total_days == 1:
-        report_type = '24hrs'
-    elif total_days == 7:
-        report_type = 'Weekly'
-    elif total_days in (30, 31):
-        report_type = 'Monthly'
-
+    
+    # === FORMAT RESPONSE ===
+    time_start_date = time_start.date()
+    time_end_date = time_end.date()
+    
     response_data = {
         'nodes': nodes,
         'avg_aqi': avg_aqi,
         'peak_aqi': peak_aqi,
-        'peak_level': peak_reading.aqi_level if peak_reading else None,
-        'peak_date': peak_reading.timestamp.strftime('%Y-%m-%d') if peak_reading else None,
+        'peak_level': peak_reading['aqi_level'] if peak_reading else None,
+        'peak_date': peak_reading['timestamp'].strftime('%Y-%m-%d') if peak_reading else None,
         'low_aqi': low_aqi,
-        'low_level': low_reading.aqi_level if low_reading else None,
-        'low_date': low_reading.timestamp.strftime('%Y-%m-%d') if low_reading else None,
+        'low_level': low_reading['aqi_level'] if low_reading else None,
+        'low_date': low_reading['timestamp'].strftime('%Y-%m-%d') if low_reading else None,
         'most_affected_node': most_affected_node,
         'good_days': good_days,
         'moderate_days': moderate_days,
@@ -1911,25 +1945,25 @@ def api_client_reports(request):
         'good_pct': good_pct,
         'moderate_pct': moderate_pct,
         'unhealthy_pct': unhealthy_pct,
-        'generated_at': timezone.now().strftime('%Y-%m-%d %H:%M'),
+        'generated_at': now.strftime('%Y-%m-%d %H:%M'),
         'uptime_pct': 100,
         'nodes_online': nodes_online,
         'total_nodes': total_nodes,
         'report_type': report_type,
-        'date_from': date_from.isoformat(),
-        'date_to': date_to.isoformat(),
-        'report_period': f"{date_from.strftime('%b %d')} - {date_to.strftime('%b %d, %Y')}",
+        'date_from': time_start_date.isoformat(),
+        'date_to': time_end_date.isoformat(),
+        'report_period': f"{time_start_date.strftime('%b %d')} - {time_end_date.strftime('%b %d, %Y')}",
         'trend_labels': trend_labels,
         'trend_values': trend_values,
         'insights': [
-            'Air quality appears stable across the selected period.',
-            'Monitor peak days for any rapid AQI changes.'
+            f"Average AQI: {avg_aqi} - {get_aqi_category(avg_aqi)}",
+            f"Peak pollution on {peak_reading['timestamp'].strftime('%b %d') if peak_reading else 'N/A'}" if peak_reading else "No significant pollution detected",
         ],
         'actions': [
-            'Review nodes with the highest average AQI.',
-            'Check sensor maintenance schedules for outlier days.'
+            'Monitor nodes with highest AQI readings',
+            'Review sensor calibration on anomaly days',
         ],
-        'distribution_note': 'AQI distribution reflects the most recent readings for the chosen period.',
+        'distribution_note': f"{good_pct}% good days, {moderate_pct}% moderate, {unhealthy_pct}% unhealthy",
         'total_days': total_days,
     }
 
@@ -4245,31 +4279,6 @@ def get_report_readings(start_date, end_date, selected_node='all'):
 
     return readings
 
-def parse_export_params(request):
-    date_from = request.GET.get('date_from')
-    date_to = request.GET.get('date_to')
-    selected_node = request.GET.get('node', 'all')
-    today = timezone.localdate()
-
-    if not date_from:
-        date_from = (today - timedelta(days=14)).isoformat()
-    if not date_to:
-        date_to = today.isoformat()
-
-    try:
-        date_from_obj = datetime.fromisoformat(date_from).date()
-    except (TypeError, ValueError):
-        date_from_obj = today - timedelta(days=14)
-
-    try:
-        date_to_obj = datetime.fromisoformat(date_to).date()
-    except (TypeError, ValueError):
-        date_to_obj = today
-
-    if date_to_obj < date_from_obj:
-        date_to_obj = date_from_obj
-
-    return date_from_obj, date_to_obj, selected_node
 
 def build_chart_image(summary):
     labels = summary.get('trend_labels', [])
@@ -4511,21 +4520,36 @@ def api_ai_insights(request):
     })
 
 def parse_export_params(request):
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
+    """Parse export parameters, handling both report_type and custom dates."""
+    report_type = request.GET.get('report_type', '24hrs').strip()
     selected_node = request.GET.get('node', 'all')
     
     now = timezone.now()
-    if date_from and date_to:
-        try:
-            date_from_obj = timezone.make_aware(datetime.strptime(date_from, '%Y-%m-%d'))
-            date_to_obj = timezone.make_aware(datetime.strptime(date_to, '%Y-%m-%d')) + timedelta(days=1, microseconds=-1)
-        except ValueError:
-            date_from_obj = now - timedelta(days=30)
-            date_to_obj = now
-    else:
-        date_from_obj = now - timedelta(days=30)
-        date_to_obj = now
+    
+    # Compute date range based on report_type (return as date objects for compatibility)
+    if report_type == '24hrs':
+        date_from_obj = (now - timedelta(hours=24)).date()
+        date_to_obj = now.date()
+    elif report_type == 'Weekly':
+        date_from_obj = (now - timedelta(days=7)).date()
+        date_to_obj = now.date()
+    elif report_type == 'Monthly':
+        date_from_obj = (now - timedelta(days=30)).date()
+        date_to_obj = now.date()
+    else:  # Custom
+        date_from = request.GET.get('date_from', '')
+        date_to = request.GET.get('date_to', '')
+        
+        if date_from and date_to:
+            try:
+                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+            except ValueError:
+                date_from_obj = (now - timedelta(days=30)).date()
+                date_to_obj = now.date()
+        else:
+            date_from_obj = (now - timedelta(days=30)).date()
+            date_to_obj = now.date()
         
     return date_from_obj, date_to_obj, selected_node
 

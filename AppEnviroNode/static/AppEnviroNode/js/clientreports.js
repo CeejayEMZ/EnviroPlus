@@ -21,6 +21,8 @@
         lastActionsHash: '',
         lastButtonsHash: '',
         lastNodeOptionsHash: '',
+        isRequestPending: false,
+        requestAbort: null,
     };
 
     const elements = {};
@@ -101,7 +103,12 @@
     }
 
     function getStateKey() {
-        return `${state.dateFrom}|${state.dateTo}|${state.selectedNode}|${state.reportType}`;
+        // State key based on report_type and node filter only
+        // Custom mode includes dates since they're user-selected
+        if (state.reportType === 'Custom') {
+            return `${state.reportType}|${state.dateFrom}|${state.dateTo}|${state.selectedNode}`;
+        }
+        return `${state.reportType}|${state.selectedNode}`;
     }
 
     function hasStateChanged() {
@@ -123,13 +130,21 @@
     function renderReportTypeButtons() {
         if (!elements.reportTypeContainer) return;
         
-        const btnHash = simpleHash(state.reportType);
-        if (state.lastButtonsHash === btnHash) {
-            const buttons = elements.reportTypeContainer.querySelectorAll('.creports-segmented__btn');
-            buttons.forEach(btn => btn.classList.toggle('is-active', btn.textContent === state.reportType));
-            return;
+        const currentButtons = elements.reportTypeContainer.querySelectorAll('.creports-segmented__btn');
+        
+        // Check if buttons already match current state
+        if (currentButtons.length === REPORT_TYPES.length) {
+            let allMatch = true;
+            for (let i = 0; i < currentButtons.length; i++) {
+                const isActive = currentButtons[i].textContent === state.reportType;
+                const hasActiveClass = currentButtons[i].classList.contains('is-active');
+                if (isActive !== hasActiveClass) {
+                    allMatch = false;
+                    break;
+                }
+            }
+            if (allMatch) return;
         }
-        state.lastButtonsHash = btnHash;
         
         const frag = document.createDocumentFragment();
         REPORT_TYPES.forEach((type) => {
@@ -152,15 +167,19 @@
         if (!elements.nodeDropdownMenu) return;
         
         const nodeList = [DEFAULT_NODE].concat(newNodes || []);
-        const nextHash = simpleHash(JSON.stringify(nodeList.map(n => n.id)));
         
-        if (state.lastNodeOptionsHash === nextHash && state.nodes.length === nodeList.length) {
-            const activeNode = state.nodes.find((item) => item.id === state.selectedNode) || DEFAULT_NODE;
-            if (elements.nodeDisplay) elements.nodeDisplay.textContent = activeNode.label;
-            return;
+        // Simple check: compare lengths and first node
+        const currentOptions = elements.nodeDropdownMenu.querySelectorAll('.creports-dropdown-menu__option');
+        if (currentOptions.length === nodeList.length && currentOptions.length > 0) {
+            const firstOptionText = currentOptions[0].textContent.trim();
+            const newFirstText = (nodeList[0].label || '').trim();
+            if (firstOptionText === newFirstText) {
+                const activeNode = state.nodes.find((item) => item.id === state.selectedNode) || DEFAULT_NODE;
+                if (elements.nodeDisplay) elements.nodeDisplay.textContent = activeNode.label;
+                return;
+            }
         }
         
-        state.lastNodeOptionsHash = nextHash;
         state.nodes = nodeList;
         
         const frag = document.createDocumentFragment();
@@ -190,31 +209,25 @@
         state.reportType = type;
         closeDropdowns();
 
-        const today = new Date();
-        let fromDate = new Date();
+        renderReportTypeButtons();
         
-        if (type === '24hrs') {
-            fromDate.setDate(today.getDate() - 1);
-        } else if (type === 'Weekly') {
-            fromDate.setDate(today.getDate() - 6);
-        } else if (type === 'Monthly') {
-            fromDate.setDate(today.getDate() - 29);
-        } else {
-            renderReportTypeButtons();
+        // For preset types (24hrs, Weekly, Monthly), clear manual dates
+        // Backend will compute the rolling window
+        if (type !== 'Custom') {
+            state.dateFrom = '';
+            state.dateTo = '';
             updateDateInputs();
             updateDateDisplays();
-            if (elements.dateDropdownMenu) {
-                elements.dateDropdownMenu.classList.add('is-open');
-            }
+            triggerFetch();
             return;
         }
-
-        state.dateFrom = fromDate.toISOString().slice(0, 10);
-        state.dateTo = today.toISOString().slice(0, 10);
-        renderReportTypeButtons();
+        
+        // For Custom mode, open date picker
         updateDateInputs();
         updateDateDisplays();
-        triggerFetch();
+        if (elements.dateDropdownMenu) {
+            elements.dateDropdownMenu.classList.add('is-open');
+        }
     }
 
     function setSelectedNode(id, label) {
@@ -365,15 +378,23 @@
         }
     }
 
-    function renderListItems(container, items, styleClass, bulletColor, hashKey) {
+    function renderListItems(container, items, styleClass, bulletColor, storageKey) {
         if (!container) return;
         
-        const contentHash = simpleHash(JSON.stringify(items || []));
-        if (hashKey && state[hashKey] === contentHash) return;
-        if (hashKey) state[hashKey] = contentHash;
+        // Simplified check: just compare item count and first item
+        const currentItems = container.querySelectorAll('.creports-list__item');
+        const itemsValid = Array.isArray(items) && items.length > 0;
+        
+        if (itemsValid && currentItems.length === items.length && currentItems.length > 0) {
+            const firstItemText = currentItems[0].textContent.trim();
+            const newFirstItemText = (items[0] || '').trim();
+            if (firstItemText === newFirstItemText) {
+                return; // No update needed
+            }
+        }
         
         const frag = document.createDocumentFragment();
-        if (!Array.isArray(items) || !items.length) {
+        if (!itemsValid) {
             const item = document.createElement('li');
             item.className = styleClass;
             item.innerHTML = `<div class="creports-list__bullet" style="background-color: ${bulletColor}"></div><span>No data available.</span>`;
@@ -409,13 +430,22 @@
         if (!state.reportUrl) return;
         if (state.isFetching) return;
         if (!hasStateChanged()) return;
-
+        
         state.isFetching = true;
         const currentStateKey = getStateKey();
 
         const url = new URL(state.reportUrl, window.location.origin);
-        url.searchParams.set('date_from', state.dateFrom);
-        url.searchParams.set('date_to', state.dateTo);
+        
+        // Always send report_type
+        url.searchParams.set('report_type', state.reportType);
+        
+        // Send dates only for Custom reports
+        if (state.reportType === 'Custom') {
+            url.searchParams.set('date_from', state.dateFrom);
+            url.searchParams.set('date_to', state.dateTo);
+        }
+        
+        // Send node filter
         if (state.selectedNode !== 'all') {
             url.searchParams.set('node', state.selectedNode);
         }
@@ -444,7 +474,13 @@
 
     function triggerFetch() {
         if (debouncedFetch) clearTimeout(debouncedFetch);
-        debouncedFetch = setTimeout(fetchAndRenderReport, DEBOUNCE_DELAY_MS);
+        
+        // Prevent excessive requests - minimum 300ms between attempts
+        debouncedFetch = setTimeout(() => {
+            if (!state.isFetching && hasStateChanged()) {
+                fetchAndRenderReport();
+            }
+        }, DEBOUNCE_DELAY_MS);
     }
 
     function renderView(data) {
@@ -495,8 +531,8 @@
         setMetricText(elements.chartTitle, `AQI Trend (${data.total_days || 0} Days)`);
         updateChart(data.trend_labels || [], data.trend_values || []);
 
-        renderListItems(elements.insightsList, data.insights, 'creports-list__item creports-list__item--light', '#ef4444', 'lastInsightsHash');
-        renderListItems(elements.actionPlanList, data.actions, 'creports-list__item creports-list__item--dark', '#4ade80', 'lastActionsHash');
+        renderListItems(elements.insightsList, data.insights, 'creports-list__item creports-list__item--light', '#ef4444');
+        renderListItems(elements.actionPlanList, data.actions, 'creports-list__item creports-list__item--dark', '#4ade80');
     }
 
     function attachEventListeners() {
@@ -582,21 +618,21 @@
 
         if (elements.exportPdfBtn) {
             elements.exportPdfBtn.addEventListener('click', () => {
-                const url = `${window.location.origin}/export/pdf/?date_from=${encodeURIComponent(state.dateFrom)}&date_to=${encodeURIComponent(state.dateTo)}&node=${encodeURIComponent(state.selectedNode)}`;
+                const url = `${window.location.origin}/export/pdf/?report_type=${encodeURIComponent(state.reportType)}&date_from=${encodeURIComponent(state.dateFrom)}&date_to=${encodeURIComponent(state.dateTo)}&node=${encodeURIComponent(state.selectedNode)}`;
                 window.location.href = url;
             });
         }
 
         if (elements.exportCsvBtn) {
             elements.exportCsvBtn.addEventListener('click', () => {
-                const url = `${window.location.origin}/export/csv/?date_from=${encodeURIComponent(state.dateFrom)}&date_to=${encodeURIComponent(state.dateTo)}&node=${encodeURIComponent(state.selectedNode)}`;
+                const url = `${window.location.origin}/export/csv/?report_type=${encodeURIComponent(state.reportType)}&date_from=${encodeURIComponent(state.dateFrom)}&date_to=${encodeURIComponent(state.dateTo)}&node=${encodeURIComponent(state.selectedNode)}`;
                 window.location.href = url;
             });
         }
 
         if (elements.printBtn) {
             elements.printBtn.addEventListener('click', () => {
-                const url = `${window.location.origin}/export/print/?date_from=${encodeURIComponent(state.dateFrom)}&date_to=${encodeURIComponent(state.dateTo)}&node=${encodeURIComponent(state.selectedNode)}`;
+                const url = `${window.location.origin}/export/print/?report_type=${encodeURIComponent(state.reportType)}&date_from=${encodeURIComponent(state.dateFrom)}&date_to=${encodeURIComponent(state.dateTo)}&node=${encodeURIComponent(state.selectedNode)}`;
                 window.open(url, '_blank');
             });
         }
@@ -605,23 +641,19 @@
     function loadInitialState(root) {
         state.reportUrl = root.dataset.reportUrl || '';
         
-        let hasValidDates = false;
-        if (root.dataset.dateFrom && root.dataset.dateTo) {
+        // Only set dates if explicitly provided AND for Custom reports
+        if (root.dataset.dateFrom && root.dataset.dateTo && root.dataset.reportType === 'Custom') {
             state.dateFrom = root.dataset.dateFrom;
             state.dateTo = root.dataset.dateTo;
-            hasValidDates = true;
-        }
-        
-        if (!hasValidDates) {
-            const today = new Date();
-            state.dateTo = today.toISOString().slice(0, 10);
-            const fromDate = new Date(today);
-            fromDate.setDate(today.getDate() - 1);
-            state.dateFrom = fromDate.toISOString().slice(0, 10);
+            state.reportType = 'Custom';
+        } else {
+            // For presets, NEVER set dates initially
+            state.dateFrom = '';
+            state.dateTo = '';
+            state.reportType = '24hrs';
         }
         
         state.selectedNode = root.dataset.selectedNode || 'all';
-        state.reportType = '24hrs';
         state.lastFetchState = null;
     }
 
