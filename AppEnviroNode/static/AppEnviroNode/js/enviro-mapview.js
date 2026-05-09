@@ -37,6 +37,8 @@
     map: null,
     leafletMarkers: [],
     markerLayerGroup: null,
+    markersByNodeId: new Map(),  // OPTIMIZATION: Cache markers by node ID for reuse
+    nodeDataByNodeId: new Map(),  // OPTIMIZATION: Cache node data by node ID
     allNodes: [],
     uniqueNodeIds: new Set(),  // FIX #1: Deduplication tracking
     currentLayer: 'aqi',
@@ -293,10 +295,8 @@
       if (!STATE.markerLayerGroup) {
         STATE.markerLayerGroup = L.markerClusterGroup(); // Use clustering instead of featureGroup
         STATE.markerLayerGroup.addTo(STATE.map);
-      } else {
-        STATE.markerLayerGroup.clearLayers();
       }
-      STATE.leafletMarkers = [];
+      // NOTE: Do NOT clearLayers() - instead use differential updates below
 
       // FIX #3: Implement actual viewport bounds checking
       const bounds = STATE.map.getBounds();
@@ -327,43 +327,100 @@
 
       console.log(`[MapView] Rendering ${nodesToRender.length} markers (filtered from ${STATE.allNodes.length})`);
 
+      // OPTIMIZATION: Track which nodes should be rendered
+      const nodesToRenderIds = new Set();
+
       nodesToRender.forEach((nodeWrapper) => {
         try {
           const nodeData = SafeData.getNode(nodeWrapper);
+          const nodeId = nodeData.id;
+          nodesToRenderIds.add(nodeId);
+          
           const coords = SafeData.getCoordinates(nodeData);
           const pollutants = SafeData.getPollutants(nodeWrapper);
           const latestReading = SafeData.getLatestReading(nodeWrapper);
           const aqi = pollutants[STATE.currentLayer] ?? pollutants.aqi ?? null;
           const isOffline = SafeData.isOffline(latestReading);
 
-          const markerHtml = buildMarkerHTML(nodeWrapper, nodeData, pollutants, latestReading, aqi);
-          const aqlClass = Colors.getAQIClass(aqi);
-          const offlineClass = isOffline ? 'cmapv-offline' : '';
-          const selected = STATE.selectedNodeId === nodeData.id ? 'cmapv-selected' : '';
-          const baseClass = isOffline ? 'cmapv-warning' : Colors.getNodeStatusClass(nodeData.status || 'unknown');
-          const markerClass = baseClass + ' ' + aqlClass + ' ' + offlineClass;
+          // OPTIMIZATION: Check if marker already exists - if yes, update only if needed
+          let marker = STATE.markersByNodeId.get(nodeId);
+          
+          if (marker) {
+            // Marker exists - only update if value/state changed (differential update)
+            const oldAqi = marker._aqi_value;
+            const oldLayer = marker._current_layer;
+            
+            if (oldAqi !== aqi || oldLayer !== STATE.currentLayer) {
+              // Value changed - update icon
+              const markerHtml = buildMarkerHTML(nodeWrapper, nodeData, pollutants, latestReading, aqi);
+              const aqiClass = Colors.getAQIClass(aqi);
+              const offlineClass = isOffline ? 'cmapv-offline' : '';
+              const selected = STATE.selectedNodeId === nodeId ? 'cmapv-selected' : '';
+              const baseClass = isOffline ? 'cmapv-warning' : Colors.getNodeStatusClass(nodeData.status || 'unknown');
+              const markerClass = baseClass + ' ' + aqiClass + ' ' + offlineClass;
 
-          // OPTIMIZATION: Create lightweight marker with simple icon
-          const marker = L.marker(coords, {
-            icon: L.divIcon({
-              html: `<div class="cmapv-marker ${markerClass} ${selected}">${markerHtml}</div>`,
-              className: '',
-              iconSize: [30, 30],
-              popupAnchor: [0, -15]
-            })
-          });
+              const newIcon = L.divIcon({
+                html: `<div class="cmapv-marker ${markerClass} ${selected}">${markerHtml}</div>`,
+                className: '',
+                iconSize: [30, 30],
+                popupAnchor: [0, -15]
+              });
+              
+              marker.setIcon(newIcon);
+              marker._aqi_value = aqi;
+              marker._current_layer = STATE.currentLayer;
+            }
+            
+            // Ensure marker is in layer group (idempotent operation)
+            if (!marker._layerGroup || marker._layerGroup !== STATE.markerLayerGroup) {
+              STATE.markerLayerGroup.addLayer(marker);
+              marker._layerGroup = STATE.markerLayerGroup;
+            }
+          } else {
+            // Marker doesn't exist - create new one
+            const markerHtml = buildMarkerHTML(nodeWrapper, nodeData, pollutants, latestReading, aqi);
+            const aqiClass = Colors.getAQIClass(aqi);
+            const offlineClass = isOffline ? 'cmapv-offline' : '';
+            const selected = STATE.selectedNodeId === nodeId ? 'cmapv-selected' : '';
+            const baseClass = isOffline ? 'cmapv-warning' : Colors.getNodeStatusClass(nodeData.status || 'unknown');
+            const markerClass = baseClass + ' ' + aqiClass + ' ' + offlineClass;
 
-          // Attach data and click handler
-          marker.nodeData = nodeWrapper;
-          marker.nodeId = nodeData.id;
-          marker.on('click', () => selectNode(nodeData.id));
+            // OPTIMIZATION: Create lightweight marker with simple icon
+            marker = L.marker(coords, {
+              icon: L.divIcon({
+                html: `<div class="cmapv-marker ${markerClass} ${selected}">${markerHtml}</div>`,
+                className: '',
+                iconSize: [30, 30],
+                popupAnchor: [0, -15]
+              })
+            });
 
-          marker.addTo(STATE.markerLayerGroup);
-          STATE.leafletMarkers.push(marker);
+            // Attach metadata for future updates
+            marker.nodeData = nodeWrapper;
+            marker.nodeId = nodeId;
+            marker._aqi_value = aqi;
+            marker._current_layer = STATE.currentLayer;
+            marker._layerGroup = STATE.markerLayerGroup;
+            
+            marker.on('click', () => selectNode(nodeId));
+
+            STATE.markerLayerGroup.addLayer(marker);
+            STATE.markersByNodeId.set(nodeId, marker);
+            STATE.nodeDataByNodeId.set(nodeId, nodeWrapper);
+            STATE.leafletMarkers.push(marker);
+          }
         } catch (e) {
           console.warn('[MapView] Error rendering individual marker:', e);
         }
       });
+
+      // OPTIMIZATION: Remove markers that are no longer in viewport/visible
+      for (const [nodeId, marker] of STATE.markersByNodeId.entries()) {
+        if (!nodesToRenderIds.has(nodeId)) {
+          // This node should not be rendered - remove from layer group
+          STATE.markerLayerGroup.removeLayer(marker);
+        }
+      }
 
       // OPTIMIZATION: Auto-recenter on first successful render
       if (!STATE.hasAutoCentered && nodesToRender.length > 0) {

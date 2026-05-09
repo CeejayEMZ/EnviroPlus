@@ -1407,63 +1407,6 @@ def client_realtime(request):
     return render(request, 'AppEnviroNode/admin/clientrealtime.html', context)
 
 @login_required(login_url='app:login')
-def client_reports(request):
-    """Display generated reports with aggregated data."""
-    from datetime import datetime, timedelta
-    
-    # Get data from last 7 days for weekly report
-    time_threshold = timezone.now() - timedelta(days=7)
-    readings = SensorReading.objects.filter(
-        timestamp__gte=time_threshold,
-        node__is_active=True
-    ).select_related('node')
-    
-    # Calculate statistics
-    if readings.exists():
-        aqi_values = [r.aqi for r in readings if r.aqi is not None]
-        pm2_5_values = [r.pm2_5 for r in readings if r.pm2_5 is not None]
-        
-        avg_aqi = sum(aqi_values) / len(aqi_values) if aqi_values else 0
-        max_pm2_5 = max(pm2_5_values) if pm2_5_values else 0
-        min_pm2_5 = min(pm2_5_values) if pm2_5_values else 0
-        
-        # Count days by quality
-        good_days = readings.filter(aqi_level='good').values('timestamp__date').distinct().count()
-        moderate_days = readings.filter(aqi_level='moderate').values('timestamp__date').distinct().count()
-        unhealthy_days = readings.filter(aqi_level__in=['unhealthy', 'unhealthy_sensitive']).values('timestamp__date').distinct().count()
-    else:
-        avg_aqi = max_pm2_5 = min_pm2_5 = 0
-        good_days = moderate_days = unhealthy_days = 0
-    
-    # Find most affected node
-    most_affected_node = None
-    if readings.exists():
-        node_aqi_avg = {}
-        for reading in readings:
-            if reading.aqi is not None:
-                if reading.node not in node_aqi_avg:
-                    node_aqi_avg[reading.node] = []
-                node_aqi_avg[reading.node].append(reading.aqi)
-        
-        if node_aqi_avg:
-            most_affected_node = max(
-                node_aqi_avg.keys(),
-                key=lambda n: sum(node_aqi_avg[n]) / len(node_aqi_avg[n])
-            )
-    
-    context = {
-        'report_period': f"{(timezone.now() - timedelta(days=7)).strftime('%b %d')} - {timezone.now().strftime('%b %d, %Y')}",
-        'avg_aqi': round(avg_aqi),
-        'max_pm2_5': round(max_pm2_5, 2),
-        'min_pm2_5': round(min_pm2_5, 2),
-        'good_days': good_days,
-        'moderate_days': moderate_days,
-        'unhealthy_days': unhealthy_days,
-        'most_affected_node': most_affected_node,
-        'total_readings': readings.count(),
-    }
-    return render(request, 'AppEnviroNode/admin/clientreports.html', context)
-
 @login_required(login_url='app:login')
 def client_settings(request):
     return render(request, 'AppEnviroNode/admin/clientsettings.html')
