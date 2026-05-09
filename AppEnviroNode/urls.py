@@ -62,8 +62,8 @@ urlpatterns = [
     path('api/analytics/top-areas/', views.api_analytics_top_areas, name='api_analytics_top_areas'),
     path('api/analytics/aqi-trend/', views.api_analytics_aqi_trend, name='api_analytics_aqi_trend'),
     path('api/analytics/system-health/', views.api_analytics_system_health, name='api_analytics_system_health'),
-    path('api/daily-forecast/', views.api_daily_forecast, name='api_daily_forecast'),
     # OPTIMIZATION: New map view API endpoints (viewport rendering, limited data)
+    path('api/daily-forecast/', views.api_daily_forecast, name='api_daily_forecast'),
     path('api/nodes/live/', views.api_nodes_live, name='api_nodes_live'),
     path('api/nodes/24h/', views.api_nodes_24h, name='api_nodes_24h'),
     path('api/nodes/', views.api_nodes_list, name='api_nodes_list'),
