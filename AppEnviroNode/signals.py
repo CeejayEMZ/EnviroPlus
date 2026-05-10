@@ -9,9 +9,9 @@ from .models import SensorReading, SystemLog, SensorNode
 
 @receiver(post_save, sender=SensorReading)
 def create_system_log_on_reading(sender, instance, created, **kwargs):
-    """
-    Automatically create a SystemLog entry when a SensorReading is saved.
-    """
+    if kwargs.get('raw', False):
+        return
+    
     if created:
         # Determine severity based on AQI level
         severity = instance.aqi_level or 'moderate'
@@ -36,7 +36,12 @@ def create_system_log_on_reading(sender, instance, created, **kwargs):
 def log_node_status_change(sender, instance, created, **kwargs):
     """
     Create a SystemLog when a node comes online/offline.
+    Skip during fixture loading (when raw=True).
     """
+    # Skip if loading from a fixture (Django passes raw=True)
+    if kwargs.get('raw', False):
+        return
+    
     if not created:
         # Check if status changed
         try:

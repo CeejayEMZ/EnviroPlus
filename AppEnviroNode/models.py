@@ -18,7 +18,6 @@ class CustomUser(AbstractUser):
     created_at = models.DateTimeField(default=timezone.now)
     
     class Meta:
-        db_table = 'auth_user'
         verbose_name = 'User'
         verbose_name_plural = 'Users'
     

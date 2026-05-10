@@ -29,7 +29,7 @@ SECRET_KEY = 'django-insecure-lv(oo$i6vn&pbr2w#m-doqgt_z0k_%au_mtvz8numlix_^)twk
 
 # SECURITY WARNING: don't run with debug turned on in production!
 #DEBUG = os.getenv('DEBUG', 'False') == 'True'
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = ["*"]
 
@@ -80,13 +80,15 @@ WSGI_APPLICATION = 'MainEnviroNode.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
+#DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3','NAME': BASE_DIR / 'db.sqlite3',}}
+DATABASE_URL = os.getenv("DATABASE_URL")
 
+if not DATABASE_URL:
+    raise Exception("DATABASE_URL is not set in environment variables!")
+
+DATABASES = {
+    "default": dj_database_url.parse(DATABASE_URL)
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -112,7 +114,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Manila'
 
 USE_I18N = True
 
@@ -213,5 +215,9 @@ LOGGING = {
     },
 }
 
+#LOGGING['loggers']['django.db.backends'] = {'handlers': ['console'],'level': 'DEBUG',}
+
 # AI Configuration
-GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')  # ← add this here
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')  
+
+

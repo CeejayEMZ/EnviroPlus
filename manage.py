@@ -3,7 +3,6 @@
 import os
 import sys
 from AppEnviroNode.scheduler import start_scheduler
-start_scheduler()
 
 def main():
     """Run administrative tasks."""
@@ -16,6 +15,11 @@ def main():
             "available on your PYTHONPATH environment variable? Did you "
             "forget to activate a virtual environment?"
         ) from exc
+    
+    # Only start the scheduler for runserver command (not for loaddata, migrate, etc.)
+    if 'runserver' in sys.argv:
+        start_scheduler()
+    
     execute_from_command_line(sys.argv)
 
 
