@@ -385,13 +385,14 @@
       overflow: hidden;
     }
 
-    /* FORECAST SECTION - REDESIGNED 7-DAY FORECAST */
     .rtpub-forecast-section {
       padding: 1.25rem;
       background: #ffffff;
       border-radius: 20px;
       border: 1px solid rgba(41, 56, 72, 0.08);
       box-shadow: 0 12px 28px rgba(20, 42, 66, 0.12);
+      position: relative;
+      z-index: 10;
     }
     
     .rtpub-forecast-header-row {
@@ -401,6 +402,8 @@
       flex-wrap: wrap;
       gap: 12px;
       margin-bottom: 1.5rem;
+      position: relative; 
+      z-index: 10;
     }
     
     .rtpub-forecast-head {
@@ -450,10 +453,12 @@
 
     /* 7-Day Forecast Grid - matches the redesigned card layout */
     .forecast-list {
+      position: relative;
+      z-index: 700;
+      overflow: visible;
       display: grid;
       grid-template-columns: repeat(7, 1fr);
       gap: 1rem;
-      overflow-x: auto;
       padding-bottom: 6px;
       min-height: 280px;
       width: 100%;
@@ -486,6 +491,7 @@
       align-items: center;
       text-align: center;
       position: relative;
+      z-index: 800;
       box-shadow: 0 1px 3px rgba(0,0,0,0.02);
     }
     .forecast-day-card:hover { 
@@ -1479,11 +1485,12 @@
       }
 
       function getWeatherIconHtml(aqi) {
-        if (aqi <= 50) return '<i class="fa-solid fa-sun"></i>';
-        if (aqi <= 70) return '<i class="fa-solid fa-cloud-sun"></i>';
-        if (aqi <= 100) return '<i class="fa-solid fa-cloud"></i>';
-        if (aqi <= 150) return '<i class="fa-solid fa-smog"></i>';
-        return '<i class="fa-solid fa-wind"></i>';
+        if (aqi <= 50) return '<i class="fa-solid fa-leaf" style="color:#4caf50;"></i>';
+        if (aqi <= 100) return '<i class="fa-solid fa-smog" style="color:#ffc107;"></i>';
+        if (aqi <= 150) return '<i class="fa-solid fa-triangle-exclamation" style="color:#ff9800;"></i>';
+        if (aqi <= 200) return '<i class="fa-solid fa-lungs" style="color:#f44336;"></i>';
+        if (aqi <= 300) return '<i class="fa-solid fa-radiation-alt" style="color:#9c27b0;"></i>';
+        return '<i class="fa-solid fa-skull" style="color:#5d4037;"></i>';
       }
 
       function formatForecastDate(dateString) {

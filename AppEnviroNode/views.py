@@ -2974,231 +2974,149 @@ def api_realtime_data(request):
     """
     GET /api/realtime-data/
     
-    Returns real-time data for the monitoring dashboard.
-    Optimized for frequent polling with lightweight responses.
+    Returns real-time chart and summary data for realtime.html template.
+    Handles range, node, start_date, end_date filters from UI.
     """
     try:
-        from django.db.models import Avg, Q, Count
-        from datetime import timedelta
-        from django.db.models.functions import TruncMinute
-        
-        # Get filter parameters (with defaults for real-time view)
-        node_filter = request.GET.get('filter', 'all')
-        zone = request.GET.get('zone', 'all')
-        time_range = request.GET.get('time_range', '15m')
+        from django.db.models.functions import TruncHour, TruncDay
         
         now = timezone.now()
         
-        # Parse time range for recent readings
-        if time_range == '1m':
-            time_start = now - timedelta(minutes=1)
-            limit_points = 60
-        elif time_range == '5m':
-            time_start = now - timedelta(minutes=5)
-            limit_points = 60
-        elif time_range == '15m':
-            time_start = now - timedelta(minutes=15)
-            limit_points = 60
-        elif time_range == '1h':
-            time_start = now - timedelta(hours=1)
-            limit_points = 60
-        elif time_range == '24h':
-            time_start = now - timedelta(hours=24)
-            limit_points = 100
+        # Parse filter parameters from template UI
+        selected_range = request.GET.get('range', '24h').lower()
+        node_param = request.GET.get('node', '').strip()
+        start_date_str = request.GET.get('start_date', '').strip()
+        end_date_str = request.GET.get('end_date', '').strip()
+        
+        # Determine time window
+        if selected_range == 'custom' and start_date_str and end_date_str:
+            try:
+                time_start = datetime.strptime(start_date_str, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+                time_end = datetime.strptime(end_date_str, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+                time_end = time_end.replace(hour=23, minute=59, second=59)
+                range_label = f"{start_date_str} to {end_date_str}"
+            except:
+                time_start = now - timedelta(hours=24)
+                time_end = now
+                range_label = "Last 24 hours"
+                selected_range = '24h'
+        elif selected_range == '7d':
+            time_start = now - timedelta(days=7)
+            time_end = now
+            range_label = "Last 7 days"
+        elif selected_range == '30d':
+            time_start = now - timedelta(days=30)
+            time_end = now
+            range_label = "Last 30 days"
         else:
-            time_start = now - timedelta(minutes=15)
-            limit_points = 60
+            time_start = now - timedelta(hours=24)
+            time_end = now
+            range_label = "Last 24 hours"
+            selected_range = '24h'
         
-        # Build node queryset with latest readings
-        latest_reading = SensorReading.objects.filter(
-            node=models.OuterRef('pk')
-        ).order_by('-timestamp')
+        # Parse node filter
+        selected_node_id = None
+        selected_location = None
         
-        nodes_qs = SensorNode.objects.filter(is_active=True).annotate(
-            latest_aqi=models.Subquery(latest_reading.values('aqi')[:1]),
-            latest_pm2_5=models.Subquery(latest_reading.values('pm2_5')[:1]),
-            latest_pm10=models.Subquery(latest_reading.values('pm10')[:1]),
-            latest_temperature=models.Subquery(latest_reading.values('temperature')[:1]),
-            latest_humidity=models.Subquery(latest_reading.values('humidity')[:1]),
-            latest_timestamp=models.Subquery(latest_reading.values('timestamp')[:1]),
-        )
+        if node_param.startswith('node:'):
+            try:
+                selected_node_id = int(node_param.split(':')[1])
+            except:
+                pass
+        elif node_param.startswith('location:'):
+            selected_location = node_param.split(':', 1)[1]
         
-        # Apply zone filter
-        if zone != 'all' and zone:
-            nodes_qs = nodes_qs.filter(location__iexact=zone)
+        # Build readings queryset
+        readings_qs = SensorReading.objects.filter(
+            timestamp__gte=time_start,
+            timestamp__lte=time_end
+        ).select_related('node')
         
-        # Apply filter
-        if node_filter == 'online':
-            nodes_qs = nodes_qs.filter(status='active')
-        elif node_filter == 'alerts':
-            # Get nodes with active critical/warning alerts
-            alert_nodes = Alert.objects.filter(
-                is_active=True,
-                severity__in=['warning', 'critical']
-            ).values_list('node_id', flat=True).distinct()
-            nodes_qs = nodes_qs.filter(id__in=alert_nodes)
+        if selected_node_id:
+            readings_qs = readings_qs.filter(node_id=selected_node_id)
+        elif selected_location:
+            readings_qs = readings_qs.filter(node__location__iexact=selected_location)
         
-        # Build node data array
-        nodes_data = []
-        total_active = 0
-        total_nodes_count = nodes_qs.count()
+        # Calculate aggregation strategy based on time range
+        if selected_range == '24h':
+            trunc_func = TruncHour
+        elif selected_range == '7d':
+            trunc_func = TruncDay
+        else:
+            trunc_func = TruncDay
         
-        for node in nodes_qs.order_by('name')[:50]:
-            # Determine status based on latest reading timestamp
-            if node.latest_timestamp:
-                minutes_since_update = (now - node.latest_timestamp).total_seconds() / 60
-                if minutes_since_update > 10:
-                    status = 'inactive'
-                else:
-                    status = node.status or 'active'
-            else:
-                status = 'inactive'
-            
-            if status == 'active':
-                total_active += 1
-            
-            nodes_data.append({
-                'node_id': node.id,
-                'name': node.name,
-                'location': node.location or 'Unknown',
-                'zone': node.location or 'Unknown',
-                'status': status,
-                'aqi': round(node.latest_aqi, 1) if node.latest_aqi is not None else None,
-                'pm2_5': round(node.latest_pm2_5, 1) if node.latest_pm2_5 is not None else None,
-                'temperature': round(node.latest_temperature, 1) if node.latest_temperature is not None else None,
-                'humidity': round(node.latest_humidity, 1) if node.latest_humidity is not None else None,
-                'timestamp': node.latest_timestamp.timestamp() if node.latest_timestamp else None,
-            })
+        # Aggregate chart data
+        chart_agg = readings_qs.annotate(
+            period=trunc_func('timestamp')
+        ).values('period').annotate(
+            avg_aqi=Avg('aqi'),
+            avg_pm2_5=Avg('pm2_5'),
+            avg_pm10=Avg('pm10'),
+            avg_temperature=Avg('temperature')
+        ).order_by('period')
         
-        # Calculate average AQI
-        aqi_values = [n['aqi'] for n in nodes_data if n['aqi'] is not None]
+        chart_data = []
+        for item in chart_agg:
+            if item['period']:
+                chart_data.append({
+                    'period': item['period'].isoformat() if item['period'] else '',
+                    'date': item['period'].strftime('%Y-%m-%d %H:%M') if item['period'] else '',
+                    'avg_aqi': round(item['avg_aqi'], 1) if item['avg_aqi'] is not None else None,
+                    'avg_pm2_5': round(item['avg_pm2_5'], 2) if item['avg_pm2_5'] is not None else None,
+                    'avg_pm10': round(item['avg_pm10'], 2) if item['avg_pm10'] is not None else None,
+                    'avg_temperature': round(item['avg_temperature'], 1) if item['avg_temperature'] is not None else None,
+                })
+        
+        # Calculate summary metrics
+        aqi_values = readings_qs.filter(aqi__isnull=False).values_list('aqi', flat=True)
         avg_aqi = round(sum(aqi_values) / len(aqi_values), 1) if aqi_values else None
         
-        # Get recent events from SystemLog
-        recent_events = SystemLog.objects.filter(
-            created_at__gte=now - timedelta(minutes=30)
-        ).select_related('node').order_by('-created_at')[:15]
+        total_readings = readings_qs.count()
         
-        feed_events = []
-        for log in recent_events:
-            severity = getattr(log, 'severity', 'info')
-            if severity == 'critical':
-                tag_class = 'crealtime-tag-critical'
-                bg_class = 'crealtime-bg-red'
-                icon = '⚠'
-                tag_label = 'CRITICAL'
-            elif severity == 'warning':
-                tag_class = 'crealtime-tag-warn'
-                bg_class = 'crealtime-bg-yellow'
-                icon = '!'
-                tag_label = 'WARN'
-            else:
-                tag_class = 'crealtime-tag-info'
-                bg_class = 'crealtime-bg-green'
-                icon = '✓'
-                tag_label = 'INFO'
-            
-            feed_events.append({
-                'node_id': log.node.id if log.node else None,
-                'title': log.event_type.replace('_', ' ').title() if log.event_type else 'Event',
-                'description': log.message[:100] if log.message else '',
-                'severity': severity,
-                'tag_class': tag_class,
-                'bg_class': bg_class,
-                'icon': icon,
-                'tag_label': tag_label,
-                'timestamp_unix': log.created_at.timestamp(),
-                'timestamp': log.created_at.timestamp(),
-            })
+        # Get latest reading info
+        latest_reading = readings_qs.filter(aqi__isnull=False).order_by('-timestamp').first()
+        latest_aqi = latest_reading.aqi if latest_reading else None
+        latest_node_name = latest_reading.node.name if latest_reading else 'Unknown'
+        latest_node_location = latest_reading.node.location if latest_reading else 'Unknown'
+        latest_timestamp = latest_reading.timestamp if latest_reading else None
         
-        # If no events, add a system online event
-        if not feed_events:
-            feed_events.append({
-                'node_id': None,
-                'title': 'System Online',
-                'description': 'All systems operational',
-                'severity': 'info',
-                'tag_class': 'crealtime-tag-info',
-                'bg_class': 'crealtime-bg-green',
-                'icon': '✓',
-                'tag_label': 'INFO',
-                'timestamp_unix': now.timestamp(),
-                'timestamp': now.timestamp(),
-            })
+        # Count active nodes
+        active_nodes = SensorNode.objects.filter(is_active=True).count()
         
-        # Get active alerts
-        active_alerts = Alert.objects.filter(
-            is_active=True
-        ).select_related('node').order_by('-triggered_at')[:10]
-        
-        alerts_data = []
-        for alert in active_alerts:
-            alerts_data.append({
-                'node_name': alert.node.name if alert.node else 'System',
-                'title': alert.title,
-                'description': alert.description[:100] if alert.description else '',
-                'severity': alert.severity,
-                'timestamp_unix': alert.triggered_at.timestamp(),
-                'timestamp': alert.triggered_at.timestamp(),
-            })
-        
-        # Get AQI history for graph (last 30 points)
-        history_qs = SensorReading.objects.filter(
-            timestamp__gte=time_start,
-            timestamp__lte=now,
-            aqi__isnull=False
-        )
-        
-        if zone != 'all' and zone:
-            history_qs = history_qs.filter(node__location__iexact=zone)
-        
-        # Aggregate by minute for smooth graph
-        history_agg = history_qs.annotate(
-            period=TruncMinute('timestamp')
-        ).values('period').annotate(
-            avg_aqi=Avg('aqi')
-        ).order_by('period')[:limit_points]
-        
-        chart_values = [round(h['avg_aqi'] or 0, 1) for h in history_agg]
-        
-        # Ensure we have enough data points for the chart
-        if len(chart_values) < 30:
-            # Pad with recent average or 40
-            pad_value = chart_values[-1] if chart_values else 40
-            while len(chart_values) < 30:
-                chart_values.append(pad_value)
-        
-        # Get zones for filter dropdown
-        zones_list = list(SensorNode.objects.filter(
-            is_active=True, location__isnull=False
-        ).exclude(location='').values_list('location', flat=True).distinct())
+        summary = {
+            'success': True,
+            'avg_aqi': avg_aqi,
+            'total_readings': total_readings,
+            'active_nodes': active_nodes,
+            'range_label': range_label,
+            'latest_aqi': latest_aqi,
+            'latest_node_name': latest_node_name,
+            'latest_node_location': latest_node_location,
+            'latest_timestamp': latest_timestamp.isoformat() if latest_timestamp else None,
+        }
         
         return JsonResponse({
-            'status': 'success',
-            'data': nodes_data,
-            'feed': feed_events,
-            'alerts': alerts_data,
-            'chart_values': chart_values,
-            'live_aqi': avg_aqi,
-            'active_nodes': total_active,
-            'total_nodes': total_nodes_count,
-            'zones': zones_list,
-            'timestamp': now.isoformat(),
+            'success': True,
+            'summary': summary,
+            'chart_data': chart_data,
         })
         
     except Exception as e:
         logger.error(f"API realtime data error: {e}", exc_info=True)
         return JsonResponse({
-            'status': 'error',
-            'message': str(e),
-            'data': [],
-            'feed': [],
-            'alerts': [],
-            'chart_values': [],
-            'live_aqi': None,
-            'active_nodes': 0,
-            'total_nodes': 0,
-            'zones': [],
+            'success': False,
+            'error': 'Failed to load',
+            'summary': {
+                'avg_aqi': None,
+                'total_readings': 0,
+                'active_nodes': 0,
+                'range_label': '',
+                'latest_aqi': None,
+                'latest_node_name': 'Unknown',
+                'latest_node_location': 'Unknown',
+                'latest_timestamp': None,
+            },
+            'chart_data': [],
         }, status=500)
 
 
@@ -4962,9 +4880,7 @@ def api_daily_forecast(request):
             timestamp__gte=now - timedelta(days=30),
             timestamp__lte=now,
             aqi__isnull=False
-        ).select_related('node').only(
-            'aqi', 'pm2_5', 'temperature', 'timestamp'
-        ).order_by('timestamp')
+        ).select_related('node').order_by('timestamp')
         
         daily_groups = {}
         for reading in readings:
@@ -4976,118 +4892,103 @@ def api_daily_forecast(request):
                 continue
             
             if reading_date not in daily_groups:
-                daily_groups[reading_date] = {
-                    'aqi_values': [],
-                    'pm2_5_values': [],
-                    'temp_values': [],
-                    'count': 0
-                }
+                daily_groups[reading_date] = {'aqi': [], 'pm2_5': [], 'temperature': []}
             
             if reading.aqi is not None:
-                daily_groups[reading_date]['aqi_values'].append(reading.aqi)
+                daily_groups[reading_date]['aqi'].append(reading.aqi)
             if reading.pm2_5 is not None:
-                daily_groups[reading_date]['pm2_5_values'].append(reading.pm2_5)
+                daily_groups[reading_date]['pm2_5'].append(reading.pm2_5)
             if reading.temperature is not None:
-                daily_groups[reading_date]['temp_values'].append(reading.temperature)
-            daily_groups[reading_date]['count'] += 1
+                daily_groups[reading_date]['temperature'].append(reading.temperature)
         
-        daily_aggregates = []
-        sorted_dates = sorted(daily_groups.keys())
-        
-        for date in sorted_dates:
-            group = daily_groups[date]
-            daily_aggregates.append({
-                'date': date,
-                'aqi_values': group['aqi_values'],
-                'pm2_5_values': group['pm2_5_values'],
-                'temp_values': group['temp_values'],
-                'avg_aqi': round(sum(group['aqi_values']) / len(group['aqi_values']), 1) if group['aqi_values'] else None,
-                'avg_pm2_5': round(sum(group['pm2_5_values']) / len(group['pm2_5_values']), 1) if group['pm2_5_values'] else None,
-                'avg_temperature': round(sum(group['temp_values']) / len(group['temp_values']), 1) if group['temp_values'] else None,
-            })
-        
-        if len(daily_aggregates) == 0:
+        if not daily_groups:
             return JsonResponse({
                 'success': True,
                 'forecast': [],
-                'message': 'No data available',
                 'generated_at': now.isoformat(),
                 'confidence_level': 'low'
             }, status=200)
         
-        recent_aqi_all = [d['avg_aqi'] for d in daily_aggregates if d['avg_aqi'] is not None]
-        recent_pm2_5_all = [d['avg_pm2_5'] for d in daily_aggregates if d['avg_pm2_5'] is not None]
-        recent_temp_all = [d['avg_temperature'] for d in daily_aggregates if d['avg_temperature'] is not None]
+        daily_agg = []
+        for date in sorted(daily_groups.keys()):
+            group = daily_groups[date]
+            daily_agg.append({
+                'date': date,
+                'avg_aqi': round(sum(group['aqi']) / len(group['aqi']), 1) if group['aqi'] else None,
+                'avg_pm2_5': round(sum(group['pm2_5']) / len(group['pm2_5']), 1) if group['pm2_5'] else None,
+                'avg_temperature': round(sum(group['temperature']) / len(group['temperature']), 1) if group['temperature'] else None,
+                'count': len(group['aqi'])
+            })
+        
+        def predict_with_trend(values_list, days_ahead=1):
+            if not values_list or len(values_list) < 2:
+                return round(values_list[0], 1) if values_list else 75
+            
+            recent_vals = values_list[-7:]
+            n = len(recent_vals)
+            x_vals = list(range(n))
+            mean_x = sum(x_vals) / n
+            mean_y = sum(recent_vals) / n
+            
+            numerator = sum((x_vals[i] - mean_x) * (recent_vals[i] - mean_y) for i in range(n))
+            denominator = sum((x_vals[i] - mean_x) ** 2 for i in range(n))
+            
+            slope = (numerator / denominator) if denominator > 0 else 0
+            intercept = mean_y - slope * mean_x
+            
+            predicted = intercept + slope * (n + days_ahead - 1)
+            predicted = max(0, min(500, predicted))
+            
+            return round(predicted, 1)
+        
+        avg_aqi_vals = [d['avg_aqi'] for d in daily_agg if d['avg_aqi'] is not None]
+        avg_pm2_5_vals = [d['avg_pm2_5'] for d in daily_agg if d['avg_pm2_5'] is not None]
+        avg_temp_vals = [d['avg_temperature'] for d in daily_agg if d['avg_temperature'] is not None]
         
         forecast_list = []
         
-        history_start = today - timedelta(days=6)
-        
-        for i in range(-6, 4):
+        for i in range(-4, 3):
             forecast_date = today + timedelta(days=i)
             is_current = (forecast_date == today)
             is_predicted = (forecast_date > today)
             is_historical = (forecast_date < today)
             
-            actual_data = next((d for d in daily_aggregates if d['date'] == forecast_date), None)
+            actual_data = next((d for d in daily_agg if d['date'] == forecast_date), None)
             
             if actual_data:
-                aqi_level = get_aqi_category(actual_data['avg_aqi']) if actual_data['avg_aqi'] else 'unknown'
                 forecast_list.append({
                     'date': forecast_date.isoformat(),
-                    'day_label': forecast_date.strftime('%A')[:3],
-                    'day_subtitle': forecast_date.strftime('%b %d, %Y'),
                     'avg_aqi': actual_data['avg_aqi'],
-                    'aqi_level': aqi_level,
                     'avg_pm2_5': actual_data['avg_pm2_5'],
                     'avg_temperature': actual_data['avg_temperature'],
-                    'confidence': 1.0,
-                    'trend': 'stable',
-                    'is_predicted': False,
                     'is_current': is_current,
+                    'is_predicted': False,
                     'is_historical': is_historical,
-                    'data_points': len(actual_data['aqi_values'])
                 })
             elif is_predicted:
-                if recent_aqi_all:
-                    prediction = predict_next_day_aqi(
-                        [(i, aqi) for i, aqi in enumerate(recent_aqi_all[-7:])],
-                        confidence_threshold=0.5
-                    )
-                    predicted_aqi = prediction.get('predicted_aqi') if prediction else None
-                    predicted_confidence = prediction.get('confidence', 0.5) if prediction else 0.5
-                    predicted_trend = prediction.get('trend', 'stable') if prediction else 'stable'
-                else:
-                    predicted_aqi = None
-                    predicted_confidence = 0.0
-                    predicted_trend = 'stable'
-                
-                if predicted_aqi is not None:
+                if avg_aqi_vals:
+                    days_ahead = (forecast_date - today).days
+                    pred_aqi = predict_with_trend(avg_aqi_vals, days_ahead)
+                    pred_pm = predict_with_trend(avg_pm2_5_vals, days_ahead) if avg_pm2_5_vals else (round(sum(avg_pm2_5_vals) / len(avg_pm2_5_vals), 1) if avg_pm2_5_vals else 0)
+                    pred_temp = predict_with_trend(avg_temp_vals, days_ahead) if avg_temp_vals else (round(sum(avg_temp_vals) / len(avg_temp_vals), 1) if avg_temp_vals else 20)
+                    
                     forecast_list.append({
                         'date': forecast_date.isoformat(),
-                        'day_label': forecast_date.strftime('%A')[:3],
-                        'day_subtitle': forecast_date.strftime('%b %d, %Y'),
-                        'avg_aqi': predicted_aqi,
-                        'aqi_level': get_aqi_category(predicted_aqi),
-                        'avg_pm2_5': sum(recent_pm2_5_all) / len(recent_pm2_5_all) if recent_pm2_5_all else None,
-                        'avg_temperature': sum(recent_temp_all) / len(recent_temp_all) if recent_temp_all else None,
-                        'confidence': predicted_confidence,
-                        'trend': predicted_trend,
-                        'is_predicted': True,
+                        'avg_aqi': pred_aqi,
+                        'avg_pm2_5': pred_pm,
+                        'avg_temperature': pred_temp,
                         'is_current': False,
+                        'is_predicted': True,
                         'is_historical': False,
-                        'data_points': 0
                     })
         
-        overall_confidence = 'high' if len(daily_aggregates) >= 14 else ('medium' if len(daily_aggregates) >= 7 else 'low')
+        confidence = 'high' if len(daily_agg) >= 14 else ('medium' if len(daily_agg) >= 7 else 'low')
         
         return JsonResponse({
             'success': True,
-            'forecast': forecast_list[-7:] if len(forecast_list) > 7 else forecast_list,
+            'forecast': forecast_list,
             'generated_at': now.isoformat(),
-            'confidence_level': overall_confidence,
-            'data_coverage_days': len(daily_aggregates),
-            'history_span_days': (sorted_dates[-1] - sorted_dates[0]).days if len(sorted_dates) > 1 else 0
+            'confidence_level': confidence,
         }, status=200)
         
     except Exception as e:
