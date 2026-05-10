@@ -2237,7 +2237,11 @@ def api_sensor_data(request):
         "temperature": 28.5,
         "humidity": 65.0,
         "pressure": 1013.25,
-        "gas_resistance": 120.5
+        "gas_resistance": 120.5,
+        "system_status": "normal",
+        "pms_status": "ok",
+        "bme_status": "ok",
+        "latency_ms": 79
     }
     """
     try:
@@ -2289,6 +2293,11 @@ def api_sensor_data(request):
             humidity=data.get('humidity'),
             pressure=data.get('pressure'),
             gas_resistance=data.get('gas_resistance'),
+            system_status=data.get('system_status', 'normal'),
+            pms_status=data.get('pms_status', 'ok'),
+            bme_status=data.get('bme_status', 'ok'),
+            latency_ms=data.get('latency_ms'),
+            timestamp=timezone.now(),
         )
         print(f"[API DEBUG] Reading created: {reading.id}, AQI: {reading.aqi}")
         
