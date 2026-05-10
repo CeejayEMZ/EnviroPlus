@@ -158,6 +158,36 @@
       border-top: 10px solid;
     }
     
+    .waqi-marker-selected {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .waqi-box-selected {
+      background: #fff;
+      border: 3px solid #0369a1;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-weight: 700;
+      font-size: 16px;
+      min-width: 32px;
+      text-align: center;
+      box-shadow: 0 0 0 4px rgba(3, 105, 161, 0.3), 0 4px 12px rgba(3, 105, 161, 0.4);
+      transition: all 0.2s ease;
+      transform: scale(1.15);
+    }
+    
+    .waqi-pointer-selected {
+      width: 0;
+      height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-top: 10px solid;
+      filter: drop-shadow(0 0 0 4px rgba(3, 105, 161, 0.3));
+    }
+    
     .aqi-good { border-color: #68c046; background-color: #68c046; color: #102a43; }
     .aqi-moderate { border-color: #ffef64; background-color: #ffef64; color: #102a43; }
     .aqi-unhealthy-sensitive { border-color: #e88532; background-color: #e88532; color: #ffffff; }
@@ -307,6 +337,143 @@
       box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
       flex-shrink: 0;
     }
+
+    .cluster-icon {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      font-weight: 700;
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      border: 2px solid rgba(255,255,255,0.8);
+    }
+
+    .cluster-icon.aqi-good { background: #68c046; }
+    .cluster-icon.aqi-moderate { background: #ffef64; color: #102a43; }
+    .cluster-icon.aqi-unhealthy-sensitive { background: #e88532; }
+    .cluster-icon.aqi-unhealthy { background: #db4836; }
+    .cluster-icon.aqi-very-unhealthy { background: #814396; }
+    .cluster-icon.aqi-hazardous { background: #701526; }
+
+    .cluster-aqi {
+      font-size: 18px;
+      line-height: 1;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .cluster-count {
+      font-size: 10px;
+      opacity: 0.85;
+      margin-top: 2px;
+    }
+
+    .unified-filter-search-container {
+      padding: 8px 10px 10px;
+      border-bottom: 1px solid rgba(102,115,137,0.18);
+    }
+
+    .unified-filter-search {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #dbe0e7;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-family: inherit;
+    }
+
+    .unified-filter-search:focus {
+      outline: none;
+      border-color: #667789;
+      box-shadow: 0 0 0 2px rgba(102, 119, 137, 0.1);
+    }
+
+    .unified-filter-dropdown {
+      cursor: pointer;
+      user-select: none;
+      padding: 8px 10px;
+      margin-bottom: 8px;
+    }
+
+    .unified-filter-dropdown-header {
+      padding: 8px 10px;
+      background: #f3f4f6;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .unified-filter-dropdown-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.2s ease;
+      display: none;
+    }
+
+    .unified-filter-dropdown-content.unified-filter-dropdown-visible {
+      display: block;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .unified-filter-search-result {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(102,115,137,0.1);
+    }
+
+    .result-name {
+      font-weight: 600;
+      color: #0f172a;
+      font-size: 0.9rem;
+    }
+
+    .result-meta {
+      font-size: 0.8rem;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    
+    .unified-filter-hidden {
+      display: none !important;
+    }
+
+    .unified-control-container {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .unified-button-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .unified-btn {
+      background: #ffffff;
+      border: 1px solid #dbe0e7;
+      border-radius: 6px;
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    }
+
+    .unified-btn:hover {
+      background: #f8f9fa;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.1);
+    }
   </style>
 {% endblock %}
 
@@ -358,8 +525,9 @@
       return 'Hazardous';
     }
 
-    function updateInfo(nodeName, location, aqi, aqiLevel, pollutants) {
+    function updateInfo(nodeName, location, aqi, aqiLevel, pollutants, nodeStatus) {
       pollutants = pollutants || {};
+      nodeStatus = nodeStatus || 'active';
       
       const fmt = (v, d) => {
         if (window.formatNumber && typeof window.formatNumber === 'function') {
@@ -371,6 +539,19 @@
       if (!aqiLevel || aqiLevel === 'Unknown') {
         aqiLevel = getAqiLabel(aqi);
       }
+      
+      const getStatusDisplay = (status) => {
+        const statusMap = {
+          'active': { text: 'Sensor Online', color: '#22c55e' },
+          'inactive': { text: 'Sensor Offline', color: '#ef4444' },
+          'unregistered': { text: 'Unregistered', color: '#f59e0b' },
+          'rogue': { text: 'Sensor Malfunctioning', color: '#8b5cf6' }
+        };
+        return statusMap[status] || { text: 'Unknown Status', color: '#6b7280' };
+      };
+      
+      const statusDisplay = getStatusDisplay(nodeStatus);
+      
       const infoPanel = document.getElementById('sensor-info');
       const aqiClass = getAqiStyle(aqi);
       infoPanel.innerHTML = `
@@ -442,7 +623,7 @@
             </div>
           </div>
 
-          <div class="sensor-status"><span class="status-dot"></span>Sensor Online</div>
+          <div class="sensor-status" style="background: ${statusDisplay.color}20; color: ${statusDisplay.color};"><span class="status-dot" style="background: ${statusDisplay.color};"></span>${statusDisplay.text}</div>
         </div>
       `;
     }
@@ -553,7 +734,9 @@
           const levelLabel = pollutants.aqi_level && pollutants.aqi_level !== 'Unknown'
             ? pollutants.aqi_level
             : getAqiLabel(pollutants.aqi || 0);
-          updateInfo(node.name, node.location, pollutants.aqi || 0, levelLabel, pollutants);
+          updateInfo(node.name, node.location, pollutants.aqi || 0, levelLabel, pollutants, node.status);
+          // Select node with visual feedback
+          mapController.getFilterControl().selectNode(node.id);
           showMapSearchBanner(`Showing environmental data for ${node.name || node.location}.`);
         };
 
@@ -613,7 +796,9 @@
                 const levelLabel = pollutants.aqi_level && pollutants.aqi_level !== 'Unknown'
                   ? pollutants.aqi_level
                   : getAqiLabel(aqi);
-                updateInfo(node.name, node.location, aqi, levelLabel, pollutants);
+                updateInfo(node.name, node.location, aqi, levelLabel, pollutants, node.status);
+                // Select node with visual feedback
+                mapController.getFilterControl().selectNode(node.id);
               });
 
               // Register with control for filtering
@@ -638,10 +823,29 @@
         processMapSearchContext();
         mapController.invalidateSize();
         
-        // OPTIMIZATION: Auto-fit map to visible markers
         setTimeout(() => {
           mapController.fitToMarkers();
         }, 100);
+        
+        window.addEventListener('markerSelected', (e) => {
+          const nodeId = e.detail.nodeId;
+          const markerEntry = window.mapSearchMarkers.find(entry => entry.node.id === nodeId);
+          if (markerEntry) {
+            const { node, pollutants } = markerEntry;
+            const levelLabel = pollutants.aqi_level && pollutants.aqi_level !== 'Unknown'
+              ? pollutants.aqi_level
+              : getAqiLabel(pollutants.aqi || 0);
+            updateInfo(node.name, node.location, pollutants.aqi || 0, levelLabel, pollutants, node.status);
+          }
+        });
+        
+        // Handle map background clicks to deselect node
+        mapController.getMap().on('click', function(e) {
+          // Only deselect if clicking on the map background, not on a marker
+          if (e.originalEvent && e.originalEvent.target === mapController.getMap()._container) {
+            mapController.getFilterControl().deselectNode();
+          }
+        });
         
         console.log('✓ Public map initialized with WAQI-style controls');
 
