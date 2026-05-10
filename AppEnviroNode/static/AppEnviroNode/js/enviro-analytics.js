@@ -29,6 +29,10 @@ const AnalyticsState = {
     sparkline: null,
   },
 
+  // Error state management
+  lastError: null,
+  errorNotificationShown: false,
+
   // Flags
   isLoading: false,
   isTrendView: 'line', // 'line' or 'heatmap'
@@ -233,10 +237,28 @@ const Charts = {
       aqi = 0;
     }
     
-    const maxAQI = 500; // EPA scale max
-    const fillPercent = Math.min(aqi / maxAQI * 100, 100);
-    const emptyPercent = 100 - fillPercent;
-    const color = Utils.getAQIColor(aqi);
+    // Get composition percentages from overview data
+    let pm25Pct = AnalyticsState.overviewData.composition?.pm25 || 55;
+    let pm10Pct = AnalyticsState.overviewData.composition?.pm10 || 25;
+    let otherPct = AnalyticsState.overviewData.composition?.other || 20;
+    
+    // Ensure valid percentages
+    pm25Pct = (typeof pm25Pct === 'number' && !isNaN(pm25Pct)) ? pm25Pct : 55;
+    pm10Pct = (typeof pm10Pct === 'number' && !isNaN(pm10Pct)) ? pm10Pct : 25;
+    otherPct = (typeof otherPct === 'number' && !isNaN(otherPct)) ? otherPct : 20;
+    
+    // Normalize percentages to sum to 100
+    const total = pm25Pct + pm10Pct + otherPct;
+    if (total !== 100) {
+      const factor = 100 / total;
+      pm25Pct = Math.round(pm25Pct * factor);
+      pm10Pct = Math.round(pm10Pct * factor);
+      otherPct = Math.round(otherPct * factor);
+      // Correct rounding errors
+      const sum = pm25Pct + pm10Pct + otherPct;
+      if (sum > 100) otherPct -= (sum - 100);
+      else if (sum < 100) otherPct += (100 - sum);
+    }
 
     if (AnalyticsState.charts.aqiDonut) {
       AnalyticsState.charts.aqiDonut.destroy();
@@ -245,9 +267,10 @@ const Charts = {
     AnalyticsState.charts.aqiDonut = new Chart(ctx, {
       type: 'doughnut',
       data: {
+        labels: ['PM2.5', 'PM10', 'Other'],
         datasets: [{
-          data: [fillPercent, emptyPercent],
-          backgroundColor: [color, '#e2e8f0'],
+          data: [pm25Pct, pm10Pct, otherPct],
+          backgroundColor: ['#991b1b', '#f97316', '#10b981'],
           borderWidth: 0,
           cutout: '80%'
         }]
@@ -255,11 +278,26 @@ const Charts = {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { tooltip: { enabled: false }, legend: { display: false } }
+        plugins: { 
+          tooltip: { 
+            enabled: true,
+            backgroundColor: 'rgba(0,0,0,0.85)',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            borderColor: '#64748b',
+            borderWidth: 1,
+            callbacks: {
+              label: function(context) {
+                return context.label + ': ' + context.parsed + '%';
+              }
+            }
+          }, 
+          legend: { display: false }
+        }
       }
     });
 
-    console.log('[Analytics] AQI Donut initialized:', { aqi, color });
+    console.log('[Analytics] AQI Donut initialized with composition:', { aqi, pm25Pct, pm10Pct, otherPct });
   },
   initCompDonut() {
     const canvas = document.getElementById('compDonutChart');
@@ -501,6 +539,27 @@ const Charts = {
     const pm10Points = smoothedData.map(d => typeof d.pm10 === 'number' ? d.pm10 : null);
     const tempPoints = smoothedData.map(d => typeof d.temperature === 'number' ? d.temperature : null);
 
+    // Calculate dynamic scale ranges based on actual data
+    const calculateScaleRange = (points, defaultMin = 0, defaultMax = 200, padding = 0.1) => {
+      const validPoints = points.filter(p => p !== null && typeof p === 'number');
+      if (validPoints.length === 0) return { min: defaultMin, max: defaultMax };
+      
+      const min = Math.min(...validPoints);
+      const max = Math.max(...validPoints);
+      const range = max - min;
+      const paddingAmount = Math.max(range * padding, 1); // Ensure minimum padding
+      
+      return {
+        min: Math.max(0, Math.floor(min - paddingAmount)),
+        max: Math.ceil(max + paddingAmount)
+      };
+    };
+
+    // Calculate scales for each axis
+    const aqiScale = calculateScaleRange(aqiPoints, 0, 200, 0.1);
+    const pm25Scale = calculateScaleRange(pm25Points, 0, 200, 0.1);
+    const tempScale = calculateScaleRange(tempPoints, -20, 50, 0.15);
+
     const aqiColor = Utils.getAQIColor(nodeData.aqi_current || 0);
 
     // Create gradient for AQI (primary)
@@ -585,22 +644,22 @@ const Charts = {
           y: { 
             position: 'left',
             display: false,
-            min: 0, 
-            max: 200 
+            min: aqiScale.min, 
+            max: aqiScale.max
           },
           y1: {
             type: 'linear',
             position: 'right',
             display: false,
-            min: 0,
-            max: 200
+            min: pm25Scale.min,
+            max: pm25Scale.max
           },
           y2: {
             type: 'linear',
             position: 'right',
             display: false,
-            min: -20,
-            max: 50
+            min: tempScale.min,
+            max: tempScale.max
           },
           x: { display: false }
         },
@@ -662,6 +721,95 @@ const Charts = {
 // ============================================================================
 
 const DOM = {
+  showErrorNotification(title, message, details = '') {
+    AnalyticsState.lastError = { title, message, details, timestamp: new Date() };
+    console.error(`[Analytics Error] ${title}: ${message}${details ? ' - ' + details : ''}`);
+    
+    // Create or get error notification element
+    let errorNotif = document.getElementById('analyticsErrorNotification');
+    if (!errorNotif) {
+      errorNotif = document.createElement('div');
+      errorNotif.id = 'analyticsErrorNotification';
+      errorNotif.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #fee2e2;
+        border: 1px solid #fca5a5;
+        border-radius: 6px;
+        padding: 12px 16px;
+        max-width: 400px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 9999;
+        animation: slideIn 0.3s ease;
+        font-family: system-ui, sans-serif;
+      `;
+      
+      // Add CSS animation
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes slideIn {
+          from { transform: translateX(420px); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+          from { transform: translateX(0); opacity: 1; }
+          to { transform: translateX(420px); opacity: 0; }
+        }
+        #analyticsErrorNotification.closing {
+          animation: slideOut 0.3s ease forwards;
+        }
+      `;
+      if (!document.querySelector('style[data-error-notif]')) {
+        style.setAttribute('data-error-notif', 'true');
+        document.head.appendChild(style);
+      }
+      document.body.appendChild(errorNotif);
+    }
+    
+    // Build error content
+    let content = `
+      <div style="display: flex; gap: 8px;">
+        <i class="fas fa-exclamation-circle" style="color: #991b1b; margin-top: 2px; flex-shrink: 0;"></i>
+        <div style="flex-grow: 1;">
+          <strong style="color: #991b1b; display: block; margin-bottom: 2px;">${title}</strong>
+          <div style="font-size: 0.85rem; color: #7f1d1d; margin-bottom: ${details ? '4px' : '0'};">${message}</div>
+          ${details ? `<div style="font-size: 0.75rem; color: #92400e; background: rgba(0,0,0,0.05); padding: 4px 6px; border-radius: 3px; font-family: monospace;">📍 ${details}</div>` : ''}
+        </div>
+        <button onclick="this.parentElement.parentElement.classList.add('closing'); setTimeout(() => this.parentElement.parentElement.remove(), 300);" style="background: none; border: none; color: #991b1b; cursor: pointer; font-size: 1.2rem; margin-top: -4px; padding: 0;">×</button>
+      </div>
+    `;
+    
+    errorNotif.innerHTML = content;
+    errorNotif.classList.remove('closing');
+    errorNotif.style.display = 'block';
+    
+    // Auto-dismiss after 8 seconds
+    if (errorNotif.dismissTimer) clearTimeout(errorNotif.dismissTimer);
+    errorNotif.dismissTimer = setTimeout(() => {
+      if (errorNotif && errorNotif.parentElement) {
+        errorNotif.classList.add('closing');
+        setTimeout(() => {
+          if (errorNotif && errorNotif.parentElement) {
+            errorNotif.remove();
+          }
+        }, 300);
+      }
+    }, 8000);
+  },
+
+  clearErrorNotification() {
+    const errorNotif = document.getElementById('analyticsErrorNotification');
+    if (errorNotif) {
+      errorNotif.classList.add('closing');
+      setTimeout(() => {
+        if (errorNotif && errorNotif.parentElement) {
+          errorNotif.remove();
+        }
+      }, 300);
+    }
+  },
+
   updateAQIDisplay() {
     const aqi = Math.round(AnalyticsState.overviewData.aqi_current || 0);
     const level = Utils.getAQILevel(aqi);
@@ -677,6 +825,88 @@ const DOM = {
     }
 
     console.log('[Analytics] AQI display updated:', { aqi, level });
+  },
+
+  updateAQIDonut() {
+    const canvas = document.getElementById('aqiDonutChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    let aqi = AnalyticsState.overviewData.aqi_current || 0;
+    if (typeof aqi !== 'number' || isNaN(aqi)) {
+      aqi = 0;
+    }
+    
+    // Get composition percentages from overview data
+    let pm25Pct = AnalyticsState.overviewData.composition?.pm25 || 55;
+    let pm10Pct = AnalyticsState.overviewData.composition?.pm10 || 25;
+    let otherPct = AnalyticsState.overviewData.composition?.other || 20;
+    
+    // Ensure valid percentages
+    pm25Pct = (typeof pm25Pct === 'number' && !isNaN(pm25Pct)) ? pm25Pct : 55;
+    pm10Pct = (typeof pm10Pct === 'number' && !isNaN(pm10Pct)) ? pm10Pct : 25;
+    otherPct = (typeof otherPct === 'number' && !isNaN(otherPct)) ? otherPct : 20;
+    
+    // Normalize percentages to sum to 100
+    const total = pm25Pct + pm10Pct + otherPct;
+    if (total !== 100) {
+      const factor = 100 / total;
+      pm25Pct = Math.round(pm25Pct * factor);
+      pm10Pct = Math.round(pm10Pct * factor);
+      otherPct = Math.round(otherPct * factor);
+      // Correct rounding errors
+      const sum = pm25Pct + pm10Pct + otherPct;
+      if (sum > 100) otherPct -= (sum - 100);
+      else if (sum < 100) otherPct += (100 - sum);
+    }
+
+    // Update existing chart data instead of destroying/recreating
+    if (AnalyticsState.charts.aqiDonut && AnalyticsState.charts.aqiDonut.data) {
+      AnalyticsState.charts.aqiDonut.data.datasets[0].data = [pm25Pct, pm10Pct, otherPct];
+      AnalyticsState.charts.aqiDonut.update('none'); // Update without animation
+      console.log('[Analytics] AQI Donut chart data updated (no recreate):', { aqi, pm25Pct, pm10Pct, otherPct });
+      return;
+    }
+
+    // Fallback: recreate if chart not initialized
+    if (AnalyticsState.charts.aqiDonut) {
+      AnalyticsState.charts.aqiDonut.destroy();
+    }
+
+    AnalyticsState.charts.aqiDonut = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['PM2.5', 'PM10', 'Other'],
+        datasets: [{
+          data: [pm25Pct, pm10Pct, otherPct],
+          backgroundColor: ['#991b1b', '#f97316', '#10b981'],
+          borderWidth: 0,
+          cutout: '80%'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { 
+          tooltip: { 
+            enabled: true,
+            backgroundColor: 'rgba(0,0,0,0.85)',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            borderColor: '#64748b',
+            borderWidth: 1,
+            callbacks: {
+              label: function(context) {
+                return context.label + ': ' + context.parsed + '%';
+              }
+            }
+          }, 
+          legend: { display: false }
+        }
+      }
+    });
+
+    console.log('[Analytics] AQI Donut initialized with composition:', { aqi, pm25Pct, pm10Pct, otherPct });
   },
 
   updatePollutantBars() {
@@ -1736,7 +1966,6 @@ async function initialize() {
 
     // Initialize charts
     Charts.initAQIDonut();
-    Charts.initCompDonut();
     Charts.initTrendLine();
 
     // Ensure charts are visible
