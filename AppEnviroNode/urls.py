@@ -68,7 +68,7 @@ urlpatterns = [
     path('api/nodes/24h/', views.api_nodes_24h, name='api_nodes_24h'),
     path('api/nodes/', views.api_nodes_list, name='api_nodes_list'),
     path('api/nodes/<int:node_id>/detail/', views.api_node_detail, name='api_node_detail'),
-    
+
     # API ENDPOINTS for User Management
     path('api/auth/me/', views.api_auth_me, name='api_auth_me'),
     path('api/users/', views.api_users, name='api_users'),
