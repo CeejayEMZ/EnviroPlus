@@ -353,8 +353,15 @@
     <a href="{% url 'app:client_ai' %}" class="menubar-link {% if 'dashboard/ai' in request.path %}active{% endif %}">AI Insights</a>
   </div>
   <div class="menubar-group">
+    {% if user.role == 'admin' %}
+    <a href="{% url 'app:client_alerts' %}" class="menubar-link {% if 'dashboard/alerts' in request.path %}active{% endif %}">Alerts</a>
+    {% endif %}
+    {% if user.role == 'admin' %}
     <a href="{% url 'app:client_devices' %}" class="menubar-link {% if 'dashboard/devices' in request.path %}active{% endif %}">Devices</a>
+    {% endif %}
+    {% if user.role == 'admin' %}
     <a href="{% url 'app:client_users' %}" class="menubar-link {% if 'dashboard/users' in request.path %}active{% endif %}">Users</a>
+    {% endif %}
   </div>
 </nav>
 

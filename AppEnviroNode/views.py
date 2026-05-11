@@ -1441,60 +1441,97 @@ def api_analytics(request):
         }, status=500)
 
 
-@admin_required
 @login_required(login_url='app:login')
+@admin_required
 def client_alerts(request):
-    """Display active and resolved alerts from the Alert table."""
-    # Get active alerts (most recent first)
-    active_alerts = Alert.objects.filter(is_active=True).select_related('node', 'reading').order_by('-triggered_at')
-    
-    # Get resolved alerts (last 10)
-    resolved_alerts = Alert.objects.filter(is_active=False).select_related('node', 'reading').order_by('-resolved_at')[:10]
-    
-    # Count by severity
+    # ── Filters ──────────────────────────────────────────────
+    search_query = request.GET.get('search', '').strip()
+    severity_filter = request.GET.get('severity', 'all')
+    status_filter = request.GET.get('status', 'active')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    # ── Base queryset ─────────────────────────────────────────
+    alerts_qs = Alert.objects.select_related('node', 'reading').order_by('-triggered_at')
+    # Status filter
+    if status_filter == 'active':
+        alerts_qs = alerts_qs.filter(is_active=True)
+    elif status_filter == 'resolved':
+        alerts_qs = alerts_qs.filter(is_active=False)
+    # 'all' = no filter
+    # Severity filter
+    if severity_filter != 'all':
+        alerts_qs = alerts_qs.filter(severity=severity_filter)
+    # Search filter
+    if search_query:
+        alerts_qs = alerts_qs.filter(
+            Q(title__icontains=search_query) |
+            Q(description__icontains=search_query) |
+            Q(node__name__icontains=search_query)
+        )
+    # Date range filter
+    if date_from:
+        try:
+            alerts_qs = alerts_qs.filter(
+                triggered_at__gte=timezone.make_aware(
+                    datetime.strptime(date_from, '%Y-%m-%d')
+                )
+            )
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            alerts_qs = alerts_qs.filter(
+                triggered_at__lte=timezone.make_aware(
+                    datetime.strptime(date_to, '%Y-%m-%d').replace(
+                        hour=23, minute=59, second=59
+                    )
+                )
+            )
+        except ValueError:
+            pass
+    # ── Pagination ────────────────────────────────────────────
+    paginator = Paginator(alerts_qs, 15)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    # ── Severity counts (unfiltered active) ───────────────────
     severity_counts = {
-        'info': Alert.objects.filter(is_active=True, severity='info').count(),
-        'warning': Alert.objects.filter(is_active=True, severity='warning').count(),
+        'info':     Alert.objects.filter(is_active=True, severity='info').count(),
+        'warning':  Alert.objects.filter(is_active=True, severity='warning').count(),
         'critical': Alert.objects.filter(is_active=True, severity='critical').count(),
     }
-    
     context = {
-        'active_alerts': active_alerts,
-        'resolved_alerts': resolved_alerts,
+        'page_obj': page_obj,
+        'alerts': page_obj.object_list,
         'severity_counts': severity_counts,
-        'total_active': active_alerts.count(),
-        'total_resolved': resolved_alerts.count(),
+        'total_active': Alert.objects.filter(is_active=True).count(),
+        'total_resolved': Alert.objects.filter(is_active=False).count(),
+        # Filter state (for form repopulation)
+        'search_query': search_query,
+        'selected_severity': severity_filter,
+        'selected_status': status_filter,
+        'date_from': date_from,
+        'date_to': date_to,
+        'total_results': paginator.count,
     }
     return render(request, 'AppEnviroNode/admin/clientalerts.html', context)
 
 @login_required(login_url='app:login')
 def client_devices(request):
-    """Display all sensor devices/nodes - fully dynamic with CRUD support."""
-    # Enforce admin-only access
     if not request.user.is_admin_user():
         messages.error(request, 'You do not have permission to access device management.')
         return redirect('app:client_dashboard')
-    
-    # Check and update node statuses before rendering
     check_and_update_node_status()
-    
     nodes = SensorNode.objects.all().prefetch_related('readings').order_by('-last_seen')
-    
-    # Organize nodes by status for comprehensive view
     active_nodes = []
     inactive_nodes = []
     unregistered_nodes = []
     rogue_nodes = []
-    
     for node in nodes:
         latest_reading = node.readings.first()
-        
-        # Calculate uptime if node has readings
         uptime_str = "N/A"
         if node.created_at:
             uptime_days = (timezone.now() - node.created_at).days
             uptime_str = f"{uptime_days} days" if uptime_days > 0 else "< 1 day"
-        
         node_data = {
             'node': node,
             'latest_reading': latest_reading,
@@ -1503,7 +1540,6 @@ def client_devices(request):
             'uptime': uptime_str,
             'last_update': latest_reading.timestamp if latest_reading else node.last_seen,
         }
-        
         if node.status == 'active':
             active_nodes.append(node_data)
         elif node.status == 'inactive':
@@ -1512,10 +1548,7 @@ def client_devices(request):
             unregistered_nodes.append(node_data)
         elif node.status == 'rogue':
             rogue_nodes.append(node_data)
-    
-    # Combine all nodes in display order: active, inactive, unregistered, rogue
     all_nodes_display = active_nodes + inactive_nodes + unregistered_nodes + rogue_nodes
-    
     context = {
         'nodes': all_nodes_display,
         'active_nodes': active_nodes,
@@ -1529,6 +1562,79 @@ def client_devices(request):
         'rogue_count': len(rogue_nodes),
     }
     return render(request, 'AppEnviroNode/admin/clientdevices.html', context)
+
+@login_required(login_url='app:login')
+@require_http_methods(["GET"])
+def api_node_readings(request, node_id):
+    """GET /api/nodes/<node_id>/readings/ — paginated readings for a node."""
+    try:
+        node = get_object_or_404(SensorNode, id=node_id)
+        page = int(request.GET.get('page', 1))
+        per_page = 10
+        readings_qs = node.readings.order_by('-timestamp')
+        paginator = Paginator(readings_qs, per_page)
+        page_obj = paginator.get_page(page)
+        data = []
+        for r in page_obj:
+            data.append({
+                'id': r.id,
+                'timestamp': r.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                'aqi': r.aqi,
+                'aqi_level': r.aqi_level,
+                'pm1_0': r.pm1_0,
+                'pm2_5': r.pm2_5,
+                'pm10': r.pm10,
+                'temperature': r.temperature,
+                'humidity': r.humidity,
+                'pressure': r.pressure,
+            })
+        return JsonResponse({
+            'success': True,
+            'node_name': node.name,
+            'readings': data,
+            'page': page,
+            'total_pages': paginator.num_pages,
+            'total_count': paginator.count,
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@login_required(login_url='app:login')
+@require_http_methods(["POST"])
+def api_node_reading_delete(request, reading_id):
+    """POST /api/readings/<reading_id>/delete/ — delete a single reading."""
+    if not request.user.is_admin_user():
+        return JsonResponse({'success': False, 'error': 'Admin only'}, status=403)
+    try:
+        reading = get_object_or_404(SensorReading, id=reading_id)
+        reading.delete()
+        return JsonResponse({'success': True, 'message': 'Reading deleted.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@login_required(login_url='app:login')
+@require_http_methods(["GET"])
+def api_node_readings_export(request, node_id):
+    """GET /api/nodes/<node_id>/readings/export/ — export all readings as CSV."""
+    if not request.user.is_admin_user():
+        return JsonResponse({'success': False, 'error': 'Admin only'}, status=403)
+    try:
+        node = get_object_or_404(SensorNode, id=node_id)
+        readings = node.readings.order_by('-timestamp')
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="{node.name}_readings.csv"'
+        writer = csv.writer(response)
+        writer.writerow(['Timestamp', 'AQI', 'AQI Level', 'PM1.0', 'PM2.5', 'PM10', 'Temperature', 'Humidity', 'Pressure'])
+        for r in readings:
+            writer.writerow([
+                r.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                r.aqi, r.aqi_level,
+                r.pm1_0, r.pm2_5, r.pm10,
+                r.temperature, r.humidity, r.pressure,
+            ])
+        return response
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 @login_required(login_url='app:login')
 def client_health(request):
@@ -3873,8 +3979,6 @@ def activate_user(request, uidb64, token):
 
 @login_required(login_url='app:login')
 @require_http_methods(["GET", "POST"])
-@login_required(login_url='app:login')
-@require_http_methods(["GET", "POST"])
 def force_password_change(request):
     """Force user to change password on first login."""
     user = request.user
@@ -4098,8 +4202,6 @@ def reset_password(request, uidb64, token):
 # ADMIN PASSWORD RESET ENDPOINTS
 # ============================================================================
 
-@login_required(login_url='app:login')
-@require_http_methods(["POST"])
 @login_required(login_url='app:login')
 @require_http_methods(["POST"])
 def api_users_reset_password(request, user_id):

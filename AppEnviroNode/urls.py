@@ -68,6 +68,9 @@ urlpatterns = [
     path('api/nodes/24h/', views.api_nodes_24h, name='api_nodes_24h'),
     path('api/nodes/', views.api_nodes_list, name='api_nodes_list'),
     path('api/nodes/<int:node_id>/detail/', views.api_node_detail, name='api_node_detail'),
+    path('api/nodes/<int:node_id>/readings/', views.api_node_readings, name='api_node_readings'),
+    path('api/nodes/<int:node_id>/readings/export/', views.api_node_readings_export, name='api_node_readings_export'),
+    path('api/readings/<int:reading_id>/delete/', views.api_node_reading_delete, name='api_node_reading_delete'),
 
     # API ENDPOINTS for User Management
     path('api/auth/me/', views.api_auth_me, name='api_auth_me'),
