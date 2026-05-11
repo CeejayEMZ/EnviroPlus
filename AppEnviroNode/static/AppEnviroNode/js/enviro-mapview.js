@@ -29,7 +29,9 @@
     API_TIMEOUT: 8000,
     MAX_NODES: 200,        // FIX #4: Hard limit to prevent DOM bloat
     MAX_AQI_HISTORY: 24,   // FIX #5: Limit chart points
-    VIEWPORT_FETCH_DEBOUNCE: 300  // FIX #7: Debounce viewport-based fetches
+    VIEWPORT_FETCH_DEBOUNCE: 300,  // FIX #7: Debounce viewport-based fetches
+    MARKER_SIZE: 52,       // Increased circular marker size (was 30) - circle container only
+    MARKER_FONT_SIZE: 11    // Font size remains original - do NOT increase text size
   };
 
   // === STATE ===
@@ -51,7 +53,8 @@
     viewportFetchTimer: null,  // FIX #7: Viewport fetch debounce
     hasAutoCentered: false,
     fetchController: null,
-    lastViewportBounds: null   // FIX #7: Track viewport to avoid redundant fetches
+    lastViewportBounds: null,   // FIX #7: Track viewport to avoid redundant fetches
+    filterChangeTimer: null     // Debounce timer for filter changes
   };
 
   // === UTILITY: Safe data extraction ===
@@ -84,6 +87,77 @@
 
   // === COLOR & CLASSIFICATION ===
   const Colors = {
+    // FIX: Direct color retrieval for marker background - always based on AQI or selected layer
+    getMarkerColor: (nodeWrapper, layer = 'aqi', isOffline = false) => {
+      // FIX #3: Offline nodes always render gray
+      if (isOffline) {
+        return '#7f8c8d';
+      }
+      
+      const pollutants = SafeData.getPollutants(nodeWrapper);
+      let value = null;
+      
+      // Get value based on selected layer
+      if (layer === 'aqi') {
+        value = pollutants.aqi;
+      } else if (layer === 'pm25') {
+        value = pollutants.pm25;
+      } else if (layer === 'pm10') {
+        value = pollutants.pm10;
+      } else if (layer === 'temperature') {
+        value = pollutants.temperature;
+      }
+      
+      // FIX: If value is null/undefined, use aqi as fallback
+      if (value === null || value === undefined) {
+        value = pollutants.aqi;
+      }
+      
+      // FIX: If still no value, use default moderate color
+      if (value === null || value === undefined) {
+        return '#f59e0b';  // Default moderate/warning color
+      }
+      
+      // AQI-based coloring (primary logic)
+      if (layer === 'aqi') {
+        if (value <= 50) return '#10b981';  // Good - green
+        if (value <= 100) return '#f59e0b'; // Moderate - yellow/orange
+        if (value <= 150) return '#f97316'; // Unhealthy for sensitive - orange
+        if (value <= 200) return '#ef4444'; // Unhealthy - red
+        if (value <= 300) return '#c0392b'; // Very unhealthy - dark red
+        return '#7f1d1d';                    // Hazardous - maroon
+      }
+      
+      // PM2.5 thresholds
+      if (layer === 'pm25') {
+        if (value <= 12) return '#10b981';
+        if (value <= 35) return '#f59e0b';
+        if (value <= 55) return '#f97316';
+        if (value <= 150) return '#ef4444';
+        return '#7f1d1d';
+      }
+      
+      // PM10 thresholds
+      if (layer === 'pm10') {
+        if (value <= 54) return '#10b981';
+        if (value <= 154) return '#f59e0b';
+        if (value <= 254) return '#f97316';
+        if (value <= 354) return '#ef4444';
+        return '#7f1d1d';
+      }
+      
+      // Temperature thresholds
+      if (layer === 'temperature') {
+        if (value < 25) return '#10b981';
+        if (value <= 30) return '#f59e0b';
+        if (value <= 35) return '#f97316';
+        if (value <= 40) return '#ef4444';
+        return '#7f1d1d';
+      }
+      
+      return '#95a5a6'; // fallback gray
+    },
+
     getColorForValue: (value, layer = 'aqi', isOffline = false) => {
       // FIX: Offline nodes always render gray
       if (isOffline || value === null || value === undefined) {
@@ -131,7 +205,18 @@
       return 'cmapv-critical';
     },
 
-    getNodeStatusClass: (nodeStatus) => {
+    // FIX: This method now returns the AQI-based color class for consistency
+    getNodeStatusClass: (nodeStatus, aqi = null) => {
+      // If we have an AQI value, use AQI-based classification first
+      if (aqi !== null && aqi !== undefined) {
+        if (aqi <= 50) return 'cmapv-good';
+        if (aqi <= 100) return 'cmapv-warning';
+        if (aqi <= 150) return 'cmapv-unhealthy-sensitive';
+        if (aqi <= 200) return 'cmapv-unhealthy';
+        return 'cmapv-critical';
+      }
+      
+      // Fallback to status-based classification if no AQI
       if (nodeStatus === 'active') return 'cmapv-good';
       if (nodeStatus === 'inactive') return 'cmapv-inactive';
       if (nodeStatus === 'rogue') return 'cmapv-critical';
@@ -269,13 +354,15 @@
 
   // === MARKER RENDERING ===
   // OPTIMIZATION: Simplified marker HTML - removes tooltip card (shown in drilldown panel instead)
-  function buildMarkerHTML(node, nodeData, pollutants, latestReading, aqi) {
+  // NOTE: Font size remains original (11px) - only the circle container is enlarged
+  // FIX #3: Marker color is now always determined by AQI value using getMarkerColor()
+  function buildMarkerHTML(nodeWrapper, nodeData, pollutants, latestReading, aqi) {
     // FIX: Handle offline nodes with gray color and "N/A" display
     const isOffline = SafeData.isOffline(latestReading);
     const aqiValue = !isOffline && aqi !== null && aqi !== undefined ? Math.round(aqi) : 'N/A';
-    const aqlClass = Colors.getAQIClass(aqi);
     // OPTIMIZATION: Ultra-lightweight marker showing only AQI number
-    return `<span style="font-weight:800;font-size:11px;line-height:1;">${aqiValue}</span>`;
+    // Font size stays at original 11px - do NOT increase
+    return `<span style="font-weight:800;font-size:${CONFIG.MARKER_FONT_SIZE}px;line-height:1;">${aqiValue}</span>`;
   }
 
   // OPTIMIZATION: Debounced marker rendering (150ms throttle)
@@ -289,20 +376,53 @@
     }, 150);
   }
 
+  // FIX: Filter change handler with proper debouncing and state sync
+  function onFilterChange() {
+    // Clear any previous filter debounce timer
+    if (STATE.filterChangeTimer) {
+      clearTimeout(STATE.filterChangeTimer);
+    }
+    
+    // Debounce filter changes to prevent rapid re-renders
+    STATE.filterChangeTimer = setTimeout(() => {
+      console.log('[MapView] Filter changed, applying updates...');
+      // Force complete re-evaluation of marker visibility
+      // Clear the viewport bounds cache to force re-check of all markers
+      if (STATE.map) {
+        const bounds = STATE.map.getBounds();
+        STATE.lastViewportBounds = null;
+        // Re-check bounds to trigger proper filtering
+        setTimeout(() => {
+          if (STATE.map) {
+            STATE.map.invalidateSize();
+          }
+        }, 10);
+      }
+      // Re-render markers with new filter settings
+      renderMarkers();
+      STATE.filterChangeTimer = null;
+    }, 50);
+  }
+
   function renderMarkers() {
     try {
-      // OPTIMIZATION: Reuse layer group instead of recreate
+      // Ensure marker layer group exists
       if (!STATE.markerLayerGroup) {
-        STATE.markerLayerGroup = L.markerClusterGroup(); // Use clustering instead of featureGroup
+        STATE.markerLayerGroup = L.markerClusterGroup({
+          maxClusterRadius: 50,
+          disableClusteringAtZoom: 16,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: false,
+          zoomToBoundsOnClick: true
+        });
         STATE.markerLayerGroup.addTo(STATE.map);
       }
-      // NOTE: Do NOT clearLayers() - instead use differential updates below
-
-      // FIX #3: Implement actual viewport bounds checking
+      
+      // Get current map bounds for viewport filtering
       const bounds = STATE.map.getBounds();
       
+      // Filter nodes based on viewport AND status visibility toggles
       const nodesToRender = STATE.allNodes.filter(nodeWrapper => {
-        // FIX #4: Validate node structure - defensive safeguards
         const nodeData = SafeData.getNode(nodeWrapper);
         if (!nodeData || typeof nodeData !== 'object') return false;
 
@@ -327,9 +447,10 @@
 
       console.log(`[MapView] Rendering ${nodesToRender.length} markers (filtered from ${STATE.allNodes.length})`);
 
-      // OPTIMIZATION: Track which nodes should be rendered
+      // Track which nodes should be rendered after filtering
       const nodesToRenderIds = new Set();
 
+      // First pass: Create or update markers for nodes that should be visible
       nodesToRender.forEach((nodeWrapper) => {
         try {
           const nodeData = SafeData.getNode(nodeWrapper);
@@ -341,58 +462,63 @@
           const latestReading = SafeData.getLatestReading(nodeWrapper);
           const aqi = pollutants[STATE.currentLayer] ?? pollutants.aqi ?? null;
           const isOffline = SafeData.isOffline(latestReading);
-
-          // OPTIMIZATION: Check if marker already exists - if yes, update only if needed
+          
+          // FIX #3: Get marker color directly from AQI value - THIS IS THE CRITICAL FIX
+          // Always use the AQI-based color for the marker background
+          const markerColor = Colors.getMarkerColor(nodeWrapper, STATE.currentLayer, isOffline);
+          
+          // Build CSS class string (for status pill and additional styling)
+          const aqiClass = Colors.getAQIClass(aqi);
+          const offlineClass = isOffline ? 'cmapv-offline' : '';
+          const selected = STATE.selectedNodeId === nodeId ? 'cmapv-selected' : '';
+          
+          // IMPORTANT FIX: Use inline style for background color to guarantee it applies
+          // This bypasses any CSS class conflicts that might prevent color from showing
+          const markerHtmlContent = buildMarkerHTML(nodeWrapper, nodeData, pollutants, latestReading, aqi);
+          
+          // Check if marker already exists
           let marker = STATE.markersByNodeId.get(nodeId);
           
           if (marker) {
-            // Marker exists - only update if value/state changed (differential update)
+            // Marker exists - check if it's currently in the layer group
+            if (!STATE.markerLayerGroup.hasLayer(marker)) {
+              // Marker was removed but should be visible - re-add it
+              STATE.markerLayerGroup.addLayer(marker);
+            }
+            
+            // Update marker appearance if value changed or color needs refresh
             const oldAqi = marker._aqi_value;
             const oldLayer = marker._current_layer;
+            const oldColor = marker._backgroundColor;
             
-            if (oldAqi !== aqi || oldLayer !== STATE.currentLayer) {
-              // Value changed - update icon
-              const markerHtml = buildMarkerHTML(nodeWrapper, nodeData, pollutants, latestReading, aqi);
-              const aqiClass = Colors.getAQIClass(aqi);
-              const offlineClass = isOffline ? 'cmapv-offline' : '';
-              const selected = STATE.selectedNodeId === nodeId ? 'cmapv-selected' : '';
-              const baseClass = isOffline ? 'cmapv-warning' : Colors.getNodeStatusClass(nodeData.status || 'unknown');
-              const markerClass = baseClass + ' ' + aqiClass + ' ' + offlineClass;
-
+            if (oldAqi !== aqi || oldLayer !== STATE.currentLayer || oldColor !== markerColor) {
+              // Value changed - update icon with larger circle size but same font
+              // Use inline style for background to ensure color applies
               const newIcon = L.divIcon({
-                html: `<div class="cmapv-marker ${markerClass} ${selected}">${markerHtml}</div>`,
+                html: `<div class="cmapv-marker ${offlineClass} ${selected}" style="background-color: ${markerColor} !important; border-color: white;">${markerHtmlContent}</div>`,
                 className: '',
-                iconSize: [30, 30],
-                popupAnchor: [0, -15]
+                iconSize: [CONFIG.MARKER_SIZE, CONFIG.MARKER_SIZE],
+                popupAnchor: [0, -CONFIG.MARKER_SIZE/2]
               });
               
               marker.setIcon(newIcon);
               marker._aqi_value = aqi;
               marker._current_layer = STATE.currentLayer;
-            }
-            
-            // Ensure marker is in layer group (idempotent operation)
-            if (!marker._layerGroup || marker._layerGroup !== STATE.markerLayerGroup) {
-              STATE.markerLayerGroup.addLayer(marker);
-              marker._layerGroup = STATE.markerLayerGroup;
+              marker._backgroundColor = markerColor;
             }
           } else {
-            // Marker doesn't exist - create new one
-            const markerHtml = buildMarkerHTML(nodeWrapper, nodeData, pollutants, latestReading, aqi);
-            const aqiClass = Colors.getAQIClass(aqi);
-            const offlineClass = isOffline ? 'cmapv-offline' : '';
-            const selected = STATE.selectedNodeId === nodeId ? 'cmapv-selected' : '';
-            const baseClass = isOffline ? 'cmapv-warning' : Colors.getNodeStatusClass(nodeData.status || 'unknown');
-            const markerClass = baseClass + ' ' + aqiClass + ' ' + offlineClass;
+            // Marker doesn't exist - create new one with larger circle size
+            // Use inline style for background to guarantee color applies
+            const newIcon = L.divIcon({
+              html: `<div class="cmapv-marker ${offlineClass} ${selected}" style="background-color: ${markerColor} !important; border-color: white;">${markerHtmlContent}</div>`,
+              className: '',
+              iconSize: [CONFIG.MARKER_SIZE, CONFIG.MARKER_SIZE],
+              popupAnchor: [0, -CONFIG.MARKER_SIZE/2]
+            });
 
-            // OPTIMIZATION: Create lightweight marker with simple icon
+            // Create marker with increased circle size (container only)
             marker = L.marker(coords, {
-              icon: L.divIcon({
-                html: `<div class="cmapv-marker ${markerClass} ${selected}">${markerHtml}</div>`,
-                className: '',
-                iconSize: [30, 30],
-                popupAnchor: [0, -15]
-              })
+              icon: newIcon
             });
 
             // Attach metadata for future updates
@@ -400,6 +526,7 @@
             marker.nodeId = nodeId;
             marker._aqi_value = aqi;
             marker._current_layer = STATE.currentLayer;
+            marker._backgroundColor = markerColor;
             marker._layerGroup = STATE.markerLayerGroup;
             
             marker.on('click', () => selectNode(nodeId));
@@ -414,15 +541,17 @@
         }
       });
 
-      // OPTIMIZATION: Remove markers that are no longer in viewport/visible
+      // Second pass: Remove markers that are no longer visible (filtered out or out of viewport)
       for (const [nodeId, marker] of STATE.markersByNodeId.entries()) {
         if (!nodesToRenderIds.has(nodeId)) {
-          // This node should not be rendered - remove from layer group
-          STATE.markerLayerGroup.removeLayer(marker);
+          // This node should not be rendered - remove from layer group if present
+          if (STATE.markerLayerGroup.hasLayer(marker)) {
+            STATE.markerLayerGroup.removeLayer(marker);
+          }
         }
       }
 
-      // OPTIMIZATION: Auto-recenter on first successful render
+      // Auto-recenter on first successful render if no nodes were rendered yet
       if (!STATE.hasAutoCentered && nodesToRender.length > 0) {
         try {
           if (nodesToRender.length === 1) {
@@ -430,8 +559,12 @@
             if (coords) {
               STATE.map.setView(coords, 16);
             }
-          } else {
-            STATE.markerLayerGroup.getBounds && STATE.map.fitBounds(STATE.markerLayerGroup.getBounds(), { padding: [50, 50] });
+          } else if (STATE.markerLayerGroup.getLayers().length > 0) {
+            // Only fit bounds if we have visible markers
+            const bounds = STATE.markerLayerGroup.getBounds();
+            if (bounds.isValid()) {
+              STATE.map.fitBounds(bounds, { padding: [50, 50] });
+            }
           }
           STATE.hasAutoCentered = true;
         } catch (e) {
@@ -439,10 +572,10 @@
         }
       }
 
-      // Show fallback if no nodes
-      if (nodesToRender.length === 0) {
-        console.warn('[MapView] No markers to render in current view.');
-        showNoDataFallback();
+      // REMOVED: The "No nodes match current filters" hint message has been removed
+      // Clear any error banners when markers are present
+      if (nodesToRender.length > 0) {
+        clearErrorBanners();
       }
 
     } catch (e) {
@@ -451,9 +584,36 @@
     }
   }
 
+  // Helper to clear error banners
+  function clearErrorBanners() {
+    const mapContainer = document.getElementById(CONFIG.MAP_CONTAINER_ID);
+    if (mapContainer) {
+      const banners = mapContainer.querySelectorAll('.cmapv-error-banner');
+      banners.forEach(banner => banner.remove());
+      
+      // Also remove any no-data banners that might exist
+      const noDataBanners = mapContainer.querySelectorAll('.cmapv-no-data-banner');
+      noDataBanners.forEach(banner => banner.remove());
+    }
+  }
+
   // OPTIMIZATION: Selection doesn't trigger full marker re-render, only panel update
   function selectNode(nodeId) {
     STATE.selectedNodeId = nodeId;
+    // Update selected state on markers
+    for (const [id, marker] of STATE.markersByNodeId.entries()) {
+      if (marker && marker._icon) {
+        const isSelected = (id === nodeId);
+        const div = marker._icon.querySelector('.cmapv-marker');
+        if (div) {
+          if (isSelected) {
+            div.classList.add('cmapv-selected');
+          } else {
+            div.classList.remove('cmapv-selected');
+          }
+        }
+      }
+    }
     renderDrilldownPanel();
   }
 
@@ -507,7 +667,7 @@
       }
       const chartHTML = renderAQIChart(aqiHistory);
 
-      const statusClass = Colors.getNodeStatusClass(nodeStatus);
+      const statusClass = Colors.getNodeStatusClass(nodeStatus, aqi);
       const aqiClass = Colors.getAQIClass(aqi);
 
       // AQI label logic
@@ -696,6 +856,8 @@
         };
         initializeData();
         console.log('[MapView] Total unique nodes after fetch:', STATE.allNodes.length);
+        // Reset viewport bounds cache to force re-evaluation
+        STATE.lastViewportBounds = null;
         scheduleRenderMarkers();
         renderDrilldownPanel();
         console.log('[MapView] Data refreshed for timeframe:', timeframe);
@@ -797,7 +959,7 @@
         });
       }
 
-      // NEW: Node status visibility filters
+      // NEW: Node status visibility filters - with improved handling
       const bindToggle = (id, key) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -805,10 +967,12 @@
         // Default: all statuses visible (no cmapv-off class)
         el.classList.remove('cmapv-off');
         
-        el.addEventListener('click', function() {
+        el.addEventListener('click', function(e) {
+          e.stopPropagation();
           STATE.overlays[key] = !STATE.overlays[key];
           this.classList.toggle('cmapv-off', !STATE.overlays[key]);
-          scheduleRenderMarkers();
+          // Use the centralized filter change handler
+          onFilterChange();
           console.log(`[MapView] ${key} visibility:`, STATE.overlays[key] ? 'ON' : 'OFF');
         });
       };
@@ -849,13 +1013,6 @@
   }
 
   // === FALLBACK UI ===
-  function showNoDataFallback() {
-    const mapContainer = document.getElementById(CONFIG.MAP_CONTAINER_ID);
-    if (mapContainer) {
-      mapContainer.style.backgroundColor = '#f5f5f5';
-    }
-  }
-
   function showErrorFallback(message) {
     const mapContainer = document.getElementById(CONFIG.MAP_CONTAINER_ID);
     if (mapContainer && !mapContainer.querySelector('.cmapv-error-banner')) {
