@@ -260,6 +260,35 @@ const Charts = {
       else if (sum < 100) otherPct += (100 - sum);
     }
 
+    // UPDATED: Use dynamic colors based on AQI quality level
+    let pm25Color, pm10Color, otherColor;
+    if (aqi <= 50) {
+      // Good - use green shades
+      pm25Color = '#10b981';
+      pm10Color = '#6ee7b7';
+      otherColor = '#a7f3d0';
+    } else if (aqi <= 100) {
+      // Moderate - use yellow/orange shades
+      pm25Color = '#f97316';
+      pm10Color = '#fb923c';
+      otherColor = '#fdba74';
+    } else if (aqi <= 150) {
+      // Unhealthy for Sensitive - use red/orange shades
+      pm25Color = '#ef4444';
+      pm10Color = '#f87171';
+      otherColor = '#fca5a5';
+    } else if (aqi <= 200) {
+      // Unhealthy - use dark red shades
+      pm25Color = '#dc2626';
+      pm10Color = '#991b1b';
+      otherColor = '#7f1d1d';
+    } else {
+      // Very Unhealthy/Hazardous - use darkest reds
+      pm25Color = '#7f1d1d';
+      pm10Color = '#600101';
+      otherColor = '#450101';
+    }
+
     if (AnalyticsState.charts.aqiDonut) {
       AnalyticsState.charts.aqiDonut.destroy();
     }
@@ -270,7 +299,7 @@ const Charts = {
         labels: ['PM2.5', 'PM10', 'Other'],
         datasets: [{
           data: [pm25Pct, pm10Pct, otherPct],
-          backgroundColor: ['#991b1b', '#f97316', '#10b981'],
+          backgroundColor: [pm25Color, pm10Color, otherColor],
           borderWidth: 0,
           cutout: '80%'
         }]
@@ -297,7 +326,7 @@ const Charts = {
       }
     });
 
-    console.log('[Analytics] AQI Donut initialized with composition:', { aqi, pm25Pct, pm10Pct, otherPct });
+    console.log('[Analytics] AQI Donut initialized with composition:', { aqi, pm25Pct, pm10Pct, otherPct, colors: { pm25Color, pm10Color, otherColor } });
   },
   initCompDonut() {
     const canvas = document.getElementById('compDonutChart');
@@ -862,9 +891,34 @@ const DOM = {
 
     // Update existing chart data instead of destroying/recreating
     if (AnalyticsState.charts.aqiDonut && AnalyticsState.charts.aqiDonut.data) {
+      // UPDATED: Also update colors based on AQI level
+      let pm25Color, pm10Color, otherColor;
+      if (aqi <= 50) {
+        pm25Color = '#10b981';
+        pm10Color = '#6ee7b7';
+        otherColor = '#a7f3d0';
+      } else if (aqi <= 100) {
+        pm25Color = '#f97316';
+        pm10Color = '#fb923c';
+        otherColor = '#fdba74';
+      } else if (aqi <= 150) {
+        pm25Color = '#ef4444';
+        pm10Color = '#f87171';
+        otherColor = '#fca5a5';
+      } else if (aqi <= 200) {
+        pm25Color = '#dc2626';
+        pm10Color = '#991b1b';
+        otherColor = '#7f1d1d';
+      } else {
+        pm25Color = '#7f1d1d';
+        pm10Color = '#600101';
+        otherColor = '#450101';
+      }
+      
       AnalyticsState.charts.aqiDonut.data.datasets[0].data = [pm25Pct, pm10Pct, otherPct];
+      AnalyticsState.charts.aqiDonut.data.datasets[0].backgroundColor = [pm25Color, pm10Color, otherColor];
       AnalyticsState.charts.aqiDonut.update('none'); // Update without animation
-      console.log('[Analytics] AQI Donut chart data updated (no recreate):', { aqi, pm25Pct, pm10Pct, otherPct });
+      console.log('[Analytics] AQI Donut chart data updated (no recreate):', { aqi, pm25Pct, pm10Pct, otherPct, colors: { pm25Color, pm10Color, otherColor } });
       return;
     }
 
@@ -873,13 +927,37 @@ const DOM = {
       AnalyticsState.charts.aqiDonut.destroy();
     }
 
+    // Use dynamic colors based on AQI quality level
+    let pm25Color, pm10Color, otherColor;
+    if (aqi <= 50) {
+      pm25Color = '#10b981';
+      pm10Color = '#6ee7b7';
+      otherColor = '#a7f3d0';
+    } else if (aqi <= 100) {
+      pm25Color = '#f97316';
+      pm10Color = '#fb923c';
+      otherColor = '#fdba74';
+    } else if (aqi <= 150) {
+      pm25Color = '#ef4444';
+      pm10Color = '#f87171';
+      otherColor = '#fca5a5';
+    } else if (aqi <= 200) {
+      pm25Color = '#dc2626';
+      pm10Color = '#991b1b';
+      otherColor = '#7f1d1d';
+    } else {
+      pm25Color = '#7f1d1d';
+      pm10Color = '#600101';
+      otherColor = '#450101';
+    }
+
     AnalyticsState.charts.aqiDonut = new Chart(ctx, {
       type: 'doughnut',
       data: {
         labels: ['PM2.5', 'PM10', 'Other'],
         datasets: [{
           data: [pm25Pct, pm10Pct, otherPct],
-          backgroundColor: ['#991b1b', '#f97316', '#10b981'],
+          backgroundColor: [pm25Color, pm10Color, otherColor],
           borderWidth: 0,
           cutout: '80%'
         }]
@@ -916,7 +994,7 @@ const DOM = {
     const gasItems = [
       { id: 'pm25', label: 'PM2.5', value: data.pm2_5 || 0, unit: 'µg/m³', max: 100 },
       { id: 'pm10', label: 'PM10', value: data.pm10 || 0, unit: 'µg/m³', max: 150 },
-      { id: 'tvoc', label: 'TVOC', value: data.tvoc || 0, unit: 'ppb', max: 200 },
+      { id: 'gas_resistance', label: 'Gas Res', value: data.gas_resistance || 0, unit: 'kΩ', max: 200 },
       { id: 'temp', label: 'Temp', value: data.temperature || 0, unit: '°C', max: 50 }
     ];
 
@@ -1552,8 +1630,35 @@ const Utils = {
   },
 
   getPollutantColor(pollutant, value) {
-    const aqi = value; // Simplified - use value as proxy
-    return Utils.getAQIColor(aqi);
+    // Define health thresholds for each pollutant
+    switch(pollutant) {
+      case 'pm25':
+        // WHO guidelines: Good <12, Moderate 12-35, Unhealthy >35
+        if (value <= 12) return '#10b981'; // Good - green
+        if (value <= 35) return '#f97316'; // Moderate - orange
+        if (value <= 55) return '#ef4444'; // Unhealthy for sensitive - red
+        return '#7f1d1d'; // Hazardous - dark red
+      case 'pm10':
+        // WHO guidelines: Good <20, Moderate 20-50, Unhealthy >50
+        if (value <= 20) return '#10b981'; // Good - green
+        if (value <= 50) return '#f97316'; // Moderate - orange
+        if (value <= 100) return '#ef4444'; // Unhealthy for sensitive - red
+        return '#7f1d1d'; // Hazardous - dark red
+      case 'gas_resistance':
+        // Lower resistance = worse air quality (more volatile compounds)
+        // Higher resistance = better air quality
+        if (value >= 100) return '#10b981'; // Good - green
+        if (value >= 50) return '#f97316'; // Moderate - orange
+        if (value >= 20) return '#ef4444'; // Unhealthy for sensitive - red
+        return '#7f1d1d'; // Hazardous - dark red
+      case 'temp':
+        // Temperature: optimal around 20-25°C
+        if (value >= 18 && value <= 28) return '#10b981'; // Comfortable - green
+        if ((value > 28 && value <= 35) || (value >= 15 && value < 18)) return '#f97316'; // Warm/Cool - orange
+        return '#ef4444'; // Extreme - red
+      default:
+        return this.getAQIColor(value);
+    }
   },
 
   getMetricLabel(metric) {

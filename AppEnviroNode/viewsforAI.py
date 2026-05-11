@@ -1930,7 +1930,7 @@ def api_analytics_overview(request):
             pm25_avg=Avg('pm2_5'),
             pm10_avg=Avg('pm10'),
             temp_avg=Avg('temperature'),
-            tvoc_avg=Avg('gas_resistance'),  # Approximation
+            gas_res_avg=Avg('gas_resistance'),
         )
         
         current_aqi = agg['aqi_avg'] or 75
@@ -1966,7 +1966,7 @@ def api_analytics_overview(request):
             },
             'pm2_5': round(pm25_val, 1),
             'pm10': round(pm10_val, 1),
-            'tvoc': round(agg['tvoc_avg'] or 100, 1),
+            'gas_resistance': round(agg['gas_res_avg'] or 0, 1),
             'temperature': round(agg['temp_avg'] or 28, 1),
             'risk_stable': stable_pct,
             'risk_elevated': elevated_pct,

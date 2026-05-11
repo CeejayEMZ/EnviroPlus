@@ -51,7 +51,9 @@
     viewportFetchTimer: null,  // FIX #7: Viewport fetch debounce
     hasAutoCentered: false,
     fetchController: null,
-    lastViewportBounds: null   // FIX #7: Track viewport to avoid redundant fetches
+    lastViewportBounds: null,   // FIX #7: Track viewport to avoid redundant fetches
+    allowViewportFetch: false,   // FIX #8: Prevent viewport fetch during initial setup
+    skipNextViewportFetch: false // FIX #9: Skip the immediate post-autocenter viewport fetch
   };
 
   // === UTILITY: Safe data extraction ===
@@ -81,6 +83,11 @@
       return !latestReading || !latestReading.timestamp;
     }
   };
+
+  // === FIX #10: MARKER RECONCILIATION HELPER ===
+  function isMarkerRendered(marker) {
+    return marker && STATE.markerLayerGroup && STATE.markerLayerGroup.hasLayer(marker);
+  }
 
   // === COLOR & CLASSIFICATION ===
   const Colors = {
@@ -274,8 +281,8 @@
     const isOffline = SafeData.isOffline(latestReading);
     const aqiValue = !isOffline && aqi !== null && aqi !== undefined ? Math.round(aqi) : 'N/A';
     const aqlClass = Colors.getAQIClass(aqi);
-    // OPTIMIZATION: Ultra-lightweight marker showing only AQI number
-    return `<span style="font-weight:800;font-size:11px;line-height:1;">${aqiValue}</span>`;
+    // OPTIMIZATION: Ultra-lightweight marker showing only AQI number - larger font for new bigger markers
+    return `<span style="font-weight:800;font-size:12px;line-height:1;">${aqiValue}</span>`;
   }
 
   // OPTIMIZATION: Debounced marker rendering (150ms throttle)
@@ -311,8 +318,9 @@
         if (!coords) return false;
 
         // FIX #3: Only render markers inside current viewport bounds
+        // BUT: Skip bounds check on first render so auto-center can work
         const latlng = L.latLng(coords[0], coords[1]);
-        if (!bounds.contains(latlng)) {
+        if (STATE.hasAutoCentered && !bounds.contains(latlng)) {
           return false;  // Outside viewport
         }
 
@@ -326,6 +334,14 @@
       });
 
       console.log(`[MapView] Rendering ${nodesToRender.length} markers (filtered from ${STATE.allNodes.length})`);
+
+      // FIX #10: Build source of truth for currently mounted markers
+      const currentlyRenderedIds = new Set();
+      STATE.markerLayerGroup.eachLayer((layer) => {
+        if (layer.nodeId) {
+          currentlyRenderedIds.add(layer.nodeId);
+        }
+      });
 
       // OPTIMIZATION: Track which nodes should be rendered
       const nodesToRenderIds = new Set();
@@ -362,8 +378,8 @@
               const newIcon = L.divIcon({
                 html: `<div class="cmapv-marker ${markerClass} ${selected}">${markerHtml}</div>`,
                 className: '',
-                iconSize: [30, 30],
-                popupAnchor: [0, -15]
+                iconSize: [40, 40],
+                popupAnchor: [0, -20]
               });
               
               marker.setIcon(newIcon);
@@ -371,10 +387,10 @@
               marker._current_layer = STATE.currentLayer;
             }
             
-            // Ensure marker is in layer group (idempotent operation)
-            if (!marker._layerGroup || marker._layerGroup !== STATE.markerLayerGroup) {
+            // FIX #10: Use actual mounted-state check instead of custom property
+            if (!isMarkerRendered(marker)) {
               STATE.markerLayerGroup.addLayer(marker);
-              marker._layerGroup = STATE.markerLayerGroup;
+              console.log('[MapView] Marker cache reused:', nodeId);
             }
           } else {
             // Marker doesn't exist - create new one
@@ -390,8 +406,8 @@
               icon: L.divIcon({
                 html: `<div class="cmapv-marker ${markerClass} ${selected}">${markerHtml}</div>`,
                 className: '',
-                iconSize: [30, 30],
-                popupAnchor: [0, -15]
+                iconSize: [40, 40],
+                popupAnchor: [0, -20]
               })
             });
 
@@ -400,7 +416,6 @@
             marker.nodeId = nodeId;
             marker._aqi_value = aqi;
             marker._current_layer = STATE.currentLayer;
-            marker._layerGroup = STATE.markerLayerGroup;
             
             marker.on('click', () => selectNode(nodeId));
 
@@ -408,17 +423,35 @@
             STATE.markersByNodeId.set(nodeId, marker);
             STATE.nodeDataByNodeId.set(nodeId, nodeWrapper);
             STATE.leafletMarkers.push(marker);
+            console.log('[MapView] Marker mounted:', nodeId);
           }
         } catch (e) {
           console.warn('[MapView] Error rendering individual marker:', e);
         }
       });
 
-      // OPTIMIZATION: Remove markers that are no longer in viewport/visible
+      // FIX #10: Reconciliation - sync cache with actual render state
+      // Phase 1: Remove markers that should not be visible
       for (const [nodeId, marker] of STATE.markersByNodeId.entries()) {
-        if (!nodesToRenderIds.has(nodeId)) {
-          // This node should not be rendered - remove from layer group
+        const shouldRender = nodesToRenderIds.has(nodeId);
+        const isCurrentlyRendered = currentlyRenderedIds.has(nodeId);
+        
+        // If should NOT render but IS rendered - remove it
+        if (!shouldRender && isCurrentlyRendered) {
           STATE.markerLayerGroup.removeLayer(marker);
+          console.log('[MapView] Marker unmounted:', nodeId);
+        }
+      }
+      
+      // Phase 2: Re-add markers that should be visible but aren't (reconciliation)
+      for (const nodeId of nodesToRenderIds) {
+        if (!currentlyRenderedIds.has(nodeId)) {
+          const marker = STATE.markersByNodeId.get(nodeId);
+          if (marker) {
+            // Marker exists in cache but not in layer group - re-add it
+            STATE.markerLayerGroup.addLayer(marker);
+            console.log('[MapView] Marker cache reconciled:', nodeId);
+          }
         }
       }
 
@@ -434,8 +467,15 @@
             STATE.markerLayerGroup.getBounds && STATE.map.fitBounds(STATE.markerLayerGroup.getBounds(), { padding: [50, 50] });
           }
           STATE.hasAutoCentered = true;
+          // FIX #9: Mark to skip the next viewport fetch (triggered by fitBounds moveend event)
+          STATE.skipNextViewportFetch = true;
+          // FIX #8: Enable viewport fetch after auto-center is complete
+          STATE.allowViewportFetch = true;
         } catch (e) {
           console.warn('[MapView] Auto-center failed:', e);
+          // Still enable viewport fetch even if auto-center fails
+          STATE.allowViewportFetch = true;
+          STATE.skipNextViewportFetch = true;
         }
       }
 
@@ -451,9 +491,38 @@
     }
   }
 
-  // OPTIMIZATION: Selection doesn't trigger full marker re-render, only panel update
+  // OPTIMIZATION: Selection updates both panel and marker styling
   function selectNode(nodeId) {
-    STATE.selectedNodeId = nodeId;
+    // If same node clicked again, deselect it
+    if (STATE.selectedNodeId === nodeId) {
+      STATE.selectedNodeId = null;
+    } else {
+      STATE.selectedNodeId = nodeId;
+    }
+    
+    // Update all marker icons to reflect selection state
+    STATE.leafletMarkers.forEach(marker => {
+      if (marker.nodeId === STATE.selectedNodeId) {
+        // This marker should be selected - add visual feedback
+        const markerEl = marker.getElement();
+        if (markerEl) {
+          const divEl = markerEl.querySelector('.cmapv-marker');
+          if (divEl) {
+            divEl.classList.add('cmapv-selected');
+          }
+        }
+      } else {
+        // This marker should not be selected - remove selection styling
+        const markerEl = marker.getElement();
+        if (markerEl) {
+          const divEl = markerEl.querySelector('.cmapv-marker');
+          if (divEl) {
+            divEl.classList.remove('cmapv-selected');
+          }
+        }
+      }
+    });
+    
     renderDrilldownPanel();
   }
 
@@ -716,14 +785,23 @@
   // FIX #7: NEW FEATURE - Viewport-based API fetching
   async function fetchNodesInViewport() {
     "Fetch nodes only within current map viewport using bbox parameter."
-    if (!STATE.map || STATE.isFetching) return;
+    // FIX #8: Don't fetch by viewport until after auto-center has completed
+    if (!STATE.map || STATE.isFetching || !STATE.allowViewportFetch) return;
+    
+    // FIX #9: Skip the FIRST viewport fetch after auto-center to prevent data loss
+    if (STATE.skipNextViewportFetch) {
+      STATE.skipNextViewportFetch = false;
+      console.log('[MapView] Skipping post-autocenter viewport fetch');
+      // Capture bounds now that auto-center is fully complete
+      STATE.lastViewportBounds = STATE.map.getBounds();
+      return;
+    }
     
     try {
       const bounds = STATE.map.getBounds();
       
-      // Check if bounds changed significantly (avoid redundant fetches)
-      if (STATE.lastViewportBounds && 
-          JSON.stringify(bounds) === JSON.stringify(STATE.lastViewportBounds)) {
+      // FIX #8: Use proper bounds comparison instead of JSON.stringify
+      if (STATE.lastViewportBounds && bounds.equals(STATE.lastViewportBounds)) {
         return;  // Same viewport, skip
       }
       
@@ -750,18 +828,55 @@
       
       const data = await response.json();
       
-      // FIX #1 & #4: Merge, deduplicate, and apply hard limit
-      if (data.active || data.inactive || data.unregistered || data.rogue) {
-        window.CMAPV_NODES = {
+      // FIX #9: Merge incoming viewport nodes with existing data instead of overwriting
+      const totalNodes = (Array.isArray(data.active) ? data.active.length : 0) +
+                         (Array.isArray(data.inactive) ? data.inactive.length : 0) +
+                         (Array.isArray(data.unregistered) ? data.unregistered.length : 0) +
+                         (Array.isArray(data.rogue) ? data.rogue.length : 0);
+      
+      if (totalNodes > 0) {
+        const incomingNodes = {
           active: Array.isArray(data.active) ? data.active : [],
           inactive: Array.isArray(data.inactive) ? data.inactive : [],
           unregistered: Array.isArray(data.unregistered) ? data.unregistered : [],
           rogue: Array.isArray(data.rogue) ? data.rogue : []
         };
+        
+        const currentNodes = window.CMAPV_NODES || { active: [], inactive: [], unregistered: [], rogue: [] };
+        
+        const incomingMap = new Map();
+        for (const category of ['active', 'inactive', 'unregistered', 'rogue']) {
+          incomingNodes[category].forEach(wrapper => {
+            const node = SafeData.getNode(wrapper);
+            if (node && node.id) {
+              incomingMap.set(node.id, { category, wrapper });
+            }
+          });
+        }
+        
+        const mergedNodes = { active: [], inactive: [], unregistered: [], rogue: [] };
+        for (const category of ['active', 'inactive', 'unregistered', 'rogue']) {
+          currentNodes[category].forEach(wrapper => {
+            const node = SafeData.getNode(wrapper);
+            if (node && node.id && incomingMap.has(node.id)) {
+              const incoming = incomingMap.get(node.id);
+              mergedNodes[incoming.category].push(incoming.wrapper);
+              incomingMap.delete(node.id);
+            } else {
+              mergedNodes[category].push(wrapper);
+            }
+          });
+        }
+        
+        incomingMap.forEach(({ category, wrapper }) => {
+          mergedNodes[category].push(wrapper);
+        });
+        
+        window.CMAPV_NODES = mergedNodes;
         initializeData();
         scheduleRenderMarkers();
-        console.log('[MapView] Viewport fetch complete:', STATE.allNodes.length, 'nodes');
       }
+      console.log('[MapView] Viewport fetch complete:', totalNodes, 'nodes');
     } catch (e) {
       if (e.name !== 'AbortError') {
         console.warn('[MapView] Viewport fetch failed:', e.message);
@@ -774,13 +889,9 @@
   // FIX #7: Debounced viewport fetch
   function scheduleViewportFetch() {
     "Debounce viewport-based API fetches to prevent over-querying."
-    if (STATE.viewportFetchTimer) {
-      clearTimeout(STATE.viewportFetchTimer);
-    }
-    STATE.viewportFetchTimer = setTimeout(() => {
-      fetchNodesInViewport();
-      STATE.viewportFetchTimer = null;
-    }, CONFIG.VIEWPORT_FETCH_DEBOUNCE);
+    // DISABLED: Viewport fetches return 0 nodes and break the working live data
+    // The live API already loads all nodes effectively
+    return;
   }
 
   // === CONTROL HANDLERS ===

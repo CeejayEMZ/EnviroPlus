@@ -1722,6 +1722,103 @@ def api_nodes_live(request):
 
 @csrf_exempt
 @require_http_methods(["GET"])
+def api_nodes_viewport(request):
+    """
+    GET /api/nodes/viewport/
+    
+    Returns nodes within a bounding box (viewport) for efficient map rendering.
+    
+    Query Parameters:
+    - bbox: Bounding box in "south,west,north,east" format (from Leaflet)
+    - timeframe: 'live' or '24h' (default: 'live')
+    """
+    try:
+        # Parse bbox parameter: format is "south,west,north,east"
+        bbox_str = request.GET.get('bbox', '')
+        timeframe = request.GET.get('timeframe', 'live')
+        
+        if not bbox_str:
+            return JsonResponse({'error': 'Missing bbox parameter'}, status=400)
+        
+        try:
+            parts = bbox_str.split(',')
+            if len(parts) != 4:
+                raise ValueError('Invalid bbox format')
+            south, west, north, east = map(float, parts)
+        except (ValueError, IndexError):
+            return JsonResponse({'error': 'Invalid bbox format. Expected: south,west,north,east'}, status=400)
+        
+        # Query nodes within bounding box
+        latest_reading = SensorReading.objects.filter(
+            node=models.OuterRef('pk')
+        ).order_by('-timestamp')
+        
+        nodes_queryset = SensorNode.objects.filter(
+            is_active=True,
+            latitude__gte=south,
+            latitude__lte=north,
+            longitude__gte=west,
+            longitude__lte=east
+        ).annotate(
+            latest_aqi=models.Subquery(latest_reading.values('aqi')[:1]),
+            latest_pm25=models.Subquery(latest_reading.values('pm2_5')[:1]),
+            latest_pm10=models.Subquery(latest_reading.values('pm10')[:1]),
+            latest_pm1_0=models.Subquery(latest_reading.values('pm1_0')[:1]),
+            latest_temp=models.Subquery(latest_reading.values('temperature')[:1]),
+            latest_humidity=models.Subquery(latest_reading.values('humidity')[:1]),
+            latest_timestamp=models.Subquery(latest_reading.values('timestamp')[:1]),
+        ).order_by('-latest_timestamp').values(
+            'id', 'name', 'location', 'latitude', 'longitude', 'status', 'mac_address',
+            'latest_aqi', 'latest_pm25', 'latest_pm10', 'latest_pm1_0', 'latest_temp', 
+            'latest_humidity', 'latest_timestamp'
+        )[:200]
+        
+        # Group by status
+        grouped = {'active': [], 'inactive': [], 'unregistered': [], 'rogue': []}
+        
+        for node in nodes_queryset:
+            status = node['status'] or 'unregistered'
+            
+            node_data = {
+                'node': {
+                    'id': node['id'],
+                    'name': node['name'],
+                    'location': node['location'] or 'Unknown',
+                    'latitude': float(node['latitude']) if node['latitude'] else None,
+                    'longitude': float(node['longitude']) if node['longitude'] else None,
+                    'mac_address': node['mac_address'],
+                    'status': status,
+                },
+                'latest_reading': {
+                    'aqi': node['latest_aqi'],
+                    'timestamp': node['latest_timestamp'].isoformat() if node['latest_timestamp'] else None,
+                },
+                'pollutants': {
+                    'aqi': node['latest_aqi'],
+                    'pm25': float(node['latest_pm25']) if node['latest_pm25'] is not None else None,
+                    'pm10': float(node['latest_pm10']) if node['latest_pm10'] is not None else None,
+                    'pm1_0': float(node['latest_pm1_0']) if node['latest_pm1_0'] is not None else None,
+                    'temperature': float(node['latest_temp']) if node['latest_temp'] is not None else None,
+                    'humidity': float(node['latest_humidity']) if node['latest_humidity'] is not None else None,
+                }
+            }
+            
+            if status in grouped:
+                grouped[status].append(node_data)
+        
+        return JsonResponse({
+            'active': grouped['active'],
+            'inactive': grouped['inactive'],
+            'unregistered': grouped['unregistered'],
+            'rogue': grouped['rogue']
+        }, status=200)
+    except Exception as e:
+        logger.error(f'[API NODES VIEWPORT] Error: {str(e)}')
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
 def api_nodes_24h(request):
     """
     GET /api/nodes/24h/
@@ -2617,7 +2714,7 @@ def api_analytics_overview(request):
         readings_qs = SensorReading.objects.filter(
             timestamp__gte=time_threshold,
             timestamp__lte=time_end
-        ).only('aqi', 'pm2_5', 'pm10', 'temperature')
+        ).only('aqi', 'pm2_5', 'pm10', 'temperature', 'gas_resistance')
         
         readings_qs = apply_analytics_filters(readings_qs, request)
         
@@ -2628,7 +2725,8 @@ def api_analytics_overview(request):
             aqi_min=Min('aqi'),
             pm25_avg=Avg('pm2_5'),
             pm10_avg=Avg('pm10'),
-            temp_avg=Avg('temperature')
+            temp_avg=Avg('temperature'),
+            gas_res_avg=Avg('gas_resistance')
         )
         
         current_aqi = agg['aqi_avg'] or 75
@@ -2665,6 +2763,7 @@ def api_analytics_overview(request):
             'pm2_5': round(pm25_val, 1),
             'pm10': round(pm10_val, 1),
             'temperature': round(agg['temp_avg'] or 28, 1),
+            'gas_resistance': round(agg['gas_res_avg'] or 0, 1),
             'risk_stable': stable_pct,
             'risk_elevated': elevated_pct,
             'risk_critical': critical_pct,

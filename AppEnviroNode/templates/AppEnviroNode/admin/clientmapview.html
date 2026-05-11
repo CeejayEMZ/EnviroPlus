@@ -404,12 +404,12 @@
 .cmapv-btn-danger { background: white; border: 1px solid #fca5a5; color: var(--color-unhealthy); }
 .cmapv-btn-danger:hover { background: #fef2f2; }
 
-/* MAP MARKERS (Left exactly the same for visuals, removed for brevity, retain your previous marker CSS here) */
-.cmapv-marker { position: absolute; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); transform: translate(-50%, -50%); cursor: pointer; z-index: 5; transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+/* MAP MARKERS - Increased size for better visibility and selection feedback */
+.cmapv-marker { position: absolute; width: 28px; height: 28px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.4); transform: translate(-50%, -50%); cursor: pointer; z-index: 5; transition: all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 10px; color: rgba(255,255,255,0.9); }
 .cmapv-marker.cmapv-offline { background-color: #7f8c8d !important; border-color: #95a5a6 !important; opacity: 0.7; }
 .cmapv-marker .cmapv-tt-card { visibility: hidden; opacity: 0; position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%) scale(0.9); width: 200px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: var(--shadow-lg); padding: 12px; transition: all 0.2s ease-out; z-index: 100; pointer-events: none; display: flex; flex-direction: column; gap: 8px; cursor: default; }
-.cmapv-marker:hover { transform: translate(-50%, -50%) scale(1.4); z-index: 20; }
-.cmapv-marker:hover .cmapv-tt-card { visibility: visible; opacity: 1; bottom: 28px; transform: translateX(-50%) scale(0.71); }
+.cmapv-marker:hover { transform: translate(-50%, -50%) scale(1.3); z-index: 20; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+.cmapv-marker:hover .cmapv-tt-card { visibility: visible; opacity: 1; bottom: 32px; transform: translateX(-50%) scale(0.71); }
 .cmapv-tt-header { display: flex; justify-content: space-between; font-weight: 800; font-size: 0.9rem; color: var(--text-main); border-bottom: 1px solid var(--border-color); padding-bottom: 6px; }
 .cmapv-tt-row { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); font-weight: 600;}
 .cmapv-tt-val { font-weight: 700; }
@@ -420,7 +420,8 @@
 .cmapv-marker.cmapv-warning { background-color: var(--color-moderate); }
 .cmapv-marker.cmapv-unhealthy { background-color: var(--color-unhealthy); }
 .cmapv-marker.cmapv-critical { background-color: var(--color-hazardous); border-color: #fca5a5; }
-.cmapv-marker.cmapv-selected { box-shadow: 0 0 0 4px rgba(0,0,0,0.15); border: 2px solid var(--text-main); z-index: 15; transform: translate(-50%, -50%) scale(1.2); }
+.cmapv-marker.cmapv-selected { box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.4), 0 4px 15px rgba(59, 130, 246, 0.6); border: 3px solid #2563eb; z-index: 25; transform: translate(-50%, -50%) scale(1.4) !important; background-color: var(--color-good) !important; }
+.cmapv-marker.cmapv-selected::after { content: '✓'; position: absolute; font-size: 14px; font-weight: 900; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.3); }
 .cmapv-alert-ring { position: absolute; width: 60px; height: 60px; border-radius: 50%; transform: translate(-50%, -50%); z-index: 4; pointer-events: none; }
 .cmapv-alert-ring.cmapv-critical { background-color: rgba(127, 29, 29, 0.25); animation: cmapv-pulse-ring-crit 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
 @keyframes cmapv-pulse-ring-crit { 0% { transform: translate(-50%, -50%) scale(0.4); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(2); opacity: 0; } }
