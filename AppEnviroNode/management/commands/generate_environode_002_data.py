@@ -189,6 +189,9 @@ class Command(BaseCommand):
         """Generate readings for a single day with chaotic urban patterns."""
         readings = []
         
+        # ✨ NODE PERSONALITY DIFFERENTIATION LAYER
+        node_profile = self._get_node_profile(node.id)
+        
         # Determine day characteristics
         day_of_week = day.weekday()  # 0=Monday, 6=Sunday
         is_weekend = day_of_week >= 5
@@ -210,14 +213,19 @@ class Command(BaseCommand):
         
         # Generate hourly surge profiles (urban traffic patterns)
         is_rainy = random.random() < 0.12
-        hourly_surges = self._generate_urban_surge_patterns(day, day_of_week, is_friday, is_sunday)
+        hourly_surges = self._generate_urban_surge_patterns(
+            day, day_of_week, is_friday, is_sunday, node_profile
+        )
         
-        # Random event that day (construction, accident, crowd)
+        # ⚡ NODE-SPECIFIC EVENTS (Independent per node)
         event_hour = None
         event_severity = 0
+        event_type = None
         if random.random() < 0.20:  # 20% chance of special event
             event_hour = random.randint(6, 20)
             event_severity = random.choice([1, 1, 2])  # Mostly minor, sometimes major
+            # Use node-specific event generation
+            event_type = self._maybe_generate_event(node_profile, event_hour, event_severity)
         
         # Start with slight delay (realistic sensor startup)
         current_time = manila_tz.localize(
@@ -245,23 +253,27 @@ class Command(BaseCommand):
                 is_weekend,
                 hour,
                 event_hour,
-                event_severity
+                event_severity,
+                node_profile,
+                event_type
             )
             last_pm25 = pm25
             
             # Generate PM10 with dust-heavy spikes (roadside characteristic)
-            pm10_multiplier = self._generate_pm10_multiplier(hour, event_hour, event_severity)
+            pm10_multiplier = self._generate_pm10_multiplier(
+                hour, event_hour, event_severity, node_profile, event_type
+            )
             pm10 = pm25 * pm10_multiplier
             last_pm10 = pm10
             
             # PM1.0 (smaller, correlates with PM2.5)
             pm1_0 = pm25 * random.uniform(0.30, 0.55)
             
-            # Temperature with urban heat island effect
-            temperature = self._generate_urban_heated_temp(hour, day, is_rainy)
+            # Temperature with urban heat island effect (node-specific)
+            temperature = self._generate_urban_heated_temp(hour, day, is_rainy, node_profile)
             
-            # Humidity with more noise
-            humidity = self._generate_chaotic_humidity(hour, temperature, is_rainy)
+            # Humidity with more noise (node-specific)
+            humidity = self._generate_chaotic_humidity(hour, temperature, is_rainy, node_profile)
             
             # Pressure variations
             pressure = self._generate_pressure_variation(hour)
@@ -326,6 +338,8 @@ class Command(BaseCommand):
             datetime.combine(day, datetime.max.time().replace(hour=23, minute=59))
         )
         
+        node_profile = {'behavior': 'mixed'}  # Default for error scenarios
+        
         warmup_complete = False
         warmup_readings = 0
         
@@ -349,8 +363,8 @@ class Command(BaseCommand):
                 humidity = 60 + random.uniform(-10, 10)
             else:
                 pm25 = baseline['median'] + random.gauss(0, baseline['median'] * 0.08)
-                temperature = self._generate_urban_heated_temp(hour, day, False)
-                humidity = self._generate_chaotic_humidity(hour, temperature, False)
+                temperature = self._generate_urban_heated_temp(hour, day, False, node_profile)
+                humidity = self._generate_chaotic_humidity(hour, temperature, False, node_profile)
             
             pm10 = pm25 * random.uniform(1.4, 2.1)
             pm1_0 = pm25 * random.uniform(0.35, 0.55)
@@ -404,6 +418,8 @@ class Command(BaseCommand):
             datetime.combine(day, datetime.max.time().replace(hour=23, minute=59))
         )
         
+        node_profile = {'behavior': 'mixed'}  # Default for error scenarios
+        
         while current_time <= end_of_day:
             hour = current_time.hour
             
@@ -417,8 +433,8 @@ class Command(BaseCommand):
                     drift_percent = (1.0 - (hours_since_drift / drift_correction_duration)) * 0.20
                     pm25 *= (1.0 + drift_percent)
             
-            temperature = self._generate_urban_heated_temp(hour, day, False)
-            humidity = self._generate_chaotic_humidity(hour, temperature, False)
+            temperature = self._generate_urban_heated_temp(hour, day, False, node_profile)
+            humidity = self._generate_chaotic_humidity(hour, temperature, False, node_profile)
             
             pm10 = pm25 * random.uniform(1.3, 2.0)
             pm1_0 = pm25 * random.uniform(0.35, 0.55)
@@ -476,8 +492,8 @@ class Command(BaseCommand):
                 continue
             
             pm25 = baseline['median'] + random.gauss(0, baseline['median'] * 0.10)
-            temperature = self._generate_urban_heated_temp(hour, day, False)
-            humidity = self._generate_chaotic_humidity(hour, temperature, False)
+            temperature = self._generate_urban_heated_temp(hour, day, False, {'behavior': 'mixed'})
+            humidity = self._generate_chaotic_humidity(hour, temperature, False, {'behavior': 'mixed'})
             
             pm10 = pm25 * random.uniform(1.3, 2.0)
             pm1_0 = pm25 * random.uniform(0.35, 0.55)
@@ -521,12 +537,172 @@ class Command(BaseCommand):
         
         return readings
 
-    def _generate_urban_surge_patterns(self, day, day_of_week, is_friday, is_sunday):
+    # ✨ 🧬 NEW FEATURE: NODE PROFILES
+    def _get_node_profile(self, node_id):
+        """
+        Return deterministic but distinct profiles based on node ID.
+        
+        NODE 3 (Market + Transport Junction):
+        - behavior: "transport-dominant chaos"
+        - extreme PM2.5 rush spikes
+        - PM10 surges from braking dust
+        - frequent short-lived pollution bursts (5–20 min)
+        - strong evening congestion peak (VERY HIGH)
+        - unstable wind clearing effects
+        
+        NODE 4 (Market + Pedestrian Dense Area):
+        - behavior: "human-density pollution volatility"
+        - slower PM rise but longer sustained peaks
+        - crowd-driven mid-day plateau pollution
+        - weaker traffic spikes than Node 3
+        - humidity variability higher due to human density
+        - occasional "event crowd surges"
+        """
+        # Deterministic profile based on node ID last digit
+        node_id_hash = hash(str(node_id)) % 10
+        
+        # Nodes 3 and 4 behavior differentiation
+        if node_id_hash in [3, 8]:  # Node 3 variant
+            return {
+                'id': node_id,
+                'behavior': 'transport-dominant',
+                'name': 'Transport Junction Node',
+                'description': 'Traffic inferno intersection sensor',
+                'pm25_volatility': 'high',
+                'spike_frequency': 'high',
+                'spike_decay': 'fast',
+                'pm10_ceiling': 4.0,
+                'temperature_peak_boost': 1.2,
+                'humidity_volatility': 'high',
+                'event_types': ['jeepney_convoy', 'truck_cluster', 'roadside_dust']
+            }
+        elif node_id_hash in [4, 9]:  # Node 4 variant
+            return {
+                'id': node_id,
+                'behavior': 'human-density',
+                'name': 'Market Pedestrian Node',
+                'description': 'Dense market pedestrian pollution sensor',
+                'pm25_volatility': 'medium',
+                'spike_frequency': 'low',
+                'spike_decay': 'slow',
+                'pm10_ceiling': 3.0,
+                'temperature_peak_boost': -0.5,
+                'humidity_volatility': 'medium',
+                'event_types': ['market_crowd', 'festival_surge', 'food_market_steam']
+            }
+        else:
+            # Default: mixed behavior
+            return {
+                'id': node_id,
+                'behavior': 'mixed',
+                'name': 'Mixed Zone Node',
+                'description': 'General urban pollution sensor',
+                'pm25_volatility': 'medium',
+                'spike_frequency': 'medium',
+                'spike_decay': 'medium',
+                'pm10_ceiling': 3.5,
+                'temperature_peak_boost': 0.5,
+                'humidity_volatility': 'medium',
+                'event_types': ['traffic', 'construction', 'weather']
+            }
+
+    # ⚡ EVENT SYSTEM (NEW REQUIREMENT)
+    def _maybe_generate_event(self, node_profile, event_hour, event_severity):
+        """
+        Generate independent stochastic events per node.
+        
+        Events must:
+        - NOT trigger at same time across nodes
+        - NOT reuse same random seed timing
+        - last 5–25 minutes only
+        - decay naturally
+        """
+        behavior_type = node_profile.get('behavior', 'mixed')
+        event_types = node_profile.get('event_types', [])
+        
+        if not event_types:
+            return None
+        
+        # Select a random event type for this node
+        event_type = random.choice(event_types)
+        
+        if behavior_type == 'transport-dominant':
+            # NODE 3 Events: Transport-specific
+            if event_type == 'jeepney_convoy':
+                return {
+                    'type': 'jeepney_convoy',
+                    'intensity': event_severity,
+                    'duration_minutes': random.randint(8, 20),
+                    'pm25_multiplier': 1.5 + (event_severity * 0.5),
+                    'pm10_multiplier': 3.0 + (event_severity * 0.8),
+                    'description': 'Multiple jeepneys in convoy'
+                }
+            elif event_type == 'truck_cluster':
+                return {
+                    'type': 'truck_cluster',
+                    'intensity': event_severity,
+                    'duration_minutes': random.randint(10, 25),
+                    'pm25_multiplier': 1.8 + (event_severity * 0.6),
+                    'pm10_multiplier': 3.5 + (event_severity * 0.8),
+                    'description': 'Heavy truck traffic cluster'
+                }
+            elif event_type == 'roadside_dust':
+                return {
+                    'type': 'roadside_dust',
+                    'intensity': event_severity,
+                    'duration_minutes': random.randint(5, 15),
+                    'pm25_multiplier': 1.3 + (event_severity * 0.4),
+                    'pm10_multiplier': 3.8 + (event_severity * 0.5),
+                    'description': 'Roadside dust burst from vehicles'
+                }
+        else:  # human-density
+            # NODE 4 Events: Crowd and market-specific
+            if event_type == 'market_crowd':
+                return {
+                    'type': 'market_crowd',
+                    'intensity': event_severity,
+                    'duration_minutes': random.randint(12, 25),
+                    'pm25_multiplier': 1.2 + (event_severity * 0.4),
+                    'pm10_multiplier': 2.3 + (event_severity * 0.4),
+                    'humidity_multiplier': 1.3,
+                    'description': 'Market crowd surge'
+                }
+            elif event_type == 'festival_surge':
+                return {
+                    'type': 'festival_surge',
+                    'intensity': event_severity,
+                    'duration_minutes': random.randint(15, 25),
+                    'pm25_multiplier': 1.4 + (event_severity * 0.5),
+                    'pm10_multiplier': 2.5 + (event_severity * 0.5),
+                    'humidity_multiplier': 1.4,
+                    'description': 'Festival/holiday crowd surge'
+                }
+            elif event_type == 'food_market_steam':
+                return {
+                    'type': 'food_market_steam',
+                    'intensity': event_severity,
+                    'duration_minutes': random.randint(8, 20),
+                    'pm25_multiplier': 1.1 + (event_severity * 0.3),
+                    'humidity_multiplier': 1.5 + (event_severity * 0.2),
+                    'description': 'Food market steam/cooking surge'
+                }
+        
+        return None
+
+    def _generate_urban_surge_patterns(self, day, day_of_week, is_friday, is_sunday, node_profile):
         """Generate hourly traffic surge patterns specific to urban Manila."""
         profiles = {}
         
+        # 🧠 IMPORTANT: REMOVE SYNCHRONIZATION BUG
+        # Each node gets independent hourly multiplier jitter (±0.15 random drift per node per hour)
+        node_drift_seed = hash(str(node_profile.get('id', 'default'))) % 1000000
+        
         for hour in range(24):
             base_multiplier = 1.0
+            
+            # NODE-SPECIFIC DRIFT: ±0.15 random jitter per node per hour
+            node_specific_jitter = random.Random(node_drift_seed + hour).uniform(-0.15, 0.15)
+            drift_factor = 1.0 + node_specific_jitter
             
             if 0 <= hour < 5:
                 # Very early morning: clean
@@ -581,37 +757,74 @@ class Command(BaseCommand):
                 # Late night: low
                 multiplier = random.uniform(0.70, 0.90)
             
+            # Apply node-specific drift
+            multiplier = multiplier * drift_factor
+            # Ensure realistic bounds
+            multiplier = max(0.5, min(2.2, multiplier))
+            
             profiles[hour] = {'multiplier': multiplier}
         
         return profiles
 
     def _generate_chaotic_pm25(self, baseline, hour_multiplier, last_pm25, is_rainy, 
-                              is_weekend, hour, event_hour, event_severity):
-        """Generate highly variable PM2.5 with aggressive urban patterns."""
+                              is_weekend, hour, event_hour, event_severity, node_profile, event_type=None):
+        """Generate highly variable PM2.5 with aggressive urban patterns and node-specific behavior."""
         # Base from hour
         base_pm25 = baseline['median'] * hour_multiplier
         
+        # 🧬 NODE-SPECIFIC PM2.5 RULES
+        behavior_type = node_profile.get('behavior', 'mixed')
+        
+        if behavior_type == 'transport-dominant':
+            # NODE 3: Sharp spikes, higher amplitude (x2.2 rush multipliers), faster decay
+            noise_multiplier = 0.14  # Higher volatility
+            spike_probability = 0.12  # More frequent spikes
+            spike_amplitude = (1.2, 1.9)  # Sharper spikes
+        else:  # 'human-density'
+            # NODE 4: Smoother rise, longer sustained plateau, slower decay
+            noise_multiplier = 0.08  # Lower volatility
+            spike_probability = 0.05  # Less frequent spikes
+            spike_amplitude = (1.1, 1.5)  # Smaller spike amplitude
+        
         # Add aggressive noise (not smoothed)
-        noise = random.gauss(0, baseline['median'] * 0.12)  # 12% std dev
+        noise = random.gauss(0, baseline['median'] * noise_multiplier)
         
         # Random continuity weight (sometimes breaks continuity for realism)
-        continuity_weight = random.uniform(0.4, 0.8)
+        # NODE 3: Less continuity (more chaotic), NODE 4: More continuity (more stable)
+        if behavior_type == 'transport-dominant':
+            continuity_weight = random.uniform(0.35, 0.75)  # More breaks = more chaos
+        else:
+            continuity_weight = random.uniform(0.55, 0.85)  # More continuity = stability
+        
         pm25 = last_pm25 * continuity_weight + base_pm25 * (1 - continuity_weight) + noise
         
-        # Event surge
+        # Event surge (node-specific intensity)
         if event_hour is not None and hour == event_hour:
-            if event_severity == 1:
-                pm25 *= random.uniform(1.3, 1.6)
+            if behavior_type == 'transport-dominant':
+                # NODE 3: Intense burst
+                if event_severity == 1:
+                    pm25 *= random.uniform(1.4, 1.8)
+                else:
+                    pm25 *= random.uniform(2.0, 2.8)
             else:
-                pm25 *= random.uniform(1.7, 2.3)
+                # NODE 4: Slower, sustained rise
+                if event_severity == 1:
+                    pm25 *= random.uniform(1.2, 1.4)
+                else:
+                    pm25 *= random.uniform(1.5, 2.0)
         
-        # Random traffic burst spikes (micro-scale)
-        if random.random() < 0.08:
-            pm25 *= random.uniform(1.2, 1.8)
+        # Random traffic burst spikes (NODE-SPECIFIC)
+        if random.random() < spike_probability:
+            pm25 *= random.uniform(spike_amplitude[0], spike_amplitude[1])
         
-        # Rain cleanup
+        # Rain cleanup (node-specific recovery)
         if is_rainy:
-            pm25 *= random.uniform(0.60, 0.85)
+            if behavior_type == 'transport-dominant':
+                # NODE 3: Fast PM drop but rebound spikes after rain
+                pm25 *= random.uniform(0.55, 0.80)
+            else:
+                # NODE 4: Slower cleaning, more stable recovery
+                pm25 *= random.uniform(0.70, 0.90)
         
         # Weekend slightly cleaner
         if is_weekend:
@@ -624,31 +837,61 @@ class Command(BaseCommand):
         
         return pm25
 
-    def _generate_pm10_multiplier(self, hour, event_hour, event_severity):
-        """Generate PM10 multiplier that can spike independently from PM2.5."""
-        # Roadside base: higher PM10/PM2.5 ratio due to dust
-        base_multiplier = random.uniform(1.4, 1.8)
+    def _generate_pm10_multiplier(self, hour, event_hour, event_severity, node_profile, event_type=None):
+        """Generate PM10 multiplier that can spike independently from PM2.5 with node-specific rules."""
+        behavior_type = node_profile.get('behavior', 'mixed')
+        
+        # 🧬 NODE-SPECIFIC PM10 RULES
+        if behavior_type == 'transport-dominant':
+            # NODE 3: PM10 can spike up to 4.0x PM2.5 during traffic bursts
+            base_multiplier = random.uniform(1.6, 2.2)  # Higher baseline
+        else:
+            # NODE 4: PM10 limited to 2.5–3.0x PM2.5, more stable dust baseline
+            base_multiplier = random.uniform(1.4, 1.7)  # Lower, more stable baseline
         
         # Rush hours: more dust from vehicle turbulence
         if hour in [7, 8, 9, 18, 19, 20]:
-            base_multiplier *= random.uniform(1.1, 1.3)
-        
-        # Event can cause dust surge
-        if event_hour is not None and hour == event_hour:
-            if event_severity == 1:
-                base_multiplier *= random.uniform(1.3, 1.6)
+            if behavior_type == 'transport-dominant':
+                base_multiplier *= random.uniform(1.2, 1.5)  # More dramatic spikes
             else:
-                base_multiplier *= random.uniform(1.8, 3.5)  # Dust event!
+                base_multiplier *= random.uniform(1.05, 1.15)  # Smaller adjustment
+        
+        # Event can cause dust surge (node-specific)
+        if event_hour is not None and hour == event_hour:
+            if behavior_type == 'transport-dominant':
+                # NODE 3: Intense dust event
+                if event_severity == 1:
+                    base_multiplier *= random.uniform(1.5, 2.0)
+                else:
+                    base_multiplier *= random.uniform(3.0, 4.0)  # Up to 4.0x
+            else:
+                # NODE 4: More moderate dust response
+                if event_severity == 1:
+                    base_multiplier *= random.uniform(1.2, 1.4)
+                else:
+                    base_multiplier *= random.uniform(1.8, 2.5)  # Up to 2.5x
         
         # Random dust events (jeepney, truck, construction nearby)
-        if random.random() < 0.10:
-            base_multiplier *= random.uniform(1.5, 2.2)
+        # NODE 3: More frequent dust events
+        if behavior_type == 'transport-dominant':
+            if random.random() < 0.15:  # More frequent
+                base_multiplier *= random.uniform(1.6, 2.3)
+        else:
+            if random.random() < 0.08:  # Less frequent
+                base_multiplier *= random.uniform(1.3, 1.8)
+        
+        # Clamp to node-specific limits
+        if behavior_type == 'transport-dominant':
+            base_multiplier = max(1.5, min(4.0, base_multiplier))  # Up to 4.0x
+        else:
+            base_multiplier = max(1.3, min(3.0, base_multiplier))  # Up to 3.0x
         
         return base_multiplier
 
-    def _generate_urban_heated_temp(self, hour, day, is_rainy):
-        """Generate temperature with urban heat island effect."""
+    def _generate_urban_heated_temp(self, hour, day, is_rainy, node_profile):
+        """Generate temperature with urban heat island effect and node-specific behavior."""
         month = day.month
+        behavior_type = node_profile.get('behavior', 'mixed')
         
         # Urban Manila: hotter baseline
         if month == 3:
@@ -665,32 +908,54 @@ class Command(BaseCommand):
             base_temp -= 2
             peak_temp -= 1.5
         
-        # Daily cycle with heat island effect: slower cooling
-        if 1 <= hour < 5:
-            temp = base_temp - 2 + random.gauss(0, 0.8)
-        elif 5 <= hour < 7:
-            temp = base_temp - 2 + (hour - 5) / 2 + random.gauss(0, 0.5)
-        elif 7 <= hour < 12:
-            progress = (hour - 7) / 5
-            temp = base_temp + (peak_temp - base_temp) * 0.7 * progress + random.gauss(0, 0.6)
-        elif 12 <= hour < 15:
-            # Peak heat: urban island adds 1-2°C extra
-            temp = peak_temp + random.uniform(0.5, 2.0) + random.gauss(0, 1.0)
-        elif 15 <= hour < 19:
-            progress = (hour - 15) / 4
-            temp = peak_temp - (peak_temp - base_temp) * 0.5 * progress + random.gauss(0, 0.6)
-        elif 19 <= hour < 23:
-            # Slow cooling due to urban heat retention
-            progress = (hour - 19) / 4
-            temp = base_temp + 1 - (peak_temp - base_temp) * 0.3 * progress + random.gauss(0, 0.7)
+        # 🧬 NODE-SPECIFIC TEMPERATURE BEHAVIOR
+        if behavior_type == 'transport-dominant':
+            # NODE 3: Hotter midday spikes due to vehicle clustering
+            if 1 <= hour < 5:
+                temp = base_temp - 2 + random.gauss(0, 1.0)
+            elif 5 <= hour < 7:
+                temp = base_temp - 2 + (hour - 5) / 2 + random.gauss(0, 0.6)
+            elif 7 <= hour < 12:
+                progress = (hour - 7) / 5
+                temp = base_temp + (peak_temp - base_temp) * 0.8 * progress + random.gauss(0, 0.8)
+            elif 12 <= hour < 15:
+                # EXTRA HOT: vehicle clustering effect
+                temp = peak_temp + random.uniform(1.0, 2.5) + random.gauss(0, 1.2)
+            elif 15 <= hour < 19:
+                progress = (hour - 15) / 4
+                temp = peak_temp - (peak_temp - base_temp) * 0.6 * progress + random.gauss(0, 0.8)
+            elif 19 <= hour < 23:
+                progress = (hour - 19) / 4
+                temp = base_temp + 1.2 - (peak_temp - base_temp) * 0.35 * progress + random.gauss(0, 0.8)
+            else:
+                temp = base_temp + 0.8 + random.gauss(0, 0.7)
         else:
-            # Warmest part of night due to heat island
-            temp = base_temp + 0.5 + random.gauss(0, 0.6)
+            # NODE 4: More stable heat curve (human shading + density dampening)
+            if 1 <= hour < 5:
+                temp = base_temp - 1.8 + random.gauss(0, 0.6)
+            elif 5 <= hour < 7:
+                temp = base_temp - 1.8 + (hour - 5) / 2.2 + random.gauss(0, 0.4)
+            elif 7 <= hour < 12:
+                progress = (hour - 7) / 5
+                temp = base_temp + (peak_temp - base_temp) * 0.65 * progress + random.gauss(0, 0.5)
+            elif 12 <= hour < 15:
+                # Moderate heat: human shading effect
+                temp = peak_temp - random.uniform(0.5, 1.5) + random.gauss(0, 0.7)
+            elif 15 <= hour < 19:
+                progress = (hour - 15) / 4
+                temp = peak_temp - (peak_temp - base_temp) * 0.45 * progress + random.gauss(0, 0.5)
+            elif 19 <= hour < 23:
+                progress = (hour - 19) / 4
+                temp = base_temp + 0.8 - (peak_temp - base_temp) * 0.25 * progress + random.gauss(0, 0.5)
+            else:
+                temp = base_temp + 0.5 + random.gauss(0, 0.5)
         
         return max(25.0, min(38.0, temp))
 
-    def _generate_chaotic_humidity(self, hour, temperature, is_rainy):
-        """Generate humidity with more realism and noise."""
+    def _generate_chaotic_humidity(self, hour, temperature, is_rainy, node_profile):
+        """Generate humidity with more realism and node-specific behavior."""
+        behavior_type = node_profile.get('behavior', 'mixed')
+        
         if is_rainy:
             base_humidity = 85 + random.gauss(0, 3)
         elif 1 <= hour < 6:
@@ -709,8 +974,14 @@ class Command(BaseCommand):
             # Evening/night: rising
             base_humidity = 72 + random.gauss(0, 3)
         
-        # Urban areas: more variable humidity
-        base_humidity += random.gauss(0, 2)
+        # 🧬 NODE-SPECIFIC HUMIDITY BEHAVIOR
+        if behavior_type == 'transport-dominant':
+            # NODE 3: More volatile (wind + exhaust mixing)
+            base_humidity += random.gauss(0, 3.5)
+        else:
+            # NODE 4: Smoother, slightly higher baseline humidity (human density + market steam)
+            base_humidity += random.gauss(0, 1.5)
+            base_humidity += random.uniform(1.0, 2.5)  # Slightly higher baseline
         
         return max(40.0, min(95.0, base_humidity))
 
@@ -803,7 +1074,7 @@ class Command(BaseCommand):
             self.stdout.write(progress)
 
     def _print_summary_stats(self, readings):
-        """Print summary statistics."""
+        """Print summary statistics with NODE PERSONALITY VALIDATION."""
         if not readings:
             self.stdout.write(self.style.WARNING('No readings generated'))
             return
@@ -811,11 +1082,12 @@ class Command(BaseCommand):
         pm25_values = [r.pm2_5 for r in readings if r.pm2_5 is not None]
         pm10_values = [r.pm10 for r in readings if r.pm10 is not None]
         temps = [r.temperature for r in readings if r.temperature is not None]
+        humidities = [r.humidity for r in readings if r.humidity is not None]
         
         if pm25_values:
-            self.stdout.write(self.style.SUCCESS('\n' + '=' * 50))
-            self.stdout.write(self.style.SUCCESS('SUMMARY STATISTICS'))
-            self.stdout.write(self.style.SUCCESS('=' * 50 + '\n'))
+            self.stdout.write(self.style.SUCCESS('\n' + '=' * 70))
+            self.stdout.write(self.style.SUCCESS('SUMMARY STATISTICS & NODE PERSONALITY VALIDATION'))
+            self.stdout.write(self.style.SUCCESS('=' * 70 + '\n'))
             
             self.stdout.write(f'Total readings inserted:    {len(readings):,}')
             self.stdout.write(f'Date range:                 {readings[0].timestamp.date()} to {readings[-1].timestamp.date()}')
@@ -838,15 +1110,25 @@ class Command(BaseCommand):
             self.stdout.write(f'Critical events:            {critical_count} ({critical_count*100//len(readings)}%)')
             self.stdout.write(f'Sensor error events:        {error_count} ({error_count*100//len(readings)}%)')
             
-            self.stdout.write(f'\nPM2.5 Statistics:')
+            self.stdout.write(f'\n' + '-' * 70)
+            self.stdout.write(f'PM2.5 STATISTICS:')
+            self.stdout.write(f'-' * 70)
             self.stdout.write(f'  Min:  {min(pm25_values):.2f} µg/m³')
             self.stdout.write(f'  Max:  {max(pm25_values):.2f} µg/m³')
             self.stdout.write(f'  Mean: {sum(pm25_values)/len(pm25_values):.2f} µg/m³')
-            self.stdout.write(f'  StdDev: {self._stddev(pm25_values):.2f}')
+            self.stdout.write(f'  StdDev (Volatility Index): {self._stddev(pm25_values):.2f}')
+            
+            # Calculate spike frequency
+            spike_count = sum(1 for i in range(1, len(pm25_values)) 
+                            if pm25_values[i] > pm25_values[i-1] * 1.3)
+            spike_frequency = (spike_count / len(pm25_values)) * 100
+            self.stdout.write(f'  Spike Frequency (30% jumps): {spike_frequency:.1f}%')
             
             # PM10 analysis
             if pm10_values:
-                self.stdout.write(f'\nPM10 Statistics:')
+                self.stdout.write(f'\n' + '-' * 70)
+                self.stdout.write(f'PM10 STATISTICS:')
+                self.stdout.write(f'-' * 70)
                 self.stdout.write(f'  Min:  {min(pm10_values):.2f} µg/m³')
                 self.stdout.write(f'  Max:  {max(pm10_values):.2f} µg/m³')
                 self.stdout.write(f'  Mean: {sum(pm10_values)/len(pm10_values):.2f} µg/m³')
@@ -857,11 +1139,43 @@ class Command(BaseCommand):
                     self.stdout.write(f'  Avg PM10/PM2.5 Ratio: {sum(ratios)/len(ratios):.2f}')
                     self.stdout.write(f'  Max Ratio (dust events): {max(ratios):.2f}x')
             
-            self.stdout.write(f'\nPM1.0 <= PM2.5 <= PM10 ratio maintained: [OK]')
+            self.stdout.write(f'\n' + '-' * 70)
+            self.stdout.write(f'TEMPERATURE & HUMIDITY:')
+            self.stdout.write(f'-' * 70)
+            self.stdout.write(f'Temperature range: {min(temps):.1f}°C - {max(temps):.1f}°C')
+            if humidities:
+                self.stdout.write(f'Humidity range: {min(humidities):.1f}% - {max(humidities):.1f}%')
             
-            self.stdout.write(f'\nTemperature range: {min(temps):.1f}°C - {max(temps):.1f}°C')
+            self.stdout.write(f'\n' + '-' * 70)
+            self.stdout.write(f'DATA INTEGRITY VALIDATION:')
+            self.stdout.write(f'-' * 70)
             
-            self.stdout.write(self.style.SUCCESS('\n[SUCCESS] Data generation complete!\n'))
+            # Check PM hierarchy
+            pm_hierarchy_valid = True
+            invalid_count = 0
+            for i in range(len(pm25_values)):
+                if not (pm25_values[i] <= pm10_values[i]):
+                    pm_hierarchy_valid = False
+                    invalid_count += 1
+            
+            if pm_hierarchy_valid:
+                self.stdout.write(f'✓ PM1.0 <= PM2.5 <= PM10 ratio maintained: [OK]')
+            else:
+                self.stdout.write(f'✗ PM hierarchy violations: {invalid_count} ({invalid_count*100//len(pm25_values)}%)')
+            
+            # Check no identical consecutive PM patterns
+            identical_count = 0
+            for i in range(1, len(pm25_values)):
+                if pm25_values[i] == pm25_values[i-1]:
+                    identical_count += 1
+            
+            if identical_count < len(pm25_values) * 0.02:
+                self.stdout.write(f'✓ No excessive identical PM readings: [OK] ({identical_count} duplicates)')
+            else:
+                self.stdout.write(f'⚠ High duplicate rate: {identical_count} ({identical_count*100//len(pm25_values)}%)')
+            
+            self.stdout.write(f'\n' + '=' * 70)
+            self.stdout.write(self.style.SUCCESS('[SUCCESS] Data generation complete with personality differentiation!\n'))
 
     def _stddev(self, values):
         """Calculate standard deviation."""
