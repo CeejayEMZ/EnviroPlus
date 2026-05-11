@@ -5008,3 +5008,129 @@ def api_daily_forecast(request):
             'generated_at': timezone.now().isoformat(),
             'confidence_level': 'low'
         }, status=200)
+    
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_closest_node(request):
+    """
+    GET /api/closest-node/?lat=14.5&lng=121.0
+    Returns the closest active sensor node's latest reading
+    based on user's coordinates (Haversine distance).
+    Falls back to area average if no coords provided.
+    """
+    import math
+
+    def haversine(lat1, lng1, lat2, lng2):
+        """Calculate distance in km between two coordinates."""
+        R = 6371  # Earth radius in km
+        d_lat = math.radians(lat2 - lat1)
+        d_lng = math.radians(lng2 - lng1)
+        a = (math.sin(d_lat / 2) ** 2 +
+             math.cos(math.radians(lat1)) *
+             math.cos(math.radians(lat2)) *
+             math.sin(d_lng / 2) ** 2)
+        return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    try:
+        lat = request.GET.get('lat')
+        lng = request.GET.get('lng')
+
+        # ── Get all active nodes with their latest reading ──
+        nodes = SensorNode.objects.filter(
+            is_active=True,
+            latitude__isnull=False,
+            longitude__isnull=False,
+        ).prefetch_related('readings')
+
+        # ── Build area average as fallback ──
+        all_readings = SensorReading.objects.filter(
+            node__is_active=True
+        ).order_by('-timestamp')[:50]
+
+        avg_aqi   = None
+        avg_pm25  = None
+        avg_temp  = None
+        avg_hum   = None
+        avg_pm10  = None
+        avg_pm1   = None
+        avg_pres  = None
+        avg_gas   = None
+
+        valid = [r for r in all_readings if r.aqi is not None]
+        if valid:
+            avg_aqi  = round(sum(r.aqi for r in valid) / len(valid))
+            avg_pm25 = round(sum(r.pm2_5 for r in valid if r.pm2_5) / len(valid), 2)
+            avg_temp = round(sum(r.temperature for r in valid if r.temperature) / len(valid), 1)
+            avg_hum  = round(sum(r.humidity for r in valid if r.humidity) / len(valid), 1)
+            avg_pm10 = round(sum(r.pm10 for r in valid if r.pm10) / len(valid), 2)
+            avg_pm1  = round(sum(r.pm1_0 for r in valid if r.pm1_0) / len(valid), 2)
+            avg_pres = round(sum(r.pressure for r in valid if r.pressure) / len(valid), 1)
+            avg_gas  = round(sum(r.gas_resistance for r in valid if r.gas_resistance) / len(valid), 1)
+
+        area_average = {
+            'source':       'area_average',
+            'node_name':    'Barangay Pembo',
+            'location':     'Average across all nodes',
+            'distance_km':  None,
+            'aqi':          avg_aqi,
+            'aqi_level':    valid[0].aqi_level if valid else None,
+            'pm2_5':        avg_pm25,
+            'pm10':         avg_pm10,
+            'pm1_0':        avg_pm1,
+            'temperature':  avg_temp,
+            'humidity':     avg_hum,
+            'pressure':     avg_pres,
+            'gas_resistance': avg_gas,
+            'timestamp':    valid[0].timestamp.isoformat() if valid else None,
+        }
+
+        # ── If no coordinates, return area average ──
+        if not lat or not lng:
+            return JsonResponse({'success': True, 'data': area_average})
+
+        user_lat = float(lat)
+        user_lng = float(lng)
+
+        # ── Find closest node ──
+        closest_node   = None
+        closest_reading = None
+        min_distance   = float('inf')
+
+        for node in nodes:
+            latest = node.readings.order_by('-timestamp').first()
+            if not latest:
+                continue
+            dist = haversine(user_lat, user_lng,
+                             float(node.latitude), float(node.longitude))
+            if dist < min_distance:
+                min_distance    = dist
+                closest_node    = node
+                closest_reading = latest
+
+        # ── If no node found, return area average ──
+        if not closest_node or not closest_reading:
+            return JsonResponse({'success': True, 'data': area_average})
+
+        # ── Return closest node data ──
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'source':        'closest_node',
+                'node_name':     closest_node.name,
+                'location':      closest_node.location or 'Unknown',
+                'distance_km':   round(min_distance, 2),
+                'aqi':           closest_reading.aqi,
+                'aqi_level':     closest_reading.aqi_level,
+                'pm2_5':         float(closest_reading.pm2_5)         if closest_reading.pm2_5         else None,
+                'pm10':          float(closest_reading.pm10)          if closest_reading.pm10          else None,
+                'pm1_0':         float(closest_reading.pm1_0)         if closest_reading.pm1_0         else None,
+                'temperature':   float(closest_reading.temperature)   if closest_reading.temperature   else None,
+                'humidity':      float(closest_reading.humidity)       if closest_reading.humidity       else None,
+                'pressure':      float(closest_reading.pressure)       if closest_reading.pressure       else None,
+                'gas_resistance':float(closest_reading.gas_resistance) if closest_reading.gas_resistance else None,
+                'timestamp':     closest_reading.timestamp.isoformat() if closest_reading.timestamp else None,
+            }
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)

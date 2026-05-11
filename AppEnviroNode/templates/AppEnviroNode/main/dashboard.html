@@ -817,6 +817,10 @@
         </div>
       </div>
       
+      <div style="text-align:center; margin-bottom: 8px;">
+  <span id="dashb-location-badge" style="display:none; font-size:0.78rem; color:#475569; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:999px; padding:4px 12px;"></span>
+</div>
+
       <div class="aqi-card">
         <div class="aqi-info-title">Average AQI</div>
         <div class="aqi-info-subtitle">Last updated: {% if aggregate_data.latest_overall.timestamp %}{{ aggregate_data.latest_overall.timestamp|date:"M/d/Y, g:i A" }}{% else %}No readings yet{% endif %}</div>
@@ -1350,4 +1354,10 @@
     }
   });
 </script>
+
+<script>
+  const CLOSEST_NODE_API_URL = "{% url 'app:api_closest_node' %}";
+</script>
+<script src="{% static 'AppEnviroNode/js/dashboard_closest_node.js' %}"></script>
+
 {% endblock %}
