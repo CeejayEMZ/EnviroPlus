@@ -72,6 +72,19 @@ def cache_api_response(ttl_seconds=45):
         return wrapper
     return decorator
 
+
+def admin_required(view_func):
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('app:login')
+        if request.user.role != 'admin':
+            messages.error(request, 'Access denied. Administrator privileges required.')
+            return redirect('app:client_dashboard')
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
 # ============================================================================
 # OPTIMIZATION: Adaptive aggregation strategy
 # ============================================================================
@@ -785,7 +798,6 @@ def forgot_password_view(request):
 
 
 @login_required(login_url='app:login')
-@login_required(login_url='app:login')
 def client_dashboard(request):
     """Dashboard with all sensor nodes, latest readings, analytics, and chart data."""
     from django.db.models.functions import TruncDay
@@ -1429,6 +1441,7 @@ def api_analytics(request):
         }, status=500)
 
 
+@admin_required
 @login_required(login_url='app:login')
 def client_alerts(request):
     """Display active and resolved alerts from the Alert table."""
@@ -1454,8 +1467,6 @@ def client_alerts(request):
     }
     return render(request, 'AppEnviroNode/admin/clientalerts.html', context)
 
-@login_required(login_url='app:login')
-@login_required(login_url='app:login')
 @login_required(login_url='app:login')
 def client_devices(request):
     """Display all sensor devices/nodes - fully dynamic with CRUD support."""
@@ -1719,7 +1730,6 @@ def client_map_view(request):
     return render(request, 'AppEnviroNode/admin/clientmapview.html', context)
 
 @login_required(login_url='app:login')
-@login_required(login_url='app:login')
 def node_create(request):
     """Create a new sensor node."""
     # Enforce admin-only access
@@ -1815,7 +1825,6 @@ def client_realtime(request):
     }
     return render(request, 'AppEnviroNode/admin/clientrealtime.html', context)
 
-@login_required(login_url='app:login')
 @login_required(login_url='app:login')
 def api_client_reports(request):
     """
@@ -2013,7 +2022,6 @@ def client_settings(request):
     return render(request, 'AppEnviroNode/admin/clientsettings.html')
 
 @login_required(login_url='app:login')
-@login_required(login_url='app:login')
 def client_history(request):
     """
     Enhanced history view with filtering, metrics calculation, and export capabilities.
@@ -2208,7 +2216,6 @@ def export_history_csv(request, event_type, node_id, date_range, sensor_type, se
     return response
 
 
-@login_required(login_url='app:login')
 @login_required(login_url='app:login')
 def client_users(request):
     # Enforce admin-only access

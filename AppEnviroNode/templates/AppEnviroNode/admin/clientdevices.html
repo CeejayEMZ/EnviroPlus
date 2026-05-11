@@ -201,9 +201,11 @@
     </div>
     
     <div class="device-actions">
+      {% if user.role == 'admin' %}
       <a href="{% url 'app:node_create' %}" class="add-node-btn" title="Create new sensor node">
         <i class="fa-solid fa-microchip"></i> Add New Node
       </a>
+      {% endif %}
     </div>
   </div>
 
@@ -261,6 +263,7 @@
                 <td class="col-uptime">{{ item.uptime }}</td>
                 <td style="text-align: center;">
                   <div class="device-action-buttons" style="display: flex; gap: 6px; justify-content: center;">
+                    {% if user.role == 'admin' %}
                     <!-- Edit Button -->
                     <a href="{% url 'app:node_edit' node.pk %}" 
                        class="device-action-btn device-edit-btn" 
@@ -268,16 +271,6 @@
                        data-action="edit">
                       <i class="fa-solid fa-pen-to-square"></i>
                     </a>
-                    
-                    <!-- Restart Button (placeholder for API) -->
-                    <button type="button" 
-                            class="device-action-btn device-restart-btn" 
-                            title="Restart this device"
-                            data-device-id="{{ node.id }}"
-                            data-device-name="{{ node.name }}"
-                            data-action="restart">
-                      <i class="fa-solid fa-rotate-right"></i>
-                    </button>
                     
                     <!-- Delete Button (form-based POST for security) -->
                     <form method="post" 
@@ -292,6 +285,17 @@
                         <i class="fa-solid fa-trash"></i>
                       </button>
                     </form>
+                    {% endif %}
+                    
+                    <!-- Restart Button (placeholder for API) -->
+                    <button type="button" 
+                            class="device-action-btn device-restart-btn" 
+                            title="Restart this device"
+                            data-device-id="{{ node.id }}"
+                            data-device-name="{{ node.name }}"
+                            data-action="restart">
+                      <i class="fa-solid fa-rotate-right"></i>
+                    </button>
                   </div>
                 </td>
               </tr>

@@ -4,6 +4,12 @@
 {% block title %}Admin - System Alerts - Environode{% endblock %}
 
 {% block content %}
+{% if user.role != 'admin' %}
+<div style="background:#fef3c7; border:1px solid #f59e0b; border-radius:8px; padding:12px 16px; margin-bottom:16px; color:#92400e; font-size:0.9rem;">
+  <i class="fa-solid fa-triangle-exclamation"></i>
+  You are viewing alerts in read-only mode. Only administrators can manage alerts.
+</div>
+{% endif %}
 <div class="overlay">
   <main class="container" style="width: min(1550px, 98%); margin: 0 auto; padding-top: 20px;">
     
