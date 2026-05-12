@@ -62,6 +62,11 @@ urlpatterns = [
     path('api/analytics/top-areas/', views.api_analytics_top_areas, name='api_analytics_top_areas'),
     path('api/analytics/aqi-trend/', views.api_analytics_aqi_trend, name='api_analytics_aqi_trend'),
     path('api/analytics/system-health/', views.api_analytics_system_health, name='api_analytics_system_health'),
+    
+    # SPIKE MANAGEMENT API ENDPOINTS
+    path('api/spike/delete/', views.api_spike_delete, name='api_spike_delete'),
+    path('api/spike/flag/', views.api_spike_flag, name='api_spike_flag'),
+    
     # OPTIMIZATION: New map view API endpoints (viewport rendering, limited data)
     path('api/daily-forecast/', views.api_daily_forecast, name='api_daily_forecast'),
     path('api/nodes/viewport/', views.api_nodes_viewport, name='api_nodes_viewport'),

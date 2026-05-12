@@ -29,7 +29,10 @@ import hashlib
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from xhtml2pdf import pisa
+try:
+    from xhtml2pdf import pisa
+except ImportError:
+    pisa = None
 from openpyxl import Workbook
 from openpyxl.styles import Alignment
 from openpyxl.utils import get_column_letter
@@ -2637,8 +2640,14 @@ def api_sensor_latest(request):
         sparkline_data = []
         for i, reading in enumerate(recent_readings):
             sparkline_data.append({
+                'id': reading.id,  # Add reading ID for CRUD operations
+                'reading_id': reading.id,  # Alias for API calls
+                'timestamp': reading.timestamp.isoformat(),
                 'label': f'{reading.timestamp.hour}h',
-               
+                'aqi': reading.aqi or 0,
+                'pm2_5': reading.pm2_5 or 0,
+                'pm10': reading.pm10 or 0,
+                'temperature': reading.temperature or 0,
                 'value': reading.aqi or 0  
             })
         
@@ -2900,35 +2909,68 @@ def api_nodes_list(request):
 @require_http_methods(["GET"])
 def api_node_detail(request, node_id):
     """
-    GET /api/nodes/<node_id>/detail/
+    GET /api/nodes/<node_id>/detail/?timeframe=7d
     
-    Returns detailed data for a specific node:
+    Returns detailed data for a specific node respecting timeframe filter:
     - Current readings
-    - 24-hour sparkline data
-    - Peak values
+    - Sparkline data for selected timeframe (24h, 7d, 30d, custom)
+    - Peak values within timeframe
     - Status
     """
     try:
         node = SensorNode.objects.get(id=node_id)
         latest = node.readings.order_by('-timestamp').first()
         
-        # Get last 6 hours for sparkline (hourly averages)
-        six_hours_ago = timezone.now() - timedelta(hours=6)
+        # FIXED: Parse timeframe parameter to determine data range
+        timeframe = request.GET.get('timeframe', '24h')
+        start_date_str = request.GET.get('start_date', '')
+        end_date_str = request.GET.get('end_date', '')
+        
+        now = timezone.now()
+        cutoff_time = now
+        
+        if timeframe == '24h':
+            cutoff_time = now - timedelta(hours=24)
+        elif timeframe == '7d':
+            cutoff_time = now - timedelta(days=7)
+        elif timeframe == '30d':
+            cutoff_time = now - timedelta(days=30)
+        elif timeframe == 'custom' and start_date_str:
+            try:
+                # Parse ISO format datetime string
+                if 'T' in start_date_str:
+                    start_date = datetime.fromisoformat(start_date_str.replace('Z', '+00:00'))
+                else:
+                    start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+                cutoff_time = timezone.make_aware(start_date) if not timezone.is_aware(start_date) else start_date
+            except Exception as e:
+                print(f'[Analytics API] Error parsing custom date: {e}')
+                cutoff_time = now - timedelta(hours=24)  # Fallback
+        else:
+            cutoff_time = now - timedelta(hours=24)  # Default fallback
+        
+        # Get sparkline data for selected timeframe
         recent_readings = node.readings.filter(
-            timestamp__gte=six_hours_ago
+            timestamp__gte=cutoff_time
         ).order_by('timestamp')
         
         sparkline_data = []
         for i, reading in enumerate(recent_readings):
             sparkline_data.append({
-                'label': f'{reading.timestamp.hour}h',
-                'value': reading.aqi or 0
+                'id': reading.id,  # Add reading ID for CRUD operations
+                'reading_id': reading.id,  # Alias for API calls
+                'timestamp': reading.timestamp.isoformat(),
+                'aqi': reading.aqi or 0,
+                'pm2_5': reading.pm2_5 or 0,
+                'pm10': reading.pm10 or 0,
+                'temperature': reading.temperature or 0,
+                'value': reading.aqi or 0,
+                'label': f'{reading.timestamp.hour}h'
             })
         
-        # Get 24h peak
-        day_ago = timezone.now() - timedelta(hours=24)
-        day_readings = node.readings.filter(timestamp__gte=day_ago)
-        peak_aqi = day_readings.aggregate(Max('aqi'))['aqi__max'] or 0
+        # Get peak within selected timeframe (not always 24h)
+        peak_readings = node.readings.filter(timestamp__gte=cutoff_time)
+        peak_aqi = peak_readings.aggregate(Max('aqi'))['aqi__max'] or 0
         
         return JsonResponse({
             'success': True,
@@ -3077,6 +3119,82 @@ def api_analytics_system_health(request):
         }, status=200)
         
     except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+# ============================================================================
+# SPIKE MANAGEMENT API ENDPOINTS
+# ============================================================================
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+@login_required(login_url='app:login')
+def api_spike_delete(request):
+    """Delete a spike reading (actually deletes the SensorReading record)"""
+    try:
+        reading_id = request.GET.get('reading_id')
+        if not reading_id:
+            return JsonResponse({'success': False, 'error': 'reading_id required'}, status=400)
+        
+        reading = get_object_or_404(SensorReading, id=reading_id)
+        node_id = reading.node.id
+        reading.delete()
+        
+        # Log the action
+        AdminActionLog.objects.create(
+            user=request.user,
+            action='DELETE_SPIKE',
+            details=f'Deleted spike reading {reading_id} (AQI: {reading.aqi}) from node {node_id}',
+            severity='info'
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Spike reading deleted successfully',
+            'deleted_id': reading_id
+        }, status=200)
+    
+    except SensorReading.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Reading not found'}, status=404)
+    except Exception as e:
+        logger.error(f'[Spike API] Delete failed: {str(e)}')
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@login_required(login_url='app:login')
+def api_spike_flag(request):
+    """Flag a spike reading as anomalous (for review/analysis)"""
+    try:
+        reading_id = request.GET.get('reading_id')
+        action = request.GET.get('action', 'flag')  # 'flag', 'unflag'
+        
+        if not reading_id:
+            return JsonResponse({'success': False, 'error': 'reading_id required'}, status=400)
+        
+        reading = get_object_or_404(SensorReading, id=reading_id)
+        
+        # Add custom field to flag anomalies (if extended in future)
+        # For now, log the action
+        AdminActionLog.objects.create(
+            user=request.user,
+            action=f'{action.upper()}_SPIKE',
+            details=f'{action.capitalize()} spike reading {reading_id} (AQI: {reading.aqi}) from node {reading.node.id}',
+            severity='info'
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Spike {action} completed',
+            'reading_id': reading_id,
+            'action': action
+        }, status=200)
+    
+    except SensorReading.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Reading not found'}, status=404)
+    except Exception as e:
+        logger.error(f'[Spike API] Flag failed: {str(e)}')
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
@@ -4732,6 +4850,9 @@ def export_report_print(request):
 
 @login_required(login_url='app:login')
 def export_report_pdf(request):
+    if not pisa:
+        return HttpResponse('Error: xhtml2pdf is not installed. PDF export is unavailable.', status=503)
+    
     date_from_obj, date_to_obj, selected_node, selected_location = parse_export_params(request)
     summary = build_report_summary(date_from_obj, date_to_obj, selected_node, selected_location)
     chart_image = base64.b64encode(build_chart_image(summary['summary']).getvalue()).decode('ascii')
@@ -5007,7 +5128,8 @@ def build_chart_explanation(summary):
 @login_required(login_url='app:login')
 def export_report_excel(request):
     date_from_obj, date_to_obj, selected_node, selected_location = parse_export_params(request)
-    summary = build_report_summary(date_from_obj, date_to_obj, selected_node, selected_location)
+    report_data = build_report_summary(date_from_obj, date_to_obj, selected_node, selected_location)
+    summary = report_data['summary']
 
     wb = Workbook()
     ws = wb.active
