@@ -1,12 +1,14 @@
 // Dashboard AQI Trend Module
 // Fetches hourly AQI averages from the backend and renders a 24-hour line chart.
-// ⚡ OPTIMIZATION: In-place chart updates without destruction
+// FIXED: Chart aspect ratio and stretching issues
+// FIXED: In-place chart updates without destruction
 
 (function() {
   let aqiTrendChart = null;
   let lastDataHash = null;
   let lastUpdateTime = null;
   const UPDATE_THROTTLE_MS = 30000; // Minimum 30s between updates
+  let resizeObserver = null;
 
   function buildEndpoint() {
     return window.location.origin + '/api/analytics/aqi-trend/';
@@ -26,7 +28,7 @@
     return gradient;
   }
 
-  // ⚡ OPTIMIZATION: Compute hash to detect data changes
+  // Compute hash to detect data changes
   function computeDataHash(data) {
     if (!data || !data.aqi) return null;
     const hashStr = JSON.stringify(data.aqi);
@@ -34,7 +36,7 @@
     for (let i = 0; i < hashStr.length; i++) {
       const char = hashStr.charCodeAt(i);
       hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
+      hash = hash & hash;
     }
     return hash.toString(36);
   }
@@ -79,8 +81,8 @@
   }
 
   function renderAqiTrendChart(data) {
-    const ctx = document.getElementById('dashboardChart');
-    if (!ctx) {
+    const canvas = document.getElementById('dashboardChart');
+    if (!canvas) {
       console.error('Dashboard AQI trend canvas not found');
       return;
     }
@@ -90,7 +92,24 @@
       return;
     }
 
-    const gradient = createGradient(ctx.getContext('2d'));
+    // Get the canvas context
+    const ctx = canvas.getContext('2d');
+    const gradient = createGradient(ctx);
+    
+    // Get container for proper sizing
+    const container = canvas.parentElement;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    
+    // Set canvas dimensions to match container for proper aspect ratio
+    canvas.width = containerWidth;
+    canvas.height = containerHeight;
+
+    // Destroy existing chart instance if it exists
+    if (aqiTrendChart) {
+      aqiTrendChart.destroy();
+      aqiTrendChart = null;
+    }
 
     aqiTrendChart = new Chart(ctx, {
       type: 'bar',
@@ -104,7 +123,7 @@
           borderWidth: 0,
           borderRadius: 12,
           borderSkipped: false,
-          maxBarThickness: 24,
+          maxBarThickness: 28,
           barPercentage: 0.7,
           categoryPercentage: 0.85,
         }]
@@ -112,7 +131,8 @@
       plugins: [trendAxisPlugin],
       options: {
         responsive: true,
-        maintainAspectRatio: false,
+        maintainAspectRatio: true,
+        aspectRatio: 2.2,
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -172,16 +192,22 @@
         animation: {
           duration: 500,
           easing: 'easeOutQuart'
+        },
+        // FIX: Ensure proper resize handling
+        onResize: function(chart, size) {
+          chart.resize(size);
         }
       }
     });
   }
 
-  // ⚡ OPTIMIZATION: In-place chart update without destroying/recreating
+  // In-place chart update without destroying/recreating
   function updateAqiTrendChart(data) {
+    // If no chart instance, create new one
     if (!aqiTrendChart) {
       renderAqiTrendChart(data);
       lastDataHash = computeDataHash(data);
+      lastUpdateTime = Date.now();
       return;
     }
 
@@ -219,13 +245,70 @@
     }
 
     const data = await fetchAqiTrendData();
-    renderAqiTrendChart(data);
-    lastDataHash = computeDataHash(data);
-    lastUpdateTime = Date.now();
+    if (data) {
+      renderAqiTrendChart(data);
+      lastDataHash = computeDataHash(data);
+      lastUpdateTime = Date.now();
+    }
   }
 
-  // ⚡ OPTIMIZATION: Export function for external updates
+  // FIX: Add resize observer to handle container size changes
+  function setupResizeObserver() {
+    const container = document.querySelector('.dashb-trend-chart-wrap');
+    if (!container) return;
+    
+    // Clean up existing observer
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+    }
+    
+    resizeObserver = new ResizeObserver(() => {
+      if (aqiTrendChart) {
+        // Use requestAnimationFrame to ensure smooth resize
+        requestAnimationFrame(() => {
+          if (aqiTrendChart) {
+            aqiTrendChart.resize();
+          }
+        });
+      }
+    });
+    
+    resizeObserver.observe(container);
+  }
+
+  // FIX: Handle window resize events
+  function handleWindowResize() {
+    if (aqiTrendChart) {
+      // Debounce resize to avoid excessive calls
+      clearTimeout(window._resizeTimeout);
+      window._resizeTimeout = setTimeout(() => {
+        if (aqiTrendChart) {
+          aqiTrendChart.resize();
+        }
+      }, 150);
+    }
+  }
+
+  // FIX: Handle visibility change (tab switching)
+  function handleVisibilityChange() {
+    if (!document.hidden && aqiTrendChart) {
+      // Force chart refresh when tab becomes visible
+      setTimeout(() => {
+        if (aqiTrendChart) {
+          aqiTrendChart.update();
+        }
+      }, 100);
+    }
+  }
+
+  // Export function for external updates
   window.updateAqiTrendChart = updateAqiTrendChart;
 
-  document.addEventListener('DOMContentLoaded', initializeAqiTrend);
+  // Initialize on DOM ready
+  document.addEventListener('DOMContentLoaded', () => {
+    initializeAqiTrend();
+    setupResizeObserver();
+    window.addEventListener('resize', handleWindowResize);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+  });
 })();

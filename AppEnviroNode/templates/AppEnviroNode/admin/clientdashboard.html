@@ -5,8 +5,12 @@
 
 {% block extra_head %}
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.1/MarkerCluster.min.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.1/MarkerCluster.Default.min.css"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.1/leaflet.markercluster.min.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -36,6 +40,14 @@
             --cd-cyan-bg: rgba(6, 182, 212, 0.15);
             --cd-orange: #ea580c;      
             --cd-slate: #64748b;
+            /* AQI Colors for markers */
+            --aqi-good: #10b981;
+            --aqi-moderate: #f59e0b;
+            --aqi-sensitive: #f97316;
+            --aqi-unhealthy: #ef4444;
+            --aqi-very-unhealthy: #8b5cf6;
+            --aqi-hazardous: #7f1d1d;
+            --aqi-offline: #94a3b8;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -64,7 +76,6 @@
             animation: pulse-critical-glow 3s infinite alternate;
         }
 
-        /* Clear variant — no red, used when system is healthy */
         .cd-incident-primary.clear {
             background: #f0fdf4;
             border-color: var(--cd-green);
@@ -84,7 +95,6 @@
         .cd-incident-impact { display: flex; gap: 12px; font-size: 12px; font-weight: 500; color: var(--cd-text-muted); }
         .cd-incident-impact span { color: var(--cd-text-main); font-weight: 700; }
         
-        /* TIME CONTEXT BLOCK */
         .cd-time-context-block {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -105,13 +115,11 @@
         .cd-time-context-block span { font-weight: 800; color: var(--cd-red); display: flex; align-items: center; gap: 4px;}
         .cd-time-context-block.clear span { color: var(--cd-green); }
 
-        /* TIME CONTEXT TAGS */
         .cd-time-tag { padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; display: inline-flex; align-items: center; }
         .cd-time-tag.new { background: var(--cd-red); color: white; }
         .cd-time-tag.ongoing { background: var(--cd-yellow); color: white; }
         .cd-time-tag.stable { background: var(--cd-green); color: white; }
 
-        /* SECONDARY ISSUES STRIP */
         .cd-secondary-issues {
             grid-column: span 12;
             display: flex;
@@ -139,7 +147,6 @@
         .cd-secondary-pill.green { border-left: 3px solid var(--cd-green); color: var(--cd-green); }
         .cd-secondary-pill i { font-size: 14px; }
 
-        /* MODULE CARD BASE */
         .cdashboard-card {
             background: var(--cd-card-bg);
             border: 1px solid var(--cd-border);
@@ -175,7 +182,6 @@
             gap: 8px;
         }
 
-        /* DATA CONFIDENCE LAYER */
         .cd-confidence-bar {
             display: flex;
             align-items: center;
@@ -191,7 +197,6 @@
         .cd-confidence-val.degraded { color: var(--cd-yellow-text); }
         .cd-confidence-val.high { color: var(--cd-green); }
 
-        /* MICRO-ANIMATIONS */
         .shimmer-text {
             background: linear-gradient(90deg, var(--cd-text-main) 0%, #cbd5e1 50%, var(--cd-text-main) 100%);
             background-size: 200% auto;
@@ -205,7 +210,6 @@
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
 
-        /* HOVER INTELLIGENCE (TOOLTIPS) */
         [data-tooltip] { position: relative; cursor: help; border-bottom: 1px dotted currentColor; }
         [data-tooltip]::after {
             content: attr(data-tooltip);
@@ -216,7 +220,6 @@
         }
         [data-tooltip]:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-        /* QUICK ACCESS (TABS) */
         .cdashboard-quick-access {
             display: flex;
             align-items: center;
@@ -236,7 +239,6 @@
         .cdashboard-quick-access.urgent { color: var(--cd-red); }
         .cdashboard-quick-access.urgent:hover { color: #b91c1c; }
 
-        /* CROSS-MODULE LINKING HINTS */
         .cd-link-hint {
             font-size: 10px;
             font-weight: 600;
@@ -250,12 +252,10 @@
         }
         .cd-link-hint i { font-size: 12px; color: var(--cd-orange); margin-top: 1px; }
 
-        /* MICRO UI ELEMENTS */
         .cd-metric-row { display: flex; justify-content: space-between; align-items: center; }
         .cd-metric-label { color: var(--cd-text-muted); font-size: 11px; font-weight: 500; }
         .cd-metric-val { font-weight: 700; display: flex; align-items: center; gap: 6px; font-size: 12px; }
         
-        /* ESCALATION INDICATORS */
         .cd-trend { font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 2px; }
         .cd-trend.critical { color: var(--cd-red); background: var(--cd-red-bg); padding: 2px 4px; border-radius: 4px;}
         .cd-trend.moderate { color: var(--cd-yellow-text); }
@@ -266,18 +266,81 @@
         .cd-pill.green { background: var(--cd-green-bg); color: var(--cd-green); }
         .cd-pill.blue { background: var(--cd-blue-bg); color: var(--cd-blue); }
         .cd-pill.red { background: var(--cd-red-bg); color: var(--cd-red); }
+        .cd-pill.purple { background: var(--cd-purple-bg); color: var(--cd-purple); }
 
         /* CARD IDENTITIES & SIZING */
         .cdashboard-environment { grid-column: span 4; border-top: 3px solid var(--cd-yellow); }
         .cdashboard-system-health { grid-column: span 4; border-top: 3px solid var(--cd-green); }
         .cdashboard-devices { grid-column: span 4; border-top: 3px solid var(--cd-purple); }
         
-        .cdashboard-map { grid-column: span 3; border-top: 3px solid var(--cd-slate); }
+        .cdashboard-map { 
+            grid-column: span 3; 
+            border-top: 3px solid var(--cd-slate); 
+        }
         .cdashboard-network { grid-column: span 3; border-top: 3px solid var(--cd-blue); }
         .cdashboard-pipeline { grid-column: span 3; border-top: 3px solid var(--cd-orange); }
         .cdashboard-admin { grid-column: span 3; border-top: 3px solid var(--cd-slate); }
 
-        /* Buttons with Interaction */
+        /* MAP CONTAINER */
+        .cd-real-map {
+            width: 100%;
+            height: 180px;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid var(--cd-border);
+            background: #f1f5f9;
+        }
+        .cd-real-map .leaflet-container {
+            width: 100%;
+            height: 100%;
+            background: #f8fafc;
+        }
+
+        .cd-map-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            padding: 6px 4px;
+            background: var(--cd-bg);
+            border-radius: 6px;
+        }
+        .cd-map-stat {
+            text-align: center;
+            flex: 1;
+        }
+        .cd-map-stat-value {
+            font-weight: 800;
+            font-size: 14px;
+            color: var(--cd-text-main);
+        }
+        .cd-map-stat-label {
+            font-size: 9px;
+            font-weight: 600;
+            color: var(--cd-text-muted);
+            text-transform: uppercase;
+        }
+
+        .cd-activity-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--cd-border);
+            font-size: 11px;
+        }
+        .cd-activity-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+        .cd-activity-dot.green { background: var(--cd-green); }
+        .cd-activity-dot.yellow { background: var(--cd-yellow); }
+        .cd-activity-dot.red { background: var(--cd-red); }
+        .cd-activity-dot.gray { background: var(--cd-slate); }
+        .cd-activity-dot.blue { background: var(--cd-blue); }
+        .cd-activity-text { flex: 1; color: var(--cd-text-main); font-weight: 500; }
+        .cd-activity-time { font-size: 9px; color: var(--cd-text-muted); }
+
         .btn-solid { background: var(--cd-red); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; transition: 0.2s transform, 0.2s background; text-decoration: none; justify-content: center; }
         .btn-solid:hover { background: #dc2626; }
         .btn-solid:active { transform: scale(0.97); }
@@ -285,11 +348,9 @@
         .btn-outline:hover { background: var(--cd-card-hover); }
         .btn-outline:active { transform: scale(0.97); }
 
-        /* Environment & Progressive Disclosure */
         .cd-aqi-highlight { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
         .cd-aqi-score { font-size: 28px; font-weight: 800; line-height: 1; }
         
-        /* AQI score colour classes */
         .aqi-good     { color: var(--cd-green); }
         .aqi-moderate { color: var(--cd-yellow); }
         .aqi-sensitive { color: var(--cd-orange); }
@@ -297,24 +358,39 @@
         .aqi-very-unhealthy { color: var(--cd-purple); }
         .aqi-hazardous { color: #7f1d1d; }
 
-        /* Progress / Signal Bars */
         .cd-progress-bar { width: 100%; height: 6px; background: var(--cd-border); border-radius: 4px; overflow: hidden; display: flex; }
         .cd-progress-fill.good { background: var(--cd-purple); }
         .cd-progress-fill.low { background: var(--cd-yellow); }
         .cd-progress-fill.offline { background: var(--cd-red); }
-        .cd-signal-bars { display: flex; align-items: flex-end; gap: 2px; height: 14px; }
-        .cd-signal-bar { width: 3px; background: var(--cd-blue); border-radius: 1px; }
-
-        /* Map & Ripple Alert */
-        .cd-mock-map { width: 100%; height: 75px; background: #f1f5f9; border-radius: 6px; position: relative; overflow: hidden; background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 12px 12px; border: 1px solid var(--cd-border); }
-        .cd-map-dot { position: absolute; width: 6px; height: 6px; border-radius: 50%; box-shadow: 0 0 4px currentColor; }
         
-        .cd-map-dot.alert { background: var(--cd-red); color: var(--cd-red); }
-        .cd-map-dot.alert::after {
-            content: ''; position: absolute; top: -4px; left: -4px; right: -4px; bottom: -4px;
-            border-radius: 50%; border: 2px solid var(--cd-red); animation: ripple 1.5s infinite;
+        /* Dashboard Marker Styles */
+        .cd-dashboard-marker {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 11px;
+            color: white;
+            border: 2px solid white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+            cursor: pointer;
+            transition: transform 0.2s;
+            text-shadow: 0 1px 1px rgba(0,0,0,0.3);
         }
-        @keyframes ripple { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(2.5); opacity: 0; } }
+        .cd-dashboard-marker:hover {
+            transform: scale(1.1);
+            z-index: 1000;
+        }
+        .cd-dashboard-marker.good { background-color: var(--aqi-good); }
+        .cd-dashboard-marker.moderate { background-color: var(--aqi-moderate); }
+        .cd-dashboard-marker.sensitive { background-color: var(--aqi-sensitive); }
+        .cd-dashboard-marker.unhealthy { background-color: var(--aqi-unhealthy); }
+        .cd-dashboard-marker.very-unhealthy { background-color: var(--aqi-very-unhealthy); }
+        .cd-dashboard-marker.hazardous { background-color: var(--aqi-hazardous); }
+        .cd-dashboard-marker.offline { background-color: var(--aqi-offline); }
 
         /* FLOATING ACTION MENU */
         .cd-floating-overlay {
@@ -387,11 +463,33 @@
         }
     </style>
 
+    <!-- Pass initial data from Django -->
+    <script>
+        window.CDASHBOARD_NODES = {{ all_nodes_data|safe|default:'[]' }};
+        window.CDASHBOARD_USERS = {
+            total: {{ user_stats.total_users|default:0 }},
+            active: {{ user_stats.active_users|default:0 }},
+            pending: {{ user_stats.pending_approval|default:0 }},
+            admins: {{ user_stats.admin_count|default:0 }},
+            officials: {{ user_stats.official_count|default:0 }},
+            active_today: {{ user_stats.active_today|default:0 }},
+            recent_activity: {{ recent_user_activity|safe|default:'[]' }}
+        };
+        window.CDASHBOARD_CONFIG = {
+            mapCenter: [{{ map_center_lat|default:"14.5631" }}, {{ map_center_lng|default:"121.0192" }}],
+            mapZoom: {{ map_zoom|default:"13" }},
+            refreshInterval: 30000
+        };
+        
+        // Debug: Log to verify data is passed
+        console.log('[Dashboard] User stats from Django:', window.CDASHBOARD_USERS);
+        console.log('[Dashboard] Nodes data length:', window.CDASHBOARD_NODES.length);
+    </script>
+
     <div class="cdashboard-wrapper">
 
         {# ================================================================== #}
         {# PRIMARY INCIDENT CARD                                              #}
-        {# Shows the most recent critical alert, or a "clear" state          #}
         {# ================================================================== #}
         {% with critical_alert=active_alerts.0 %}
         <div class="cd-incident-primary {% if not critical_alert %}clear{% endif %}">
@@ -426,8 +524,8 @@
 
             <div class="cd-incident-col" style="flex: 1; max-width: 450px;">
                 <div class="cd-incident-impact">
-                    <div>Nodes Offline: <span>{{ system_health.inactive_nodes }}</span></div>
-                    <div>Active: <span>{{ system_health.active_nodes }} / {{ system_health.total_nodes }}</span></div>
+                    <div>Nodes Offline: <span id="globalOfflineCount">{{ system_health.inactive_nodes }}</span></div>
+                    <div>Active: <span id="globalActiveCount">{{ system_health.active_nodes }} / {{ system_health.total_nodes }}</span></div>
                     <div>
                         Alerts:
                         <span style="color: {% if severity_counts.critical > 0 %}var(--cd-red){% elif severity_counts.warning > 0 %}var(--cd-yellow){% else %}var(--cd-green){% endif %};">
@@ -496,7 +594,6 @@
 
         {# ================================================================== #}
         {# SECONDARY ISSUES STRIP                                             #}
-        {# Live counts of warnings and offline nodes                          #}
         {# ================================================================== #}
         <div class="cd-secondary-issues">
             {% if severity_counts.critical > 0 %}
@@ -520,12 +617,10 @@
             </a>
             {% endif %}
 
-            {% if user_stats.pending_approval > 0 %}
-            <div class="cd-secondary-pill yellow">
+            <div class="cd-secondary-pill yellow" id="pendingUsersPill" style="display: {% if user_stats.pending_approval > 0 %}flex{% else %}none{% endif %};">
                 <i class="ph-fill ph-user-circle-plus" style="color: var(--cd-yellow);"></i>
-                {{ user_stats.pending_approval }} User{{ user_stats.pending_approval|pluralize }} Awaiting Approval
+                <span id="pendingUsersCount">{{ user_stats.pending_approval }}</span> User{{ user_stats.pending_approval|pluralize }} Awaiting Approval
             </div>
-            {% endif %}
 
             {% if severity_counts.critical == 0 and severity_counts.warning == 0 and system_health.inactive_nodes == 0 and user_stats.pending_approval == 0 %}
             <div class="cd-secondary-pill green">
@@ -537,7 +632,6 @@
 
         {# ================================================================== #}
         {# ENVIRONMENT IMPACT CARD                                            #}
-        {# Driven by: aggregate_data, analytics                               #}
         {# ================================================================== #}
         <div class="cdashboard-card cdashboard-environment">
             <div class="cdashboard-card-header">
@@ -600,7 +694,7 @@
 
                 <div class="cd-metric-row">
                     <span class="cd-metric-label">Nodes Reporting</span>
-                    <span class="cd-metric-val">
+                    <span class="cd-metric-val" id="envNodesReporting">
                         {{ active_count }} / {{ total_nodes }}
                         {% if inactive_count > 0 %}
                             <span class="cd-pill red">{{ inactive_count }} Offline</span>
@@ -644,7 +738,6 @@
 
         {# ================================================================== #}
         {# SYSTEM HEALTH CARD                                                 #}
-        {# Driven by: system_health                                           #}
         {# ================================================================== #}
         <div class="cdashboard-card cdashboard-system-health">
             <div class="cdashboard-card-header">
@@ -687,7 +780,7 @@
 
                 <div class="cd-metric-row">
                     <span class="cd-metric-label">Active Nodes</span>
-                    <span class="cd-metric-val"
+                    <span class="cd-metric-val" id="healthActiveNodes"
                         data-tooltip="{{ system_health.inactive_nodes }} offline node{{ system_health.inactive_nodes|pluralize }} reducing coverage">
                         {{ system_health.active_nodes }} / {{ system_health.total_nodes }}
                         {% if system_health.inactive_nodes > 0 %}
@@ -724,11 +817,13 @@
 
                 <div class="cd-link-hint">
                     <i class="ph-fill ph-link"></i>
-                    {% if system_health.inactive_nodes > 0 %}
-                        {{ system_health.inactive_nodes }} offline node{{ system_health.inactive_nodes|pluralize }} reducing AQI accuracy.
-                    {% else %}
-                        All nodes online — data confidence is high.
-                    {% endif %}
+                    <span id="healthLinkHint">
+                        {% if system_health.inactive_nodes > 0 %}
+                            {{ system_health.inactive_nodes }} offline node{{ system_health.inactive_nodes|pluralize }} reducing AQI accuracy.
+                        {% else %}
+                            All nodes online — data confidence is high.
+                        {% endif %}
+                    </span>
                 </div>
             </div>
             <a href="{% url 'app:client_devices' %}" class="cdashboard-quick-access {% if system_health.inactive_nodes > 0 %}urgent{% endif %}">
@@ -742,7 +837,6 @@
 
         {# ================================================================== #}
         {# SENSOR HARDWARE / DEVICES CARD                                     #}
-        {# Driven by: active_count, inactive_count, total_nodes               #}
         {# ================================================================== #}
         <div class="cdashboard-card cdashboard-devices">
             <div class="cdashboard-card-header">
@@ -757,7 +851,6 @@
             </div>
             <div class="cdashboard-card-body">
 
-                {# Node status progress bar — widths computed from real counts #}
                 {% if total_nodes > 0 %}
                 <div>
                     <div class="cd-metric-row" style="margin-bottom: 6px;">
@@ -765,13 +858,11 @@
                     </div>
                     <div class="cd-progress-bar"
                         data-tooltip="{{ active_count }} active, {{ inactive_count }} offline out of {{ total_nodes }} total">
-                        {# Active portion #}
                         {% if active_count > 0 %}
                         <div class="cd-progress-fill good"
                             style="width: {% widthratio active_count total_nodes 100 %}%;">
                         </div>
                         {% endif %}
-                        {# Offline portion #}
                         {% if inactive_count > 0 %}
                         <div class="cd-progress-fill offline"
                             style="width: {% widthratio inactive_count total_nodes 100 %}%;">
@@ -822,42 +913,41 @@
 
         {# ================================================================== #}
         {# SPATIAL CONTEXT / MAP CARD                                         #}
-        {# Mock map preview — links to the real live map                      #}
         {# ================================================================== #}
         <div class="cdashboard-card cdashboard-map">
             <div class="cdashboard-card-header">
                 <div class="cd-header-left">
                     <i class="ph-fill ph-map-pin" style="color: var(--cd-slate);"></i> Spatial Context
                 </div>
+                <span id="mapStatusTag" class="cd-time-tag stable">LIVE</span>
             </div>
             <div class="cdashboard-card-body" style="padding-top: 6px;">
-                <div class="cd-mock-map">
-                    {# Static dots — visual placeholder linking to real map #}
-                    <div class="cd-map-dot" style="top: 20%; left: 30%; color: var(--cd-green); background: var(--cd-green);"></div>
-                    <div class="cd-map-dot" style="top: 70%; left: 40%; color: var(--cd-yellow); background: var(--cd-yellow);"></div>
-                    {% if inactive_count > 0 %}
-                    <div class="cd-map-dot alert" style="top: 60%; left: 75%;"></div>
-                    {% endif %}
+                <div id="cdashboard-real-map" class="cd-real-map"></div>
+                
+                <div class="cd-map-stats">
+                    <div class="cd-map-stat">
+                        <div class="cd-map-stat-value" id="mapActiveCount">0</div>
+                        <div class="cd-map-stat-label">Active Nodes</div>
+                    </div>
+                    <div class="cd-map-stat">
+                        <div class="cd-map-stat-value" id="mapOfflineCount">0</div>
+                        <div class="cd-map-stat-label">Offline</div>
+                    </div>
+                    <div class="cd-map-stat">
+                        <div class="cd-map-stat-value" id="mapAvgAqi">—</div>
+                        <div class="cd-map-stat-label">Avg AQI</div>
+                    </div>
                 </div>
-                <div class="cd-metric-row" style="margin-top: 6px;">
-                    <span class="cd-metric-label">Active on Map</span>
-                    <span class="cd-metric-val" style="color: var(--cd-green);">{{ active_count }} node{{ active_count|pluralize }}</span>
-                </div>
-                {% if inactive_count > 0 %}
-                <div class="cd-metric-row">
-                    <span class="cd-metric-label">Offline Nodes</span>
-                    <span class="cd-metric-val" style="color: var(--cd-red);">{{ inactive_count }} node{{ inactive_count|pluralize }}</span>
-                </div>
-                {% endif %}
+
+                <div id="mapRecentActivity" class="cd-recent-activity"></div>
             </div>
             <a href="{% url 'app:client_map' %}" class="cdashboard-quick-access">
-                Open Live Map &rarr;
+                Open Full Map &rarr;
             </a>
         </div>
 
         {# ================================================================== #}
         {# DATA PIPELINE CARD                                                 #}
-        {# Driven by: analytics                                               #}
         {# ================================================================== #}
         <div class="cdashboard-card cdashboard-pipeline">
             <div class="cdashboard-card-header">
@@ -907,33 +997,30 @@
 
         {# ================================================================== #}
         {# USERS / PERSONNEL CARD                                             #}
-        {# Driven by: user_stats                                              #}
         {# ================================================================== #}
         <div class="cdashboard-card cdashboard-network">
             <div class="cdashboard-card-header">
                 <div class="cd-header-left">
                     <i class="ph-fill ph-users" style="color: var(--cd-blue);"></i> Users
                 </div>
-                {% if user_stats.pending_approval > 0 %}
-                    <span class="cd-time-tag ongoing">ACTION NEEDED</span>
-                {% else %}
-                    <span class="cd-time-tag stable">OK</span>
-                {% endif %}
+                <span id="userStatusTag" class="cd-time-tag {% if user_stats.pending_approval > 0 %}ongoing{% else %}stable{% endif %}">
+                    {% if user_stats.pending_approval > 0 %}ACTION NEEDED{% else %}OK{% endif %}
+                </span>
             </div>
             <div class="cdashboard-card-body">
                 <div class="cd-metric-row">
                     <span class="cd-metric-label">Total Users</span>
-                    <span class="cd-metric-val shimmer-text">{{ user_stats.total_users|default:"0" }}</span>
+                    <span class="cd-metric-val shimmer-text" id="userTotalCount">{{ user_stats.total_users|default:"0" }}</span>
                 </div>
                 <div class="cd-metric-row">
                     <span class="cd-metric-label">Admins / Officials</span>
-                    <span class="cd-metric-val">
+                    <span class="cd-metric-val" id="userRoleCount">
                         {{ user_stats.admin_count|default:"0" }} / {{ user_stats.official_count|default:"0" }}
                     </span>
                 </div>
                 <div class="cd-metric-row">
                     <span class="cd-metric-label">Pending Approval</span>
-                    <span class="cd-metric-val">
+                    <span class="cd-metric-val" id="userPendingCount">
                         {{ user_stats.pending_approval|default:"0" }}
                         {% if user_stats.pending_approval > 0 %}
                             <span class="cd-pill red">Review Required</span>
@@ -942,23 +1029,36 @@
                         {% endif %}
                     </span>
                 </div>
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Active Today</span>
+                    <span class="cd-metric-val" id="userActiveToday">
+                        {% if user_stats.active_today %}
+                            {{ user_stats.active_today }}
+                        {% else %}
+                            0
+                        {% endif %}
+                        <span class="cd-trend good">Active</span>
+                    </span>
+                </div>
+                <div id="userRecentActivity" class="cd-recent-activity" style="margin-top: 8px;"></div>
                 <div class="cd-link-hint">
                     <i class="ph-fill ph-link"></i>
-                    {% if user_stats.pending_approval > 0 %}
-                        {{ user_stats.pending_approval }} user{{ user_stats.pending_approval|pluralize }} awaiting admin approval.
-                    {% else %}
-                        All registered users are approved and active.
-                    {% endif %}
+                    <span id="userLinkHint">
+                        {% if user_stats.pending_approval > 0 %}
+                            {{ user_stats.pending_approval }} user{{ user_stats.pending_approval|pluralize }} awaiting admin approval.
+                        {% else %}
+                            All registered users are approved and active.
+                        {% endif %}
+                    </span>
                 </div>
             </div>
-            <a href="{% url 'app:client_users' %}" class="cdashboard-quick-access {% if user_stats.pending_approval > 0 %}urgent{% endif %}">
+            <a href="{% url 'app:client_users' %}" class="cdashboard-quick-access {% if user_stats.pending_approval > 0 %}urgent{% endif %}" id="userManageLink">
                 Manage Users &rarr;
             </a>
         </div>
 
         {# ================================================================== #}
         {# ALERTS SUMMARY CARD                                                #}
-        {# Driven by: severity_counts, active_alerts                         #}
         {# ================================================================== #}
         <div class="cdashboard-card cdashboard-admin">
             <div class="cdashboard-card-header">
@@ -1050,4 +1150,10 @@
             }
         }
     </script>
+
+    {# ================================================================== #}
+    {# DEDICATED JAVASCRIPT FILES                                         #}
+    {# ================================================================== #}
+    <script src="{% static 'AppEnviroNode/js/dashboard-spatial-context.js' %}"></script>
+    <script src="{% static 'AppEnviroNode/js/dashboard-users-context.js' %}"></script>
 {% endblock %}
