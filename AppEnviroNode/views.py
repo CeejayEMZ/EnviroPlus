@@ -29,7 +29,7 @@ import hashlib
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-# from xhtml2pdf import pisa
+from xhtml2pdf import pisa
 from openpyxl import Workbook
 from openpyxl.styles import Alignment
 from openpyxl.utils import get_column_letter
@@ -4620,54 +4620,6 @@ def get_report_readings(start_date, end_date, selected_node='all', selected_loca
 
     return readings
 
-def parse_export_params(request):
-    date_from = request.GET.get('date_from')
-    date_to = request.GET.get('date_to')
-    selected_node = request.GET.get('node', 'all')
-    today = timezone.localdate()
-
-    if not date_from:
-        date_from = (today - timedelta(days=14)).isoformat()
-    if not date_to:
-        date_to = today.isoformat()
-
-    try:
-        date_from_obj = datetime.fromisoformat(date_from).date()
-    except (TypeError, ValueError):
-        date_from_obj = today - timedelta(days=14)
-
-    try:
-        date_to_obj = datetime.fromisoformat(date_to).date()
-    except (TypeError, ValueError):
-        date_to_obj = today
-
-    if date_to_obj < date_from_obj:
-        date_to_obj = date_from_obj
-
-    return date_from_obj, date_to_obj, selected_node
-
-def build_chart_image(summary):
-    labels = summary.get('trend_labels', [])
-    values = [float(v) if v is not None else float('nan') for v in summary.get('trend_values', [])]
-
-    fig, ax = plt.subplots(figsize=(8, 3.5), dpi=100)
-    x = list(range(len(labels)))
-    ax.plot(x, values, marker='o', color='#1f77b4', linewidth=2)
-    ax.fill_between(x, values, alpha=0.12, color='#1f77b4')
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=45, ha='right')
-    ax.set_ylabel('AQI')
-    ax.set_title('AQI Trend')
-    ax.grid(True, linestyle='--', alpha=0.4)
-    fig.tight_layout()
-
-    buffer = io.BytesIO()
-    fig.savefig(buffer, format='png', bbox_inches='tight')
-    plt.close(fig)
-    buffer.seek(0)
-    return buffer
-
-def build_chart_explanation(summary):
     peak_date = summary.get('peak_date')
     peak_aqi = summary.get('peak_aqi', 0)
     avg_aqi = summary.get('avg_aqi', 0)
@@ -4738,23 +4690,44 @@ def export_report_print(request):
         node = SensorNode.objects.filter(pk=selected_node).first()
         node_name = node.name if node else node_name
 
+    # Compute category breakdown from actual summary data
+    daily = summary['summary']
+    good_days       = sum(1 for d in daily if d['avg_aqi'] <= 50)
+    moderate_days   = sum(1 for d in daily if 50 < d['avg_aqi'] <= 100)
+    unhealthy_days  = sum(1 for d in daily if d['avg_aqi'] > 100)
+    total_days      = len(daily) or 1
+    good_pct        = round(good_days / total_days * 100)
+    moderate_pct    = round(moderate_days / total_days * 100)
+    unhealthy_pct   = round(unhealthy_days / total_days * 100)
+
+    # Most affected node (highest avg AQI reading in period)
+    start_at = timezone.make_aware(datetime.combine(date_from_obj, datetime.min.time()))
+    end_at   = timezone.make_aware(datetime.combine(date_to_obj, datetime.max.time()))
+    worst = (SensorReading.objects
+             .filter(timestamp__range=[start_at, end_at], aqi__isnull=False)
+             .values('node__name')
+             .annotate(avg=Avg('aqi'))
+             .order_by('-avg')
+             .first())
+    most_affected_node = worst['node__name'] if worst else 'N/A'
+
     return render(request, 'AppEnviroNode/admin/analytics_export.html', {
-        'summary': summary,
-        'chart_image': chart_image,
-        'chart_explanation': chart_explanation,
-        'node_name': node_name,
-        'report_period': summary.get('report_period', ''),
-        'generated_at': summary.get('generated_at', ''),
-        'avg_aqi': summary.get('avg_aqi', 0),
-        'peak_aqi': summary.get('peak_aqi', 0),
-        'low_aqi': summary.get('peak_aqi', 0),
-        'good_days': 0,
-        'moderate_days': 0,
-        'unhealthy_days': 0,
-        'good_pct': 0,
-        'moderate_pct': 0,
-        'unhealthy_pct': 0,
-        'most_affected_node': 'N/A',
+        'summary':            summary,
+        'chart_image':        chart_image,
+        'chart_explanation':  chart_explanation,
+        'node_name':          node_name,
+        'report_period':      summary.get('report_period', ''),
+        'generated_at':       summary.get('generated_at', ''),
+        'avg_aqi':            summary.get('avg_aqi', 0),
+        'peak_aqi':           summary.get('peak_aqi', 0),
+        'low_aqi':            min((d['avg_aqi'] for d in daily), default=0),
+        'good_days':          good_days,
+        'moderate_days':      moderate_days,
+        'unhealthy_days':     unhealthy_days,
+        'good_pct':           good_pct,
+        'moderate_pct':       moderate_pct,
+        'unhealthy_pct':      unhealthy_pct,
+        'most_affected_node': most_affected_node,
     })
 
 @login_required(login_url='app:login')
@@ -4763,43 +4736,63 @@ def export_report_pdf(request):
     summary = build_report_summary(date_from_obj, date_to_obj, selected_node, selected_location)
     chart_image = base64.b64encode(build_chart_image(summary['summary']).getvalue()).decode('ascii')
     chart_explanation = build_chart_explanation(summary['summary'])
-    
+
     node_name = 'All Nodes'
-    
     if selected_node != 'all':
         node = SensorNode.objects.filter(pk=selected_node).first()
         node_name = node.name if node else node_name
 
+    # Compute category breakdown from actual summary data
+    daily = summary['summary']
+    good_days       = sum(1 for d in daily if d['avg_aqi'] <= 50)
+    moderate_days   = sum(1 for d in daily if 50 < d['avg_aqi'] <= 100)
+    unhealthy_days  = sum(1 for d in daily if d['avg_aqi'] > 100)
+    total_days      = len(daily) or 1
+    good_pct        = round(good_days / total_days * 100)
+    moderate_pct    = round(moderate_days / total_days * 100)
+    unhealthy_pct   = round(unhealthy_days / total_days * 100)
+
+    # Most affected node (highest avg AQI reading in period)
+    start_at = timezone.make_aware(datetime.combine(date_from_obj, datetime.min.time()))
+    end_at   = timezone.make_aware(datetime.combine(date_to_obj, datetime.max.time()))
+    worst = (SensorReading.objects
+             .filter(timestamp__range=[start_at, end_at], aqi__isnull=False)
+             .values('node__name')
+             .annotate(avg=Avg('aqi'))
+             .order_by('-avg')
+             .first())
+    most_affected_node = worst['node__name'] if worst else 'N/A'
+
     html_string = render_to_string('AppEnviroNode/admin/analytics_export.html', {
-        'summary': summary,
-        'chart_image': chart_image,
-        'chart_explanation': chart_explanation,
-        'node_name': node_name,
-        'report_period': summary.get('report_period', ''),
-        'generated_at': summary.get('generated_at', ''),
-        'avg_aqi': summary.get('avg_aqi', 0),
-        'peak_aqi': summary.get('peak_aqi', 0),
-        'low_aqi': summary.get('peak_aqi', 0),
-        'good_days': 0,
-        'moderate_days': 0,
-        'unhealthy_days': 0,
-        'good_pct': 0,
-        'moderate_pct': 0,
-        'unhealthy_pct': 0,
-        'most_affected_node': 'N/A',
-        'pdf_export': True,
+        'summary':            summary,
+        'chart_image':        chart_image,
+        'chart_explanation':  chart_explanation,
+        'node_name':          node_name,
+        'report_period':      summary.get('report_period', ''),
+        'generated_at':       summary.get('generated_at', ''),
+        'avg_aqi':            summary.get('avg_aqi', 0),
+        'peak_aqi':           summary.get('peak_aqi', 0),
+        'low_aqi':            min((d['avg_aqi'] for d in daily), default=0),
+        'good_days':          good_days,
+        'moderate_days':      moderate_days,
+        'unhealthy_days':     unhealthy_days,
+        'good_pct':           good_pct,
+        'moderate_pct':       moderate_pct,
+        'unhealthy_pct':      unhealthy_pct,
+        'most_affected_node': most_affected_node,
+        'pdf_export':         True,
     })
 
     result = io.BytesIO()
     pdf = pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), result)
-    
+
     if not pdf.err:
         response = HttpResponse(result.getvalue(), content_type='application/pdf')
         response['Content-Disposition'] = (
             f'attachment; filename="Environode-report-{date_from_obj.isoformat()}_to_{date_to_obj.isoformat()}.pdf"'
         )
         return response
-    return HttpResponse('Error generating PDF')
+    return HttpResponse('Error generating PDF — check that xhtml2pdf is installed.')
 
 @login_required(login_url='app:login')
 def client_ai(request):

@@ -2114,63 +2114,61 @@ async function initialize() {
 // ============================================================================
 
 /**
- * Build export parameters from current analytics state
+ * Build export parameters from current analytics state.
+ * Maps JS timeframe keys to Django view's report_type values.
  */
 function getExportParams() {
-  // Determine report_type based on timeframe
-  let report_type = '7d';
-  if (AnalyticsState.selectedTimeframe === '24h') report_type = '24hrs';
-  else if (AnalyticsState.selectedTimeframe === '7d') report_type = 'Weekly';
-  else if (AnalyticsState.selectedTimeframe === '30d') report_type = 'Monthly';
-  else if (AnalyticsState.isCustomDate) report_type = 'Custom';
+  let report_type = 'Weekly'; // default
+  if (AnalyticsState.selectedTimeframe === '24h')       report_type = '24hrs';
+  else if (AnalyticsState.selectedTimeframe === '7d')   report_type = 'Weekly';
+  else if (AnalyticsState.selectedTimeframe === '30d')  report_type = 'Monthly';
+  else if (AnalyticsState.isCustomDate)                 report_type = 'Custom';
 
   const params = new URLSearchParams();
   params.append('report_type', report_type);
-  
+
   if (AnalyticsState.isCustomDate && AnalyticsState.customDateStart && AnalyticsState.customDateEnd) {
     params.append('date_from', AnalyticsState.customDateStart);
     params.append('date_to', AnalyticsState.customDateEnd);
   }
-  
+
   if (AnalyticsState.selectedNode && AnalyticsState.selectedNode !== 'all') {
     params.append('node', AnalyticsState.selectedNode);
   }
-  
+
   if (AnalyticsState.selectedLocation && AnalyticsState.selectedLocation !== 'all') {
     params.append('location', AnalyticsState.selectedLocation);
   }
-  
+
   return params.toString();
 }
 
-/**
- * Export analytics data as PDF
- */
+/** Export as PDF — triggers Django export_report_pdf view */
 window.exportAnalyticsAsPDF = function() {
   const params = getExportParams();
-  const url = `/export/pdf/?${params}`;
-  window.location.href = url;
-  console.log('[Analytics Export] PDF export initiated');
+  window.location.href = `/export/pdf/?${params}`;
+  console.log('[Analytics Export] PDF export initiated:', params);
 };
 
-/**
- * Export analytics data as CSV
- */
+/** Export as CSV — triggers Django export_report_csv view */
 window.exportAnalyticsAsCSV = function() {
   const params = getExportParams();
-  const url = `/export/csv/?${params}`;
-  window.location.href = url;
-  console.log('[Analytics Export] CSV export initiated');
+  window.location.href = `/export/csv/?${params}`;
+  console.log('[Analytics Export] CSV export initiated:', params);
 };
 
-/**
- * Print analytics report
- */
+/** Export as Excel — triggers Django export_report_excel view */
+window.exportAnalyticsAsExcel = function() {
+  const params = getExportParams();
+  window.location.href = `/export/excel/?${params}`;
+  console.log('[Analytics Export] Excel export initiated:', params);
+};
+
+/** Print report — opens print view in new tab */
 window.printAnalyticsReport = function() {
   const params = getExportParams();
-  const url = `/export/print/?${params}`;
-  window.open(url, '_blank');
-  console.log('[Analytics Export] Print initiated');
+  window.open(`/export/print/?${params}`, '_blank');
+  console.log('[Analytics Export] Print initiated:', params);
 };
 
 // ============================================================================
