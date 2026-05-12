@@ -188,16 +188,23 @@ def dashboard(request):
         'latest_overall': None,
         'avg_aqi': 0,
         'avg_pm2_5': 0,
+        'avg_pm10': 0,
+        'avg_pm1_0': 0,
         'avg_temperature': 0,
+        'avg_humidity': 0,
+        'avg_pressure': 0,
+        'avg_gas_resistance': 0,
+        'avg_aqi_level': None,
+        'avg_aqi_level_display': 'Moderate',
     }
     
-    total_aqi = 0
-    total_pm2_5 = 0
-    total_temp = 0
-    valid_readings = 0
+    total_aqi = total_pm2_5 = total_pm10 = total_pm1_0 = 0.0
+    total_temp = total_humidity = total_pressure = total_gas = 0.0
+    count_aqi = count_pm2_5 = count_pm10 = count_pm1_0 = 0
+    count_temp = count_humidity = count_pressure = count_gas = 0
     
     for node in nodes:
-        latest = node.readings.first()
+        latest = node.readings.order_by('-timestamp').first()
         if latest:
             aggregate_data['nodes'].append({
                 'node': node,
@@ -208,17 +215,48 @@ def dashboard(request):
                 aggregate_data['latest_overall'] = latest
             if latest.aqi is not None:
                 total_aqi += latest.aqi
+                count_aqi += 1
             if latest.pm2_5 is not None:
                 total_pm2_5 += latest.pm2_5
+                count_pm2_5 += 1
+            if latest.pm10 is not None:
+                total_pm10 += latest.pm10
+                count_pm10 += 1
+            if latest.pm1_0 is not None:
+                total_pm1_0 += latest.pm1_0
+                count_pm1_0 += 1
             if latest.temperature is not None:
                 total_temp += latest.temperature
-            valid_readings += 1
+                count_temp += 1
+            if latest.humidity is not None:
+                total_humidity += latest.humidity
+                count_humidity += 1
+            if latest.pressure is not None:
+                total_pressure += latest.pressure
+                count_pressure += 1
+            if latest.gas_resistance is not None:
+                total_gas += latest.gas_resistance
+                count_gas += 1
     
     # Calculate averages
-    if valid_readings > 0:
-        aggregate_data['avg_aqi'] = round(total_aqi / valid_readings)
-        aggregate_data['avg_pm2_5'] = round(total_pm2_5 / valid_readings, 2)
-        aggregate_data['avg_temperature'] = round(total_temp / valid_readings, 1)
+    if count_aqi > 0:
+        aggregate_data['avg_aqi'] = round(total_aqi / count_aqi)
+        aggregate_data['avg_aqi_level'] = get_aqi_category_label(aggregate_data['avg_aqi'])
+        aggregate_data['avg_aqi_level_display'] = aggregate_data['avg_aqi_level']
+    if count_pm2_5 > 0:
+        aggregate_data['avg_pm2_5'] = round(total_pm2_5 / count_pm2_5, 2)
+    if count_pm10 > 0:
+        aggregate_data['avg_pm10'] = round(total_pm10 / count_pm10, 2)
+    if count_pm1_0 > 0:
+        aggregate_data['avg_pm1_0'] = round(total_pm1_0 / count_pm1_0, 2)
+    if count_temp > 0:
+        aggregate_data['avg_temperature'] = round(total_temp / count_temp, 1)
+    if count_humidity > 0:
+        aggregate_data['avg_humidity'] = round(total_humidity / count_humidity, 1)
+    if count_pressure > 0:
+        aggregate_data['avg_pressure'] = round(total_pressure / count_pressure, 1)
+    if count_gas > 0:
+        aggregate_data['avg_gas_resistance'] = round(total_gas / count_gas, 1)
     
     # =========================================================================
     # SECTION 2: Generate 7-day chart data

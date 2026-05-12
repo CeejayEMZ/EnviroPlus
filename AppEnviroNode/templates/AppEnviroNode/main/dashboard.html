@@ -823,7 +823,7 @@
 
       <div class="aqi-card">
         <div class="aqi-info-title">Average AQI</div>
-        <div class="aqi-info-subtitle">Last updated: {% if aggregate_data.latest_overall.timestamp %}{{ aggregate_data.latest_overall.timestamp|date:"M/d/Y, g:i A" }}{% else %}No readings yet{% endif %}</div>
+        <div class="aqi-info-subtitle">Last updated: {% if aggregate_data.latest_overall and aggregate_data.latest_overall.timestamp %}{{ aggregate_data.latest_overall.timestamp|date:"M/d/Y, g:i A" }}{% else %}No readings yet{% endif %}</div>
         
         <div class="aqi-circle">
           <svg width="150" height="150" id="aqiCircle">
@@ -831,13 +831,13 @@
             <circle cx="75" cy="75" r="65" id="aqiProgressRing" />
           </svg>
           <div class="aqi-circle-content">
-            <div class="aqi-circle-value" id="currentAqiVal">{% if aggregate_data.latest_overall.aqi %}{{ aggregate_data.latest_overall.aqi }}{% else %}60{% endif %}</div>
+            <div class="aqi-circle-value" id="currentAqiVal">{% if aggregate_data.avg_aqi %}{{ aggregate_data.avg_aqi }}{% else %}60{% endif %}</div>
             <div class="aqi-circle-label">AQI</div>
           </div>
         </div>
         
-        <div class="aqi-badge" id="currentAqiLevel" data-level="{{ aggregate_data.latest_overall.aqi_level|default:'moderate' }}">
-          {% if aggregate_data.latest_overall.aqi_level_display %}{{ aggregate_data.latest_overall.aqi_level_display }}{% else %}Moderate{% endif %}
+        <div class="aqi-badge" id="currentAqiLevel" data-level="{{ aggregate_data.avg_aqi_level_display|default:'Moderate' }}">
+          {% if aggregate_data.avg_aqi_level_display %}{{ aggregate_data.avg_aqi_level_display }}{% else %}Moderate{% endif %}
         </div>
         <div class="aqi-description">
           The air has reached a high level of pollution and is unhealthy for sensitive groups. Reduce time spent outside if you are feeling symptoms such as difficulty breathing or throat irritation.
@@ -858,7 +858,7 @@
             <div class="metric-card-front">
               <div class="metric-top"><small>PM2.5</small></div>
               <div>
-                <span class="metric-value">{% if aggregate_data.latest_overall.pm2_5 %}{{ aggregate_data.latest_overall.pm2_5|floatformat:1 }}{% else %}-{% endif %}</span>
+                <span class="metric-value">{% if aggregate_data.avg_pm2_5 %}{{ aggregate_data.avg_pm2_5|floatformat:1 }}{% else %}-{% endif %}</span>
                 <span class="metric-unit">µg/m³</span>
               </div>
             </div>
@@ -873,7 +873,7 @@
             <div class="metric-card-front">
               <div class="metric-top"><small>PM10</small></div>
               <div>
-                <span class="metric-value">{% if aggregate_data.latest_overall.pm10 %}{{ aggregate_data.latest_overall.pm10|floatformat:1 }}{% else %}-{% endif %}</span>
+                <span class="metric-value">{% if aggregate_data.avg_pm10 %}{{ aggregate_data.avg_pm10|floatformat:1 }}{% else %}-{% endif %}</span>
                 <span class="metric-unit">µg/m³</span>
               </div>
             </div>
@@ -888,7 +888,7 @@
             <div class="metric-card-front">
               <div class="metric-top"><small>PM1.0</small></div>
               <div>
-                <span class="metric-value">{% if aggregate_data.latest_overall.pm1_0 %}{{ aggregate_data.latest_overall.pm1_0|floatformat:1 }}{% else %}-{% endif %}</span>
+                <span class="metric-value">{% if aggregate_data.avg_pm1_0 %}{{ aggregate_data.avg_pm1_0|floatformat:1 }}{% else %}-{% endif %}</span>
                 <span class="metric-unit">µg/m³</span>
               </div>
             </div>
@@ -903,10 +903,10 @@
             <div class="metric-card-front">
               <div class="metric-top"><small>Temperature</small></div>
               <div>
-                <span class="metric-value">{% if aggregate_data.latest_overall.temperature %}{{ aggregate_data.latest_overall.temperature|floatformat:1 }}{% else %}-{% endif %}</span>
+                <span class="metric-value">{% if aggregate_data.avg_temperature %}{{ aggregate_data.avg_temperature|floatformat:1 }}{% else %}-{% endif %}</span>
                 <span class="metric-unit">°C</span>
               </div>
-              <div class="metric-humidity-sub">Humidity: {% if aggregate_data.latest_overall.humidity %}{{ aggregate_data.latest_overall.humidity|floatformat:0 }}{% else %}0{% endif %}%</div>
+              <div class="metric-humidity-sub">Humidity: {% if aggregate_data.avg_humidity %}{{ aggregate_data.avg_humidity|floatformat:0 }}{% else %}0{% endif %}%</div>
             </div>
             <div class="metric-card-back">
               <div class="metric-top"><small>About Temperature</small></div>
@@ -919,7 +919,7 @@
             <div class="metric-card-front">
               <div class="metric-top"><small>Humidity</small></div>
               <div>
-                <span class="metric-value">{% if aggregate_data.latest_overall.humidity %}{{ aggregate_data.latest_overall.humidity|floatformat:0 }}{% else %}-{% endif %}</span>
+                <span class="metric-value">{% if aggregate_data.avg_humidity %}{{ aggregate_data.avg_humidity|floatformat:0 }}{% else %}-{% endif %}</span>
                 <span class="metric-unit">%</span>
               </div>
               <div class="metric-humidity-sub">Relative</div>
@@ -935,7 +935,7 @@
             <div class="metric-card-front">
               <div class="metric-top"><small>Pressure</small></div>
               <div>
-                <span class="metric-value">{% if aggregate_data.latest_overall.pressure %}{{ aggregate_data.latest_overall.pressure|floatformat:1 }}{% else %}-{% endif %}</span>
+                <span class="metric-value">{% if aggregate_data.avg_pressure %}{{ aggregate_data.avg_pressure|floatformat:1 }}{% else %}-{% endif %}</span>
                 <span class="metric-unit">hPa</span>
               </div>
             </div>
@@ -950,7 +950,7 @@
             <div class="metric-card-front">
               <div class="metric-top"><small>VOCs</small></div>
               <div>
-                <span class="metric-value">{% if aggregate_data.latest_overall.gas_resistance %}{{ aggregate_data.latest_overall.gas_resistance|floatformat:1 }}{% else %}-{% endif %}</span>
+                <span class="metric-value">{% if aggregate_data.avg_gas_resistance %}{{ aggregate_data.avg_gas_resistance|floatformat:1 }}{% else %}-{% endif %}</span>
                 <span class="metric-unit">Index</span>
               </div>
             </div>
@@ -1139,8 +1139,11 @@
               <div><strong>AQI:</strong> ${Math.round(aqi)}</div>
               <div><strong>PM2.5:</strong> ${pollutants.pm25 ? pollutants.pm25.toFixed(1) : 'N/A'} µg/m³</div>
               <div><strong>PM10:</strong> ${pollutants.pm10 ? pollutants.pm10.toFixed(1) : 'N/A'} µg/m³</div>
+              <div><strong>PM1.0:</strong> ${pollutants.pm1_0 ? pollutants.pm1_0.toFixed(1) : 'N/A'} µg/m³</div>
               <div><strong>Temp:</strong> ${pollutants.temperature ? pollutants.temperature.toFixed(1) : 'N/A'}°C</div>
               <div><strong>Humidity:</strong> ${pollutants.humidity ? pollutants.humidity.toFixed(0) : 'N/A'}%</div>
+              <div><strong>Pressure:</strong> ${pollutants.pressure ? pollutants.pressure.toFixed(1) : 'N/A'} hPa</div>
+              <div><strong>VOCs:</strong> ${pollutants.gas_resistance ? pollutants.gas_resistance.toFixed(1) : 'N/A'} Ω</div>
             </div>
           `;
           marker.bindPopup(popupContent);
@@ -1207,8 +1210,11 @@
               <div><strong>AQI:</strong> ${Math.round(aqi)}</div>
               <div><strong>PM2.5:</strong> ${pollutants.pm25 ? pollutants.pm25.toFixed(1) : 'N/A'} µg/m³</div>
               <div><strong>PM10:</strong> ${pollutants.pm10 ? pollutants.pm10.toFixed(1) : 'N/A'} µg/m³</div>
+              <div><strong>PM1.0:</strong> ${pollutants.pm1_0 ? pollutants.pm1_0.toFixed(1) : 'N/A'} µg/m³</div>
               <div><strong>Temp:</strong> ${pollutants.temperature ? pollutants.temperature.toFixed(1) : 'N/A'}°C</div>
               <div><strong>Humidity:</strong> ${pollutants.humidity ? pollutants.humidity.toFixed(0) : 'N/A'}%</div>
+              <div><strong>Pressure:</strong> ${pollutants.pressure ? pollutants.pressure.toFixed(1) : 'N/A'} hPa</div>
+              <div><strong>VOCs:</strong> ${pollutants.gas_resistance ? pollutants.gas_resistance.toFixed(1) : 'N/A'} Ω</div>
             </div>
           `;
           marker.bindPopup(popupContent);
