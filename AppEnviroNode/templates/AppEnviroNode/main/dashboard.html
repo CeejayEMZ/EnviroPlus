@@ -1053,15 +1053,15 @@
         </ul>
       </div>
     </div>
-    <script>
-      window.DashboardRankings = {
-        polluted: {{ top_polluted_areas_json|safe }},
-        cleanest: {{ cleanest_areas_json|safe }}
-      };
-    </script>
-
   </div>
 </div>
+
+<script>
+  window.DashboardRankings = {
+    polluted: {{ top_polluted_areas_json|safe }},
+    cleanest: {{ cleanest_areas_json|safe }}
+  };
+</script>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -1486,10 +1486,8 @@
     }
   });
 </script>
-
 <script>
   const CLOSEST_NODE_API_URL = "{% url 'app:api_closest_node' %}";
 </script>
 <script src="{% static 'AppEnviroNode/js/dashboard_closest_node.js' %}"></script>
-
 {% endblock %}
