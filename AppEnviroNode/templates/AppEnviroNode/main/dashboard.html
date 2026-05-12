@@ -646,7 +646,7 @@
     }
 
     /* Map container */
-    #admin-map {
+    #public-map {
       flex: 1 1 auto;
       border-radius: 12px;
       min-height: 260px;
@@ -735,7 +735,7 @@
       .dashboard-aqi-row .aqi-card {
         min-height: 400px;
       }
-      #admin-map {
+      #public-map {
         min-height: 220px;
         height: 220px;
       }
@@ -784,7 +784,7 @@
       <div class="heatmap-card">
         <div class="subsection-title">Air Quality Map</div>
         
-        <div id="admin-map"></div>
+        <div id="public-map"></div>
         
         <!-- Color Bar Legend -->
         <div class="aqi-bar-legend">
@@ -1041,243 +1041,343 @@
 <script src="{% static 'AppEnviroNode/js/dashboard-top-areas.js' %}"></script>
 
 <script>
-  console.log('📊 [Dashboard Module Initialized]');
-  
-  let dashboardController = {
-    mapInstance: null,
-    markerClusterGroup: null,
-    allMarkersMap: new Map(),
-    lastUpdateTime: null,
-    updateInterval: 30000,
-    maxNodesToLoad: 100,
-    
-    async fetchNodeData(status = 'all') {
-      try {
-        const url = `/api/dashboard/nodes/?limit=${this.maxNodesToLoad}&status=${status}`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`API error: ${response.status}`);
-        const data = await response.json();
-        if (!data.success) throw new Error(data.error || 'Unknown API error');
-        console.log(`✅ Fetched ${data.nodes.length} nodes from API`);
-        return data.nodes;
-      } catch (error) {
-        console.error('❌ Failed to fetch node data:', error);
-        return [];
+  console.log('Initializing dashboard map with public map implementation');
+
+  let dashboardMapController = null;
+
+  function getAqiStyle(aqi) {
+    if (aqi <= 50) return 'aqi-good';
+    if (aqi <= 100) return 'aqi-moderate';
+    if (aqi <= 150) return 'aqi-unhealthy-sensitive';
+    if (aqi <= 200) return 'aqi-unhealthy';
+    if (aqi <= 300) return 'aqi-very-unhealthy';
+    return 'aqi-hazardous';
+  }
+
+  function getAqiLabel(aqi) {
+    if (aqi <= 50) return 'Good';
+    if (aqi <= 100) return 'Moderate';
+    if (aqi <= 150) return 'Unhealthy for sensitive groups';
+    if (aqi <= 200) return 'Unhealthy';
+    if (aqi <= 300) return 'Very unhealthy';
+    return 'Hazardous';
+  }
+
+  function updateInfo(nodeName, location, aqi, aqiLevel, pollutants, nodeStatus) {
+    pollutants = pollutants || {};
+    nodeStatus = nodeStatus || 'active';
+
+    const fmt = (v, d) => {
+      if (window.formatNumber && typeof window.formatNumber === 'function') {
+        return window.formatNumber(v, d);
       }
-    },
-    
-    getAqiStyle(aqi) {
-      if (aqi <= 50) return 'aqi-good';
-      if (aqi <= 100) return 'aqi-moderate';
-      if (aqi <= 150) return 'aqi-unhealthy-sensitive';
-      if (aqi <= 200) return 'aqi-unhealthy';
-      if (aqi <= 300) return 'aqi-very-unhealthy';
-      return 'aqi-hazardous';
-    },
-    
-    initializeMap() {
-      console.log('📍 Initializing dashboard map with marker clustering...');
-      if (typeof L === 'undefined') {
-        console.error('❌ Leaflet not loaded');
-        return false;
-      }
-      const mapContainer = document.getElementById('admin-map');
-      if (!mapContainer) {
-        console.error('❌ Map container not found');
-        return false;
-      }
-      try {
-        if (typeof EnviroMapController === 'undefined') {
-          console.error('❌ EnviroMapController not available');
-          return false;
-        }
-        this.mapInstance = new EnviroMapController('admin-map', 14.5631, 121.0192, 14);
-        this.mapInstance.initializeMap();
-        this.markerClusterGroup = L.markerClusterGroup({
-          maxClusterRadius: 60,
-          disableClusteringAtZoom: 16
-        });
-        this.mapInstance.map.addLayer(this.markerClusterGroup);
-        console.log('✅ Map initialized with clustering support');
-        return true;
-      } catch (error) {
-        console.error('❌ Map initialization error:', error);
-        return false;
-      }
-    },
-    
-    renderMarkers(nodesData) {
-      if (!this.mapInstance || !this.markerClusterGroup) {
-        console.warn('⚠️ Map not initialized');
-        return;
-      }
-      console.log(`🎨 Rendering ${nodesData.length} markers...`);
-      let markerCount = 0;
-      nodesData.forEach((item) => {
-        const node = item.node;
-        const pollutants = item.pollutants || {};
-        if (node && node.latitude && node.longitude) {
-          const aqi = pollutants.aqi || 0;
-          const aqiClass = this.getAqiStyle(aqi);
-          const marker = L.marker([node.latitude, node.longitude], {
-            icon: L.divIcon({
-              html: `<div class="waqi-marker"><div class="waqi-box ${aqiClass}">${Math.round(aqi)}</div><div class="waqi-pointer ${aqiClass}"></div></div>`,
-              iconSize: null,
-              className: '',
-              popupAnchor: [0, -50],
-            })
-          });
-          markerCount++;
-          const statusColor = item.status === 'active' ? '#28a745' : '#ffc107';
-          const popupContent = `
-            <div style="font-weight: 600; margin-bottom: 4px;">${node.name}</div>
-            <div style="margin-bottom: 4px;">📍 ${node.location || 'Unknown'}</div>
-            <div style="margin-bottom: 4px; font-size: 0.85rem; padding-bottom: 4px; border-bottom: 1px solid #ddd;">
-              Status: <strong style="color: ${statusColor};">${node.status.toUpperCase()}</strong>
+      return v ?? 'N/A';
+    };
+
+    if (!aqiLevel || aqiLevel === 'Unknown') {
+      aqiLevel = getAqiLabel(aqi);
+    }
+
+    const getStatusDisplay = (status) => {
+      const statusMap = {
+        'active': { text: 'Sensor Online', color: '#22c55e' },
+        'inactive': { text: 'Sensor Offline', color: '#ef4444' },
+        'unregistered': { text: 'Unregistered', color: '#f59e0b' },
+        'rogue': { text: 'Sensor Malfunctioning', color: '#8b5cf6' }
+      };
+      return statusMap[status] || { text: 'Unknown Status', color: '#6b7280' };
+    };
+
+    const statusDisplay = getStatusDisplay(nodeStatus);
+    const infoPanel = document.getElementById('sensor-info');
+    if (!infoPanel) return;
+
+    infoPanel.innerHTML = `
+      <div class="sensor-info-shell">
+        <div style="font-size:1.08rem; font-weight:700; color:#0f172a;">${nodeName}</div>
+        <div class="sensor-card top ${getAqiStyle(aqi)}">
+          <div class="aqi-heading">Air Quality Index</div>
+          <div class="aqi-value-row">
+            <div class="aqi-value">${fmt(aqi, 2)}</div>
+            <div class="aqi-level-badge">${aqiLevel}</div>
+          </div>
+        </div>
+
+        <div class="sensor-data-grid">
+          <div class="sensor-reading">
+            <div class="reading-group">
+              <div class="reading-title">PM2.5</div>
+              <div class="reading-value">${fmt(pollutants?.pm25, 2)}<span class="reading-unit">µg/m³</span></div>
             </div>
-            <div style="margin-top: 8px; font-size: 0.85rem;">
-              <div><strong>AQI:</strong> ${Math.round(aqi)}</div>
-              <div><strong>PM2.5:</strong> ${pollutants.pm25 ? pollutants.pm25.toFixed(1) : 'N/A'} µg/m³</div>
-              <div><strong>PM10:</strong> ${pollutants.pm10 ? pollutants.pm10.toFixed(1) : 'N/A'} µg/m³</div>
-              <div><strong>PM1.0:</strong> ${pollutants.pm1_0 ? pollutants.pm1_0.toFixed(1) : 'N/A'} µg/m³</div>
-              <div><strong>Temp:</strong> ${pollutants.temperature ? pollutants.temperature.toFixed(1) : 'N/A'}°C</div>
-              <div><strong>Humidity:</strong> ${pollutants.humidity ? pollutants.humidity.toFixed(0) : 'N/A'}%</div>
-              <div><strong>Pressure:</strong> ${pollutants.pressure ? pollutants.pressure.toFixed(1) : 'N/A'} hPa</div>
-              <div><strong>VOCs:</strong> ${pollutants.gas_resistance ? pollutants.gas_resistance.toFixed(1) : 'N/A'} Ω</div>
+            <span class="reading-icon pm25"></span>
+          </div>
+
+          <div class="sensor-reading">
+            <div class="reading-group">
+              <div class="reading-title">PM10</div>
+              <div class="reading-value">${fmt(pollutants?.pm10, 2)}<span class="reading-unit">µg/m³</span></div>
             </div>
-          `;
-          marker.bindPopup(popupContent);
-          this.allMarkersMap.set(node.id, marker);
-          this.markerClusterGroup.addLayer(marker);
-        }
-      });
-      console.log(`✅ Rendered ${markerCount} markers to map`);
-    },
+            <span class="reading-icon pm10"></span>
+          </div>
 
-    // ⚡ OPTIMIZATION: Incremental marker diffing instead of full rebuild
-    updateMarkersDiff(newNodesData) {
-      if (!this.mapInstance || !this.markerClusterGroup) {
-        console.warn('⚠️ Map not initialized');
-        return false;
-      }
-
-      try {
-        const newNodeIds = new Set();
-        let added = 0, updated = 0, removed = 0;
-
-        // Process new/updated nodes
-        newNodesData.forEach((item) => {
-          const node = item.node;
-          if (!node || !node.latitude || !node.longitude) return;
-
-          const nodeId = node.id;
-          newNodeIds.add(nodeId);
-          
-          const aqi = (item.pollutants || {}).aqi || 0;
-          
-          // Check if marker exists
-          if (this.allMarkersMap.has(nodeId)) {
-            // Update existing marker (simple approach: remove and re-add)
-            // In production, you might update marker icon and popup
-            const oldMarker = this.allMarkersMap.get(nodeId);
-            this.markerClusterGroup.removeLayer(oldMarker);
-            this.allMarkersMap.delete(nodeId);
-            updated++;
-          } else {
-            added++;
-          }
-
-          // Re-create marker with latest data
-          const aqiClass = this.getAqiStyle(aqi);
-          const marker = L.marker([node.latitude, node.longitude], {
-            icon: L.divIcon({
-              html: `<div class="waqi-marker"><div class="waqi-box ${aqiClass}">${Math.round(aqi)}</div><div class="waqi-pointer ${aqiClass}"></div></div>`,
-              iconSize: null,
-              className: '',
-              popupAnchor: [0, -50],
-            })
-          });
-
-          const statusColor = item.status === 'active' ? '#28a745' : '#ffc107';
-          const pollutants = item.pollutants || {};
-          const popupContent = `
-            <div style="font-weight: 600; margin-bottom: 4px;">${node.name}</div>
-            <div style="margin-bottom: 4px;">📍 ${node.location || 'Unknown'}</div>
-            <div style="margin-bottom: 4px; font-size: 0.85rem; padding-bottom: 4px; border-bottom: 1px solid #ddd;">
-              Status: <strong style="color: ${statusColor};">${node.status.toUpperCase()}</strong>
+          <div class="sensor-reading">
+            <div class="reading-group">
+              <div class="reading-title">PM1.0</div>
+              <div class="reading-value">${fmt(pollutants?.pm1_0, 2)}<span class="reading-unit">µg/m³</span></div>
             </div>
-            <div style="margin-top: 8px; font-size: 0.85rem;">
-              <div><strong>AQI:</strong> ${Math.round(aqi)}</div>
-              <div><strong>PM2.5:</strong> ${pollutants.pm25 ? pollutants.pm25.toFixed(1) : 'N/A'} µg/m³</div>
-              <div><strong>PM10:</strong> ${pollutants.pm10 ? pollutants.pm10.toFixed(1) : 'N/A'} µg/m³</div>
-              <div><strong>PM1.0:</strong> ${pollutants.pm1_0 ? pollutants.pm1_0.toFixed(1) : 'N/A'} µg/m³</div>
-              <div><strong>Temp:</strong> ${pollutants.temperature ? pollutants.temperature.toFixed(1) : 'N/A'}°C</div>
-              <div><strong>Humidity:</strong> ${pollutants.humidity ? pollutants.humidity.toFixed(0) : 'N/A'}%</div>
-              <div><strong>Pressure:</strong> ${pollutants.pressure ? pollutants.pressure.toFixed(1) : 'N/A'} hPa</div>
-              <div><strong>VOCs:</strong> ${pollutants.gas_resistance ? pollutants.gas_resistance.toFixed(1) : 'N/A'} Ω</div>
+            <span class="reading-icon pm10"></span>
+          </div>
+
+          <div class="sensor-reading">
+            <div class="reading-group">
+              <div class="reading-title">Temperature</div>
+              <div class="reading-value">${fmt(pollutants?.temperature, 2)}<span class="reading-unit">°C</span></div>
             </div>
-          `;
-          marker.bindPopup(popupContent);
-          this.allMarkersMap.set(nodeId, marker);
-          this.markerClusterGroup.addLayer(marker);
-        });
+            <span class="reading-icon temp"></span>
+          </div>
 
-        // Remove deleted nodes
-        for (const [nodeId, marker] of this.allMarkersMap.entries()) {
-          if (!newNodeIds.has(nodeId)) {
-            this.markerClusterGroup.removeLayer(marker);
-            this.allMarkersMap.delete(nodeId);
-            removed++;
-          }
-        }
+          <div class="sensor-reading">
+            <div class="reading-group">
+              <div class="reading-title">Humidity</div>
+              <div class="reading-value">${fmt(pollutants?.humidity, 2)}<span class="reading-unit">%</span></div>
+            </div>
+            <span class="reading-icon pm25"></span>
+          </div>
 
-        console.log(`🔄 Marker diff: +${added} ~${updated} -${removed}`);
-        return true;
-      } catch (error) {
-        console.error('❌ Marker diff failed, falling back to full rebuild:', error);
-        return false;
-      }
-    },
-    
-    async updateDashboard() {
-      // ⚡ OPTIMIZATION: Prevent duplicate simultaneous requests
-      if (this.isFetching) {
-        console.log('⏳ Already fetching, skipping duplicate request');
-        return;
-      }
+          <div class="sensor-reading">
+            <div class="reading-group">
+              <div class="reading-title">Pressure</div>
+              <div class="reading-value">${fmt(pollutants?.pressure, 2)}<span class="reading-unit">hPa</span></div>
+            </div>
+            <span class="reading-icon temp"></span>
+          </div>
 
-      console.log('🔄 Updating dashboard data...');
-      this.isFetching = true;
-      
-      try {
-        const nodesData = await this.fetchNodeData('all');
-        if (nodesData.length === 0) {
-          console.warn('⚠️ No nodes data received');
-          this.isFetching = false;
-          return;
-        }
-        
-        // ⚡ OPTIMIZATION: Try incremental diffing first
-        const diffSuccess = this.updateMarkersDiff(nodesData);
-        
-        if (!diffSuccess) {
-          // Fallback to full rebuild if diff fails
-          console.log('↩️ Falling back to full rebuild');
-          this.markerClusterGroup.clearLayers();
-          this.allMarkersMap.clear();
-          this.renderMarkers(nodesData);
-        }
+          <div class="sensor-reading full-row">
+            <div class="reading-group">
+              <div class="reading-title">VOCs</div>
+              <div class="reading-value">${fmt(pollutants?.gas_resistance, 2)}<span class="reading-unit">Ω</span></div>
+            </div>
+            <span class="reading-icon pm10"></span>
+          </div>
+        </div>
 
-        this.lastUpdateTime = new Date();
-        console.log(`✅ Dashboard updated at ${this.lastUpdateTime.toLocaleTimeString()}`);
-      } catch (error) {
-        console.error('❌ Dashboard update failed:', error);
-      } finally {
-        this.isFetching = false;
+        <div class="sensor-status" style="background: ${statusDisplay.color}20; color: ${statusDisplay.color};"><span class="status-dot" style="background: ${statusDisplay.color};"></span>${statusDisplay.text}</div>
+      </div>
+    `;
+  }
+
+  const normalizeString = (value) => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+  const getSearchContextFromUrl = () => {
+    const params = new URLSearchParams(window.location.search);
+    const nodeParam = params.get('node');
+    const locationParam = params.get('location');
+    const searchParam = params.get('search') || '';
+
+    if (nodeParam?.startsWith('node:')) {
+      const nodeId = parseInt(nodeParam.split(':')[1], 10);
+      if (!Number.isNaN(nodeId)) {
+        return { query: searchParam, nodeId, type: 'node' };
       }
     }
+
+    if (nodeParam?.startsWith('location:')) {
+      return { query: searchParam, location: decodeURIComponent(nodeParam.split(':')[1] || ''), type: 'location' };
+    }
+
+    if (locationParam) {
+      return { query: searchParam, location: decodeURIComponent(locationParam), type: 'location' };
+    }
+
+    return searchParam ? { query: searchParam, type: 'search' } : null;
   };
-  
+
+  const findMarkerByContext = (context) => {
+    if (!context) return null;
+
+    if (context.nodeId) {
+      return window.mapSearchMarkers.find((entry) => entry.node.id === context.nodeId) || null;
+    }
+
+    const searchTerm = normalizeString(context.location || context.query || '');
+    if (!searchTerm) return null;
+
+    return window.mapSearchMarkers.find((entry) => {
+      return normalizeString(entry.node.name).includes(searchTerm)
+        || normalizeString(entry.node.location).includes(searchTerm)
+        || String(entry.node.id) === searchTerm;
+    }) || null;
+  };
+
+  const showMapSearchBanner = (message) => {
+    if (window.showEnviroSearchBanner) {
+      window.showEnviroSearchBanner(message);
+    }
+  };
+
+  window.applyLocationSearchOnMapPage = async (context) => {
+    if (!context) return;
+
+    const markerEntry = findMarkerByContext(context);
+    if (!markerEntry) {
+      showMapSearchBanner('No matching sensor was found for this location search.');
+      return;
+    }
+
+    const { marker, node, pollutants } = markerEntry;
+    const latLng = [node.latitude, node.longitude];
+    if (!latLng[0] || !latLng[1]) {
+      showMapSearchBanner('Unable to center on the selected location.');
+      return;
+    }
+
+    if (!dashboardMapController) {
+      console.warn('⚠️ Dashboard map controller not initialized');
+      return;
+    }
+    dashboardMapController.getMap().setView(latLng, 14);
+    marker.openPopup();
+    const levelLabel = pollutants.aqi_level && pollutants.aqi_level !== 'Unknown'
+      ? pollutants.aqi_level
+      : getAqiLabel(pollutants.aqi || 0);
+    updateInfo(node.name, node.location, pollutants.aqi || 0, levelLabel, pollutants, node.status);
+    dashboardMapController.getFilterControl().selectNode(node.id);
+    showMapSearchBanner(`Showing environmental data for ${node.name || node.location}.`);
+  };
+
+  const processMapSearchContext = async () => {
+    const context = getSearchContextFromUrl();
+    if (context) {
+      await window.applyLocationSearchOnMapPage(context);
+    }
+  };
+
+  function initializeDashboardMap() {
+    if (typeof L === 'undefined') {
+      console.error('❌ Leaflet failed to load');
+      return false;
+    }
+
+    if (typeof EnviroMapController === 'undefined') {
+      console.error('❌ EnviroMapController not available');
+      return false;
+    }
+
+    dashboardMapController = new EnviroMapController('public-map', 14.5631, 121.0192, 14);
+    dashboardMapController.initializeMap();
+
+    let nodesData = [];
+    try {
+      const activeNodes = JSON.parse('{{ active_nodes_json|escapejs }}');
+      const inactiveNodes = JSON.parse('{{ inactive_nodes_json|escapejs }}');
+      nodesData = [].concat(activeNodes || [], inactiveNodes || []);
+      console.log(`✓ Loaded ${nodesData.length} nodes from JSON`);
+    } catch (e) {
+      console.error('❌ Failed to parse node JSON:', e);
+      return false;
+    }
+
+    if (!Array.isArray(nodesData)) {
+      console.error('❌ nodesData is not an array:', nodesData);
+      return false;
+    }
+
+    if (!nodesData.length) {
+      dashboardMapController.invalidateSize();
+      return true;
+    }
+
+    window.mapSearchMarkers = [];
+
+    nodesData.forEach((item) => {
+      try {
+        const node = item.node;
+        const pollutants = item.pollutants || {};
+
+        if (node.latitude && node.longitude) {
+          const aqi = pollutants.aqi || 0;
+          const aqiClass = getAqiStyle(aqi);
+          const marker = L.marker([node.latitude, node.longitude], {
+            icon: L.divIcon({
+              html: `
+                <div class="waqi-marker">
+                  <div class="waqi-box ${aqiClass}">${Math.round(aqi)}</div>
+                  <div class="waqi-pointer ${aqiClass}"></div>
+                </div>
+              `,
+              iconSize: null,
+              className: '',
+              popupAnchor: [0, -50],
+            })
+          });
+
+          const statusColor = node.status === 'active' ? '#28a745' : '#ffc107';
+          const popupContent = `
+            <div style="font-weight: 600; margin-bottom: 4px;">${node.name}</div>
+            <div style="margin-bottom: 4px;">📍 ${node.location || 'Unknown'}</div>
+            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #ddd;">
+              <strong>AQI:</strong> ${aqi}<br>
+              <strong>PM2.5:</strong> ${pollutants.pm25 ?? 'N/A'} µg/m³<br>
+              <strong>PM10:</strong> ${pollutants.pm10 ?? 'N/A'} µg/m³<br>
+              <strong>PM1.0:</strong> ${pollutants.pm1_0 ?? 'N/A'} µg/m³<br>
+              <strong>Temp:</strong> ${pollutants.temperature ?? 'N/A'}°C<br>
+              <strong>Humidity:</strong> ${pollutants.humidity ?? 'N/A'}%
+            </div>
+          `;
+
+          marker.bindPopup(popupContent);
+          marker.on('click', function() {
+            const levelLabel = pollutants.aqi_level && pollutants.aqi_level !== 'Unknown'
+              ? pollutants.aqi_level
+              : getAqiLabel(aqi);
+            updateInfo(node.name, node.location, aqi, levelLabel, pollutants, node.status);
+            dashboardMapController.getFilterControl().selectNode(node.id);
+          });
+
+          dashboardMapController.addMarkerToControl(marker, {
+            node: node,
+            pollutants: pollutants
+          });
+
+          window.mapSearchMarkers.push({
+            node: node,
+            pollutants: pollutants,
+            marker: marker
+          });
+        }
+      } catch (err) {
+        console.warn('⚠️ Marker skipped due to error:', err, item);
+      }
+    });
+
+    processMapSearchContext();
+    dashboardMapController.invalidateSize();
+    setTimeout(() => {
+      dashboardMapController.fitToMarkers();
+    }, 100);
+
+    window.addEventListener('markerSelected', (e) => {
+      const nodeId = e.detail.nodeId;
+      const markerEntry = window.mapSearchMarkers.find(entry => entry.node.id === nodeId);
+      if (markerEntry) {
+        const { node, pollutants } = markerEntry;
+        const levelLabel = pollutants.aqi_level && pollutants.aqi_level !== 'Unknown'
+          ? pollutants.aqi_level
+          : getAqiLabel(pollutants.aqi || 0);
+        updateInfo(node.name, node.location, pollutants.aqi || 0, levelLabel, pollutants, node.status);
+      }
+    });
+
+    dashboardMapController.getMap().on('click', function(e) {
+      if (e.originalEvent && e.originalEvent.target === dashboardMapController.getMap()._container) {
+        dashboardMapController.getFilterControl().deselectNode();
+      }
+    });
+
+    console.log('✓ Dashboard map initialized with active/inactive node data');
+    return true;
+  }
+
   function initializeMetricCardPrompts() {
     const metricCards = document.querySelectorAll('.metric-card');
     metricCards.forEach(card => {
@@ -1343,17 +1443,11 @@
       initializeMetricCardPrompts();
       initializeMetricCardFlips();
       initializeHelpToggles();
-      const mapSuccess = dashboardController.initializeMap();
+      const mapSuccess = initializeDashboardMap();
       if (!mapSuccess) {
         console.warn('⚠️ Map initialization failed');
-      } else {
-        await dashboardController.updateDashboard();
       }
-      console.log('⏱️ Setting up incremental refresh (every 30s)');
-      setInterval(() => {
-        dashboardController.updateDashboard();
-      }, dashboardController.updateInterval);
-      console.log('✅ Dashboard fully initialized with async updates');
+      console.log('✅ Dashboard fully initialized');
       setTimeout(syncAqiLayoutHeights, 500);
     } catch (error) {
       console.error('❌ Dashboard initialization error:', error);

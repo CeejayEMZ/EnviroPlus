@@ -294,22 +294,55 @@ def dashboard(request):
     
     # =========================================================================
     # SECTION 3: Map data (active and inactive nodes)
-    # ⚡ OPTIMIZATION: Skip large JSON injection - will fetch async via API
     # =========================================================================
     check_and_update_node_status()
-    
-    # Only count active/inactive, don't serialize full data
-    active_count = SensorNode.objects.filter(status='active').count()
-    inactive_count = SensorNode.objects.filter(status='inactive').count()
-    total_node_count = SensorNode.objects.count()
-    
+
+    all_nodes = SensorNode.objects.all().prefetch_related('readings')
+    active_nodes_json = []
+    inactive_nodes_json = []
+
+    for node in all_nodes:
+        latest_reading = node.readings.order_by('-timestamp').first()
+        json_data = {
+            'node': {
+                'id': node.id,
+                'name': node.name,
+                'location': node.location,
+                'latitude': float(node.latitude) if node.latitude else None,
+                'longitude': float(node.longitude) if node.longitude else None,
+                'mac_address': node.mac_address,
+                'status': node.status,
+            },
+            'pollutants': {
+                'pm25': float(latest_reading.pm2_5) if latest_reading and latest_reading.pm2_5 is not None else None,
+                'pm10': float(latest_reading.pm10) if latest_reading and latest_reading.pm10 is not None else None,
+                'pm1_0': float(latest_reading.pm1_0) if latest_reading and latest_reading.pm1_0 is not None else None,
+                'aqi': latest_reading.aqi if latest_reading and latest_reading.aqi is not None else None,
+                'temperature': float(latest_reading.temperature) if latest_reading and latest_reading.temperature is not None else None,
+                'humidity': float(latest_reading.humidity) if latest_reading and latest_reading.humidity is not None else None,
+                'pressure': float(latest_reading.pressure) if latest_reading and latest_reading.pressure is not None else None,
+                'gas_resistance': float(latest_reading.gas_resistance) if latest_reading and latest_reading.gas_resistance is not None else None,
+                'aqi_level': latest_reading.aqi_level if latest_reading else None,
+            }
+        }
+
+        if node.status == 'active':
+            active_nodes_json.append(json_data)
+        else:
+            inactive_nodes_json.append(json_data)
+
+    active_count = len(active_nodes_json)
+    inactive_count = len(inactive_nodes_json)
+    total_node_count = all_nodes.count()
+
     top_polluted_areas, cleanest_areas, top_area_count = build_top_area_rankings(limit=5)
-    
+
     # ⚡ OPTIMIZATION: Limit rankings to 5 items each
     context = {
         'aggregate_data': aggregate_data,
         'chart_data': json.dumps(chart_data, cls=DjangoJSONEncoder),
-        # ✅ REMOVED: active_nodes_json, inactive_nodes_json (fetched via API)
+        'active_nodes_json': json.dumps(active_nodes_json, cls=DjangoJSONEncoder),
+        'inactive_nodes_json': json.dumps(inactive_nodes_json, cls=DjangoJSONEncoder),
         'top_polluted_areas': top_polluted_areas,
         'cleanest_areas': cleanest_areas,
         'top_polluted_areas_json': json.dumps(top_polluted_areas, cls=DjangoJSONEncoder),
