@@ -690,14 +690,14 @@
     <section class="cruduser-controls">
         <div class="cruduser-search-wrapper">
             <i class="fa-solid fa-search cruduser-search-icon"></i>
-            <input type="text" class="cruduser-input-search" placeholder="Search users by name or email...">
+            <input type="text" id="cruduserSearch" name="search" class="cruduser-input-search" placeholder="Search users by name or email...">
         </div>
-        <select class="cruduser-filter-select">
+        <select id="cruduserRoleFilter" name="role_filter" class="cruduser-filter-select">
             <option>All Roles</option>
             <option>Administrator</option>
             <option>Barangay Official</option>
         </select>
-        <select class="cruduser-filter-select">
+        <select id="cruduserStatusFilter" name="status_filter" class="cruduser-filter-select">
             <option>All Statuses</option>
             <option>Active</option>
             <option>Pending Invite</option>
@@ -773,11 +773,11 @@
                         </div>
                         <div class="cruduser-form-group">
                             <label class="cruduser-label">Email Address</label>
-                            <input type="email" class="cruduser-input" placeholder="name@environode.com" required>
+                            <input type="email" id="cruduserManualEmail" name="email" class="cruduser-input" placeholder="name@environode.com" required>
                         </div>
                         <div class="cruduser-form-group">
                             <label class="cruduser-label">Assign Role</label>
-                            <select class="cruduser-select" required>
+                            <select id="cruduserManualRole" name="role" class="cruduser-select" required>
                                 <option value="" disabled selected hidden>Select role...</option>
                                 <option value="admin">Administrator</option>
                                 <option value="official">Barangay Official</option>
@@ -786,7 +786,7 @@
                         </div>
                         <div class="cruduser-form-group">
                             <label class="cruduser-label">Temporary Password</label>
-                            <input type="password" class="cruduser-input" placeholder="Create a secure password" required>
+                            <input type="password" id="cruduserManualPassword" name="password" class="cruduser-input" placeholder="Create a secure password" required>
                         </div>
                     </div>
                 </div>
@@ -822,25 +822,25 @@
                     <div class="cruduser-form-grid">
                         <div class="cruduser-form-group full-width">
                             <label class="cruduser-label">Email Address (Recipient)</label>
-                            <input type="email" class="cruduser-input" placeholder="official@barangay.gov.ph" required>
+                            <input type="email" id="cruduserInviteEmail" name="invite_email" class="cruduser-input" placeholder="official@barangay.gov.ph" required>
                         </div>
                         <div class="cruduser-form-group">
                             <label class="cruduser-label">Username</label>
-                            <input type="text" class="cruduser-input" name="username" placeholder="jdelacruz" required>
+                            <input type="text" id="cruduserInviteUsername" name="username" class="cruduser-input" placeholder="jdelacruz" required>
                         </div>
                         <div style="display: flex; gap: 16px;">
                             <div class="cruduser-form-group" style="flex: 1;">
                                 <label class="cruduser-label">First Name</label>
-                                <input type="text" class="cruduser-input" name="first_name" placeholder="First Name (Optional)">
+                                <input type="text" id="cruduserInviteFirstName" name="first_name" class="cruduser-input" placeholder="First Name (Optional)">
                             </div>
                             <div class="cruduser-form-group" style="flex: 1;">
                                 <label class="cruduser-label">Last Name</label>
-                                <input type="text" class="cruduser-input" name="last_name" placeholder="Last Name (Optional)">
+                                <input type="text" id="cruduserInviteLastName" name="last_name" class="cruduser-input" placeholder="Last Name (Optional)">
                             </div>
                         </div>
                         <div class="cruduser-form-group">
                             <label class="cruduser-label">Target Role</label>
-                            <select class="cruduser-select" required>
+                            <select id="cruduserInviteRole" name="invite_role" class="cruduser-select" required>
                                 <option value="" disabled selected hidden>Select role...</option>
                                 <option value="admin">Administrator</option>
                                 <option value="official">Barangay Official</option>

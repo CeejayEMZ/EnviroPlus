@@ -541,11 +541,14 @@
 .waqi-box {
   background: #ffffff;
   border: 3px solid #666;
-  border-radius: 6px;
-  padding: 4px 10px;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-weight: 800;
   font-size: 16px;
-  min-width: 36px;
   text-align: center;
 }
 

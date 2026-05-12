@@ -11,7 +11,8 @@
 // ============================================================
 
 (function () {
-  const CLOSEST_NODE_API = "{% url 'app:api_closest_node' %}";
+  // Use the CLOSEST_NODE_API_URL defined in dashboard.html template
+  const CLOSEST_NODE_API = window.CLOSEST_NODE_API_URL || '/api/closest-node/';
 
   // ── AQI color map ────────────────────────────────────────
   const AQI_COLORS = {
@@ -54,8 +55,7 @@
       badge.textContent = `📍 Nearest node: ${nodeName} (${distanceKm} km away)`;
       badge.style.display = 'inline-block';
     } else {
-      badge.textContent = '📊 Showing average across all nodes';
-      badge.style.display = 'inline-block';
+      badge.style.display = 'none';
     }
   }
 

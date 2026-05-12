@@ -145,13 +145,14 @@ class UnifiedMapControl extends L.Control {
     this.filterMenu.style.position = 'absolute';
     this.filterMenu.style.bottom = '10px';
     this.filterMenu.style.left = '50px';
-    this.filterMenu.style.width = '380px';
-    this.filterMenu.style.maxHeight = '550px';
+    this.filterMenu.style.width = '240px';
+    this.filterMenu.style.maxHeight = '280px';
     this.filterMenu.style.background = '#ffffff';
     this.filterMenu.style.border = '1px solid #dbe0e7';
     this.filterMenu.style.borderRadius = '8px';
     this.filterMenu.style.boxShadow = '0 2px 8px rgba(15, 23, 42, 0.12)';
-    this.filterMenu.style.overflow = 'hidden';
+    this.filterMenu.style.overflow = 'auto';
+    this.filterMenu.style.overflowX = 'hidden';
     this.filterMenu.style.zIndex = '1000';
     this.filterMenu.style.display = 'none';
     this.filterMenu.style.flexDirection = 'column';
