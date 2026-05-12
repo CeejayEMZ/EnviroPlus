@@ -537,33 +537,32 @@
         });
       }
       
-      // Node data from Django template
-      // FIX #2: API-First Data Loading
-      // Initialize with EMPTY arrays - all data is fetched from API endpoints
-      // Backend endpoints: /api/nodes/live/, /api/nodes/24h/, /api/nodes/viewport/
-      // 
-      // Requirements for backend response:
-      // 1. Each node object MUST have: id, name, status, latitude, longitude
-      // 2. Each node object should have: latest_reading (with timestamp, battery, rssi)
-      // 3. Each node object should have: pollutants (with aqi, pm25, pm10, temperature, humidity)
-      // 4. Optional: aqi_history array (will be sliced to last 24 points by frontend)
-      // 5. Maximum 200 nodes per request (enforced by both backend and frontend)
-      // 6. Statuses: 'active', 'inactive', 'rogue', 'unregistered'
-      //
-      // The frontend will:
-      // - Deduplicate nodes by node.id
-      // - Filter by viewport bounds (show only visible markers)
-      // - Fetch data on timeframe change and map movement
-      window.CMAPV_NODES = {
-        active: [],
-        inactive: [],
-        unregistered: [],
-        rogue: []
-      };
+      // Node data from Django template - Fetch from API on page load
+      // This fetch populates CMAPV_NODES before enviro-mapview.js initializes
+      fetch('/api/nodes/live/')
+        .then(r => r.json())
+        .then(data => {
+          window.CMAPV_NODES = {
+            active: data.active || [],
+            inactive: data.inactive || [],
+            unregistered: data.unregistered || [],
+            rogue: data.rogue || []
+          };
+          console.log('CMAPV_NODES populated from API:', window.CMAPV_NODES);
+          // Load enviro-mapview.js ONLY ONCE after data is fetched
+          const script = document.createElement('script');
+          script.src = "{% static 'AppEnviroNode/js/enviro-mapview.js' %}";
+          document.head.appendChild(script);
+        })
+        .catch(err => {
+          console.warn('Failed to fetch /api/nodes/live/, initializing with empty arrays:', err);
+          window.CMAPV_NODES = { active: [], inactive: [], unregistered: [], rogue: [] };
+          // Load enviro-mapview.js even on error
+          const script = document.createElement('script');
+          script.src = "{% static 'AppEnviroNode/js/enviro-mapview.js' %}";
+          document.head.appendChild(script);
+        });
     </script>
-    
-    <!-- Load enviro-mapview.js ONLY ONCE - guard against duplicate initialization in JS -->
-    <script src="{% static 'AppEnviroNode/js/enviro-mapview.js' %}"></script>
     {% endblock %}
     </div>
   </div>
