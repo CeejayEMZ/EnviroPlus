@@ -831,14 +831,7 @@
                 </div>
             </div>
             <div class="cdashboard-card-body" style="padding-top: 6px;">
-                <div class="cd-mock-map">
-                    {# Static dots — visual placeholder linking to real map #}
-                    <div class="cd-map-dot" style="top: 20%; left: 30%; color: var(--cd-green); background: var(--cd-green);"></div>
-                    <div class="cd-map-dot" style="top: 70%; left: 40%; color: var(--cd-yellow); background: var(--cd-yellow);"></div>
-                    {% if inactive_count > 0 %}
-                    <div class="cd-map-dot alert" style="top: 60%; left: 75%;"></div>
-                    {% endif %}
-                </div>
+                <div id="cd-dashboard-mini-map" style="width:100%;height:120px;border-radius:8px;"></div>
                 <div class="cd-metric-row" style="margin-top: 6px;">
                     <span class="cd-metric-label">Active on Map</span>
                     <span class="cd-metric-val" style="color: var(--cd-green);">{{ active_count }} node{{ active_count|pluralize }}</span>
@@ -1032,6 +1025,7 @@
         </button>
     </div>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         function toggleFloatingMenu() {
             const menu = document.getElementById('floatingMenu');
@@ -1049,5 +1043,58 @@
                 icon.classList.add('ph-x');
             }
         }
+
+        // Initialize mini Leaflet map on dashboard
+        function initDashboardMiniMap() {
+            const mapContainer = document.getElementById('cd-dashboard-mini-map');
+            if (!mapContainer) return;
+            
+            // Create map centered on Barangay Pembo
+            const map = L.map('cd-dashboard-mini-map', {
+                center: [14.5547, 121.0622],
+                zoom: 14,
+                dragging: false,
+                scrollWheelZoom: false,
+                boxZoom: false,
+                keyboard: false,
+                zoomControl: false,
+                doubleClickZoom: false,
+                tap: false
+            });
+            
+            // Add tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+            
+            // Fetch nodes data and add markers
+            fetch('/api/nodes/live/')
+                .then(r => r.json())
+                .then(data => {
+                    const nodes = [...(data.active || []), ...(data.inactive || [])];
+                    
+                    nodes.forEach(node => {
+                        if (node.latitude && node.longitude) {
+                            const color = node.status === 'active' ? '#10b981' : '#9ca3af';
+                            const circle = L.circleMarker([node.latitude, node.longitude], {
+                                radius: 5,
+                                fillColor: color,
+                                color: color,
+                                weight: 2,
+                                opacity: 0.8,
+                                fillOpacity: 0.8
+                            }).addTo(map);
+                            
+                            // Add popup on hover
+                            circle.bindPopup(`<strong>${node.name}</strong><br>Status: ${node.status}`);
+                        }
+                    });
+                })
+                .catch(err => console.warn('Failed to fetch nodes for mini map:', err));
+        }
+        
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', initDashboardMiniMap);
     </script>
 {% endblock %}
