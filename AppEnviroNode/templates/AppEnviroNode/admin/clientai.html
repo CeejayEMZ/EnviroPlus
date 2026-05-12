@@ -273,27 +273,8 @@
                 </div>
 
                 <div class="cAI-chart-box">
-                    <div class="cAI-chart-label">AQI Trend</div>
-                    <svg class="cAI-chart-svg" viewBox="0 0 200 80" preserveAspectRatio="none">
-                        <line x1="0" y1="20" x2="200" y2="20" stroke="#f1f5f9" stroke-width="1" />
-                        <line x1="0" y1="40" x2="200" y2="40" stroke="#f1f5f9" stroke-width="1" />
-                        <line x1="0" y1="60" x2="200" y2="60" stroke="#f1f5f9" stroke-width="1" />
-                        <defs>
-                            <linearGradient id="cAI-chartFill" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.3"/>
-                                <stop offset="100%" stop-color="#fbbf24" stop-opacity="0.0"/>
-                            </linearGradient>
-                        </defs>
-                        <path d="M0,60 C20,50 40,55 60,30 C80,5 100,20 120,40 C140,60 160,50 200,65 L200,80 L0,80 Z" fill="url(#cAI-chartFill)" />
-                        <path d="M0,60 C20,50 40,55 60,30 C80,5 100,20 120,40 C140,60 160,50 200,65" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" />
-                        <circle cx="72" cy="18" r="4" fill="#fff" stroke="#d97706" stroke-width="2" />
-                    </svg>
-                    <div class="cAI-chart-x-axis">
-                        <span>7d ago</span>
-                        <span>5d ago</span>
-                        <span>3d ago</span>
-                        <span>Today</span>
-                    </div>
+                    <div class="cAI-chart-label">AQI Trend (24h)</div>
+                    <canvas id="cAI-aqi-chart" style="flex: 1; min-height: 120px; padding: 0.5rem;"></canvas>
                 </div>
 
                 <p class="cAI-summary-text">
@@ -431,6 +412,109 @@
 <script>
   window.CAI_CHAT_URL     = "{% url 'app:api_enviro_ai_chat' %}";
   window.CAI_INSIGHTS_URL = "{% url 'app:api_ai_insights' %}";
+  window.CAI_AQI_TREND_URL = "{% url 'app:api_analytics_aqi_trend' %}";
+</script>
+<script>
+  let cAI_aqiChart = null;
+
+  async function cAI_initAQIChart() {
+    try {
+      const response = await fetch(window.CAI_AQI_TREND_URL);
+      if (!response.ok) throw new Error(`API error: ${response.status}`);
+      const data = await response.json();
+
+      if (!data.success || !data.labels || !data.aqi) {
+        console.warn('Invalid AQI trend data:', data);
+        return;
+      }
+
+      const canvas = document.getElementById('cAI-aqi-chart');
+      if (!canvas) return;
+
+      // Destroy existing chart if any
+      if (cAI_aqiChart) {
+        cAI_aqiChart.destroy();
+      }
+
+      cAI_aqiChart = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels: data.labels,
+          datasets: [
+            {
+              label: 'AQI',
+              data: data.aqi,
+              borderColor: '#f59e0b',
+              backgroundColor: 'rgba(245, 158, 11, 0.1)',
+              borderWidth: 2.5,
+              fill: true,
+              tension: 0.4,
+              pointRadius: 4,
+              pointBackgroundColor: '#fff',
+              pointBorderColor: '#d97706',
+              pointBorderWidth: 2,
+              pointHoverRadius: 6,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              display: false,
+            },
+            tooltip: {
+              backgroundColor: 'rgba(30, 41, 59, 0.9)',
+              padding: 8,
+              titleFont: { size: 12, weight: '600' },
+              bodyFont: { size: 11 },
+              cornerRadius: 4,
+              displayColors: true,
+              callbacks: {
+                label: function(context) {
+                  return 'AQI: ' + Math.round(context.parsed.y);
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 500,
+              grid: {
+                color: 'rgba(241, 245, 249, 0.3)',
+                drawBorder: false,
+              },
+              ticks: {
+                font: { size: 10, weight: '500' },
+                color: '#94a3b8',
+              },
+            },
+            x: {
+              grid: {
+                display: false,
+              },
+              ticks: {
+                font: { size: 10, weight: '500' },
+                color: '#94a3b8',
+                maxRotation: 45,
+                minRotation: 0,
+              },
+            },
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Failed to initialize AQI chart:', error);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', cAI_initAQIChart);
 </script>
 <script src="{% static 'AppEnviroNode/js/clientAI_admin.js' %}"></script>
 {% endblock %}
