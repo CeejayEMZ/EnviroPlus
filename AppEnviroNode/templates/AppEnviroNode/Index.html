@@ -160,6 +160,22 @@
     {% include 'AppEnviroNode/main/navbar.html' %}
   {% endif %}
 
+  <!-- AI Modal (for all users) -->
+  <div class="modal-overlay" id="aiModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 class="modal-title">
+          <i class="fa-solid fa-sparkles" style="color: #a855f7; margin-right: 6px;"></i>
+          EnviroAI Analysis
+        </h2>
+        <button type="button" class="modal-close" onclick="closeAIModal()" aria-label="Close modal">
+          <i class="fa-solid fa-times"></i>
+        </button>
+      </div>
+      <div id="aiModalContent" class="ai-content-box"></div>
+    </div>
+  </div>
+
   <!-- Global Toast Container for Messages -->
   <div id="toast-container">
     {% if messages %}
