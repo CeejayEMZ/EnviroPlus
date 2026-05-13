@@ -96,7 +96,10 @@ if not DATABASE_URL:
     raise Exception("DATABASE_URL is not set in environment variables!")
 
 DATABASES = {
-    "default": dj_database_url.parse(DATABASE_URL)
+    "default": {
+        **dj_database_url.parse(DATABASE_URL),
+        "CONN_MAX_AGE": 0,
+    }
 }
 
 # Password validation
