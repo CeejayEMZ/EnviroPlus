@@ -41,7 +41,7 @@
         <div style="display: flex; flex-direction: column; gap: 12px;">
           {% for alert in active_alerts %}
             <div class="alert-item {{ alert.severity }}">
-              <div style="font-weight: 600; margin-bottom: 4px;">{{ alert.title }} <span style="font-size: 0.8rem; color: #666;">{{ alert.severity|upper }}</span></div>
+              <div style="font-weight: 600; margin-bottom: 4px;">{{ alert.title }} <span class="severity-badge {{ alert.severity }}">{{ alert.severity|upper }}</span></div>
               <div style="font-size: 0.9rem; color: #666; margin-bottom: 4px;">📍 {{ alert.node.name }}</div>
               <div style="font-size: 0.85rem; color: #999;">⏰ {{ alert.triggered_at|date:"M d, Y g:i A" }}</div>
             </div>

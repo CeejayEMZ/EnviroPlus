@@ -1057,7 +1057,7 @@
         function initDashboardMiniMap() {
             const mapContainer = document.getElementById('cd-dashboard-mini-map');
             if (!mapContainer) return;
-            
+
             // Create map centered on Barangay Pembo
             const map = L.map('cd-dashboard-mini-map', {
                 center: [14.5547, 121.0622],
@@ -1070,20 +1070,28 @@
                 doubleClickZoom: false,
                 tap: false
             });
-            
+
+            // Ensure map renders correctly in small container
+            setTimeout(() => map.invalidateSize(), 100);
+
             // Add tile layer
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors',
                 maxZoom: 19
             }).addTo(map);
+
+            // Store nodes for re-fitting
+            let nodesData = [];
             
             // Fetch nodes data and add markers
             fetch('/api/nodes/live/')
                 .then(r => r.json())
                 .then(data => {
                     const nodes = [...(data.active || []), ...(data.inactive || [])];
-                    
-                    nodes.forEach(node => {
+
+                    let markersAdded = 0;
+                    nodes.forEach(item => {
+                        const node = item.node || item;
                         if (node.latitude && node.longitude) {
                             const color = node.status === 'active' ? '#10b981' : '#9ca3af';
                             const circle = L.circleMarker([node.latitude, node.longitude], {
@@ -1094,9 +1102,56 @@
                                 opacity: 0.8,
                                 fillOpacity: 0.8
                             }).addTo(map);
-                            
+
                             // Add popup on hover
                             circle.bindPopup(`<strong>${node.name}</strong><br>Status: ${node.status}`);
+                            markersAdded++;
+                        }
+                    });
+
+                    // Fit map to show all markers and store original bounds
+                    if (markersAdded > 0) {
+                        const group = L.featureGroup();
+                        nodes.forEach(item => {
+                            const node = item.node || item;
+                            if (node.latitude && node.longitude) {
+                                group.addLayer(L.circleMarker([node.latitude, node.longitude], {
+                                    radius: 5,
+                                    fillColor: node.status === 'active' ? '#10b981' : '#9ca3af',
+                                    color: node.status === 'active' ? '#10b981' : '#9ca3af',
+                                    weight: 2,
+                                    opacity: 0.8,
+                                    fillOpacity: 0.8
+                                }));
+                            }
+                        });
+                        try {
+                            map.fitBounds(group.getBounds(), { padding: [20, 20], maxZoom: 15 });
+                        } catch(e) {
+                            console.warn('Could not fit bounds:', e);
+                        }
+                    }
+
+                    // Re-fit to show all nodes when popup is closed
+                    map.on('popupclose', function() {
+                        if (nodes.length > 0) {
+                            const group = L.featureGroup();
+                            nodes.forEach(item => {
+                                const node = item.node || item;
+                                if (node.latitude && node.longitude) {
+                                    group.addLayer(L.circleMarker([node.latitude, node.longitude], {
+                                        radius: 5,
+                                        fillColor: node.status === 'active' ? '#10b981' : '#9ca3af',
+                                        color: node.status === 'active' ? '#10b981' : '#9ca3af',
+                                        weight: 2,
+                                        opacity: 0.8,
+                                        fillOpacity: 0.8
+                                    }));
+                                }
+                            });
+                            try {
+                                map.fitBounds(group.getBounds(), { padding: [20, 20], maxZoom: 15 });
+                            } catch(e) {}
                         }
                     });
                 })

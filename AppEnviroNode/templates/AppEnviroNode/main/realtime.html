@@ -771,6 +771,10 @@
 {% endblock %}
 
 {% block content %}
+  <div id="realtime-aggregate-data"
+       data-latest-aqi="{{ aggregate_data.latest_overall.aqi|default:'' }}"
+       data-latest-timestamp="{{ aggregate_data.latest_overall.timestamp|default:'' }}"
+       style="display:none;"></div>
   <div class="overlay">
     <div class="dashb-page-shell">
       <div class="rtpub-wrapper">
@@ -1415,19 +1419,20 @@
     renderCharts(initialChartData);
     
     // Initial live monitoring values from context if available
-    {% if aggregate_data.latest_overall %}
-    const initialLatestAqi = {{ aggregate_data.latest_overall.aqi|default:'null' }};
-    const initialLatestTimestamp = '{{ aggregate_data.latest_overall.timestamp|default:"" }}';
-    if (initialLatestAqi) {
-      liveAqiValue.textContent = `AQI ${Math.round(initialLatestAqi)}`;
-    }
-    if (initialLatestTimestamp) {
-      const date = new Date(initialLatestTimestamp);
-      if (!isNaN(date.getTime())) {
-        liveTimestamp.textContent = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const aggregateDataEl = document.getElementById('realtime-aggregate-data');
+    if (aggregateDataEl) {
+      const initialLatestAqi = aggregateDataEl.dataset.latestAqi ? parseFloat(aggregateDataEl.dataset.latestAqi) : null;
+      const initialLatestTimestamp = aggregateDataEl.dataset.latestTimestamp || '';
+      if (initialLatestAqi && !isNaN(initialLatestAqi)) {
+        liveAqiValue.textContent = `AQI ${Math.round(initialLatestAqi)}`;
+      }
+      if (initialLatestTimestamp) {
+        const date = new Date(initialLatestTimestamp);
+        if (!isNaN(date.getTime())) {
+          liveTimestamp.textContent = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
       }
     }
-    {% endif %}
 
     // Auto-start realtime polling when page loads
     window.addEventListener('load', () => {

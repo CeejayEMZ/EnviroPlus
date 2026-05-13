@@ -1056,10 +1056,16 @@
   </div>
 </div>
 
+<div id="dashboard-rankings-data"
+     data-polluted='{{ top_polluted_areas_json|escapejs|default:"[]" }}'
+     data-cleanest='{{ cleanest_areas_json|escapejs|default:"[]" }}'
+     style="display:none;"></div>
+
 <script>
+  const rankingsData = document.getElementById('dashboard-rankings-data');
   window.DashboardRankings = {
-    polluted: {{ top_polluted_areas_json|safe }},
-    cleanest: {{ cleanest_areas_json|safe }}
+    polluted: rankingsData ? JSON.parse(rankingsData.dataset.polluted || '[]') : [],
+    cleanest: rankingsData ? JSON.parse(rankingsData.dataset.cleanest || '[]') : []
   };
 </script>
 
@@ -1267,13 +1273,21 @@
       console.warn('⚠️ Dashboard map controller not initialized');
       return;
     }
-    dashboardMapController.getMap().setView(latLng, 14);
+    const map = dashboardMapController.getMap();
+    if (!map) {
+      showMapSearchBanner('Unable to initialize map.');
+      return;
+    }
+    map.setView(latLng, 14);
     marker.openPopup();
     const levelLabel = pollutants.aqi_level && pollutants.aqi_level !== 'Unknown'
       ? pollutants.aqi_level
       : getAqiLabel(pollutants.aqi || 0);
     updateInfo(node.name, node.location, pollutants.aqi || 0, levelLabel, pollutants, node.status);
-    dashboardMapController.getFilterControl().selectNode(node.id);
+    const filterCtrl = dashboardMapController.getFilterControl();
+    if (filterCtrl && typeof filterCtrl.selectNode === 'function') {
+      filterCtrl.selectNode(node.id);
+    }
     showMapSearchBanner(`Showing environmental data for ${node.name || node.location}.`);
   };
 
@@ -1363,7 +1377,8 @@
               ? pollutants.aqi_level
               : getAqiLabel(aqi);
             updateInfo(node.name, node.location, aqi, levelLabel, pollutants, node.status);
-            dashboardMapController.getFilterControl().selectNode(node.id);
+            const fc1 = dashboardMapController.getFilterControl();
+            if (fc1 && typeof fc1.selectNode === 'function') fc1.selectNode(node.id);
           });
 
           dashboardMapController.addMarkerToControl(marker, {
@@ -1402,7 +1417,8 @@
 
     dashboardMapController.getMap().on('click', function(e) {
       if (e.originalEvent && e.originalEvent.target === dashboardMapController.getMap()._container) {
-        dashboardMapController.getFilterControl().deselectNode();
+        const fc2 = dashboardMapController.getFilterControl();
+        if (fc2 && typeof fc2.deselectNode === 'function') fc2.deselectNode();
       }
     });
 
