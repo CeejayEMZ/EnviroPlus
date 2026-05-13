@@ -1,16 +1,24 @@
 """
-ASGI config for MainEnviroNode project.
-
-It exposes the ASGI callable as a module-level variable named ``application``.
-
-For more information on this file, see
-https://docs.djangoproject.com/en/5.2/howto/deployment/asgi/
+ASGI config for MainEnviroNode project — updated for Django Channels.
+Supports both HTTP (Django) and WebSocket (Channels) protocols.
 """
 
 import os
-
 from django.core.asgi import get_asgi_application
+from channels.routing import ProtocolTypeRouter, URLRouter
+from channels.auth import AuthMiddlewareStack
+import AppEnviroNode.routing
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'MainEnviroNode.settings')
 
-application = get_asgi_application()
+application = ProtocolTypeRouter({
+    # Standard HTTP requests → Django views
+    'http': get_asgi_application(),
+
+    # WebSocket requests → Channels consumer
+    'websocket': AuthMiddlewareStack(
+        URLRouter(
+            AppEnviroNode.routing.websocket_urlpatterns
+        )
+    ),
+})
