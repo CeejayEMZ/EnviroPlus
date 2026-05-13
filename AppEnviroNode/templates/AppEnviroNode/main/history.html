@@ -3,6 +3,17 @@
 
 {% block title %}History - Environode{% endblock %}
 
+{% block extra_head %}
+<style>
+.aqi-badge { padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 0.9rem; }
+.aqi-badge.good { background: #d1fae5; color: #065f46; }
+.aqi-badge.moderate { background: #fef3c7; color: #92400e; }
+.aqi-badge.unhealthy_sensitive { background: #fed7aa; color: #92400e; }
+.aqi-badge.unhealthy { background: #fecaca; color: #991b1b; }
+.aqi-badge.very_unhealthy { background: #f3e8ff; color: #6b21a8; }
+</style>
+{% endblock %}
+
 {% block content %}
   <div class="date-range-modal" id="dateModal">
     <div class="date-picker-content">
@@ -74,7 +85,7 @@
               <td style="padding: 12px; text-align: center; color: #666;">{{ reading.temperature|default:"—" }}°C</td>
               <td style="padding: 12px; text-align: center; color: #666;">{{ reading.humidity|default:"—" }}%</td>
               <td style="padding: 12px; text-align: center;">
-                <span style="padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 0.9rem; {% if reading.aqi_level == 'good' %}background: #d1fae5; color: #065f46;{% elif reading.aqi_level == 'moderate' %}background: #fef3c7; color: #92400e;{% elif reading.aqi_level == 'unhealthy_sensitive' %}background: #fed7aa; color: #92400e;{% elif reading.aqi_level == 'unhealthy' %}background: #fecaca; color: #991b1b;{% else %}background: #f3e8ff; color: #6b21a8;{% endif %}">
+                <span class="aqi-badge {{ reading.aqi_level|default:'moderate' }}">
                   {{ reading.aqi|default:"—" }}
                 </span>
               </td>

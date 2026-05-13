@@ -3,6 +3,19 @@
 
 {% block title %}Alerts - Environode{% endblock %}
 
+{% block extra_head %}
+<style>
+.alert-item { padding: 16px; border-left: 4px solid; border-radius: 4px; background: #f9f9f9; }
+.alert-item.critical { border-left-color: #ef4444; background: #fef2f2; }
+.alert-item.warning { border-left-color: #f59e0b; background: #fffbeb; }
+.alert-item.info { border-left-color: #3b82f6; background: #eff6ff; }
+.severity-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+.severity-badge.critical { background: #fecaca; color: #991b1b; }
+.severity-badge.warning { background: #fed7aa; color: #92400e; }
+.severity-badge.info { background: #bfdbfe; color: #1e40af; }
+</style>
+{% endblock %}
+
 {% block content %}
     <section class="metrics-grid">
       <div class="metric-card critical">
@@ -27,8 +40,8 @@
       {% if active_alerts %}
         <div style="display: flex; flex-direction: column; gap: 12px;">
           {% for alert in active_alerts %}
-            <div style="padding: 16px; border-left: 4px solid; border-radius: 4px; background: #f9f9f9; {% if alert.severity == 'critical' %}border-left-color: #ef4444; background: #fef2f2;{% elif alert.severity == 'warning' %}border-left-color: #f59e0b; background: #fffbeb;{% else %}border-left-color: #3b82f6; background: #eff6ff;{% endif %}">
-              <div style="font-weight: 600; margin-bottom: 4px;">{{ alert.title }} <span style="font-size: 0.8rem; color: #666;">{{ alert.severity|upper }}</span></div>
+            <div class="alert-item {{ alert.severity }}">
+              <div style="font-weight: 600; margin-bottom: 4px;">{{ alert.title }} <span class="severity-badge {{ alert.severity }}">{{ alert.severity|upper }}</span></div>
               <div style="font-size: 0.9rem; color: #666; margin-bottom: 4px;">📍 {{ alert.node.name }}</div>
               <div style="font-size: 0.85rem; color: #999;">⏰ {{ alert.triggered_at|date:"M d, Y g:i A" }}</div>
             </div>
@@ -59,7 +72,7 @@
                 <td style="padding: 12px; color: #333;">{{ alert.title }}</td>
                 <td style="padding: 12px; color: #666;">{{ alert.node.name }}</td>
                 <td style="padding: 12px; text-align: center;">
-                  <span style="padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; {% if alert.severity == 'critical' %}background: #fecaca; color: #991b1b;{% elif alert.severity == 'warning' %}background: #fed7aa; color: #92400e;{% else %}background: #bfdbfe; color: #1e40af;{% endif %}">
+                  <span class="severity-badge {{ alert.severity }}">
                     {{ alert.severity|upper }}
                   </span>
                 </td>
