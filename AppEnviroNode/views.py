@@ -107,6 +107,23 @@ def get_aggregation_strategy(days_span):
     else:
         return 'day'     # 30d+
 
+def format_time_ago(dt):
+    """Format datetime as relative time string."""
+    if not dt:
+        return 'Never'
+    now = timezone.now()
+    diff = now - dt
+    seconds = diff.total_seconds()
+
+    if seconds < 60:
+        return f"{int(seconds)}s ago"
+    elif seconds < 3600:
+        return f"{int(seconds // 60)}m ago"
+    elif seconds < 86400:
+        return f"{int(seconds // 3600)}h ago"
+    else:
+        return f"{int(seconds // 86400)}d ago"
+
 def aggregate_readings(readings_qs, strategy, metric_field):
     """Aggregate sensor readings based on strategy."""
     from django.db.models.functions import TruncMinute, TruncHour, TruncDay
@@ -2104,12 +2121,19 @@ def client_realtime(request):
             if node_aqi is not None:
                 total_aqi.append(node_aqi)
 
+            # Calculate status based on timestamp freshness
+            if latest.timestamp:
+                seconds_since = (now - latest.timestamp).total_seconds()
+                status = 'disconnected' if seconds_since >= 300 else 'active'
+            else:
+                status = 'disconnected'
+
             node_item = {
                 'node_id': node.id,
                 'name': node.name,
                 'zone': getattr(node, 'zone', None) or node.location or 'Unknown',
                 'location': node.location or '',
-                'status': node.status or 'inactive',
+                'status': status,
                 'aqi': node_aqi,
                 'latest_aqi': node_aqi,
                 'pm2_5': latest.pm2_5,
