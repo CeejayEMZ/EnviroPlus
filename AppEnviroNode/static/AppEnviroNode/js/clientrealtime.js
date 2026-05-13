@@ -1565,7 +1565,9 @@
         });
         
         if (!nodes.length) {
-            nodeTableBody.innerHTML = `<tr><td colspan="6" class="crealtime-text-xs crealtime-text-muted">No active node readings available.</td></tr>`;
+            if (!nodeTableBody.querySelector('tr[data-node-id]')) {
+                nodeTableBody.innerHTML = `<tr><td colspan="6" class="crealtime-text-xs crealtime-text-muted">No active node readings available.</td></tr>`;
+            }
             return;
         }
         
