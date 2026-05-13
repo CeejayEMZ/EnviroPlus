@@ -7,6 +7,83 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <style>
+    /* Additional styles for dashboard map */
+    .cdashboard-map .cdashboard-card-body {
+      padding: 6px 12px 12px 12px !important;
+    }
+    #dashboard-mini-map {
+      height: 160px;
+      width: 100%;
+      border-radius: 8px;
+      background: #f0f4f8;
+      border: 1px solid var(--cd-border);
+      margin-bottom: 8px;
+    }
+    /* Smaller zoom controls for dashboard map */
+    .dashboard-map-zoom-control {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .dashboard-zoom-btn {
+      width: 26px;
+      height: 26px;
+      background: white;
+      border: 1px solid var(--cd-border);
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      transition: all 0.2s;
+      color: var(--cd-text-main);
+    }
+    .dashboard-zoom-btn:hover {
+      background: var(--cd-bg);
+      transform: scale(1.05);
+    }
+    .leaflet-control-attribution {
+      font-size: 8px;
+    }
+    /* Dashboard marker styles - matching Map View exactly */
+    .dashboard-marker {
+      position: relative;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 12px;
+      color: white;
+      text-shadow: 0 1px 1px rgba(0,0,0,0.3);
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+    .dashboard-marker:hover {
+      transform: scale(1.2);
+      z-index: 1000;
+    }
+    /* AQI color classes matching Map View */
+    .dashboard-marker-good { background-color: #2ecc71; }
+    .dashboard-marker-moderate { background-color: #f1c40f; }
+    .dashboard-marker-sensitive { background-color: #e67e22; }
+    .dashboard-marker-unhealthy { background-color: #e74c3c; }
+    .dashboard-marker-very-unhealthy { background-color: #c0392b; }
+    .dashboard-marker-hazardous { background-color: #8b0000; }
+    .dashboard-marker-offline { background-color: #7f8c8d; opacity: 0.7; }
+  </style>
 {% endblock %}
 
 {% block content %}
@@ -281,7 +358,7 @@
         .btn-solid { background: var(--cd-red); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; transition: 0.2s transform, 0.2s background; text-decoration: none; justify-content: center; }
         .btn-solid:hover { background: #dc2626; }
         .btn-solid:active { transform: scale(0.97); }
-        .btn-outline { background: white; color: var(--cd-text-main); border: 1px solid var(--cd-border); padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; transition: 0.2s transform, 0.2s background; text-decoration: none; justify-content: center; }
+        .btn-outline { background: white; color: var(--cd-text-main); border: 1px solid var(--cd-border); border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; transition: 0.2s transform, 0.2s background; text-decoration: none; justify-content: center; }
         .btn-outline:hover { background: var(--cd-card-hover); }
         .btn-outline:active { transform: scale(0.97); }
 
@@ -302,19 +379,10 @@
         .cd-progress-fill.good { background: var(--cd-purple); }
         .cd-progress-fill.low { background: var(--cd-yellow); }
         .cd-progress-fill.offline { background: var(--cd-red); }
+        .cd-progress-fill.warning { background: var(--cd-orange); }
+        .cd-progress-fill.info { background: var(--cd-cyan); }
         .cd-signal-bars { display: flex; align-items: flex-end; gap: 2px; height: 14px; }
         .cd-signal-bar { width: 3px; background: var(--cd-blue); border-radius: 1px; }
-
-        /* Map & Ripple Alert */
-        .cd-mock-map { width: 100%; height: 75px; background: #f1f5f9; border-radius: 6px; position: relative; overflow: hidden; background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 12px 12px; border: 1px solid var(--cd-border); }
-        .cd-map-dot { position: absolute; width: 6px; height: 6px; border-radius: 50%; box-shadow: 0 0 4px currentColor; }
-        
-        .cd-map-dot.alert { background: var(--cd-red); color: var(--cd-red); }
-        .cd-map-dot.alert::after {
-            content: ''; position: absolute; top: -4px; left: -4px; right: -4px; bottom: -4px;
-            border-radius: 50%; border: 2px solid var(--cd-red); animation: ripple 1.5s infinite;
-        }
-        @keyframes ripple { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(2.5); opacity: 0; } }
 
         /* FLOATING ACTION MENU */
         .cd-floating-overlay {
@@ -825,8 +893,7 @@
         </div>
 
         {# ================================================================== #}
-        {# SPATIAL CONTEXT / MAP CARD                                         #}
-        {# Mock map preview — links to the real live map                      #}
+        {# SPATIAL CONTEXT / MAP CARD (FIXED - matches Map View)             #}
         {# ================================================================== #}
         <div class="cdashboard-card cdashboard-map">
             <div class="cdashboard-card-header">
@@ -834,18 +901,16 @@
                     <i class="ph-fill ph-map-pin" style="color: var(--cd-slate);"></i> Spatial Context
                 </div>
             </div>
-            <div class="cdashboard-card-body" style="padding-top: 6px;">
-                <div id="cd-dashboard-mini-map" style="width:100%;height:120px;border-radius:8px;"></div>
+            <div class="cdashboard-card-body" style="padding: 6px 12px 12px 12px !important;">
+                <div id="dashboard-mini-map" style="width:100%;height:160px;border-radius:8px;background:#f0f4f8;border:1px solid var(--cd-border);"></div>
                 <div class="cd-metric-row" style="margin-top: 6px;">
                     <span class="cd-metric-label">Active on Map</span>
-                    <span class="cd-metric-val" style="color: var(--cd-green);">{{ active_count }} node{{ active_count|pluralize }}</span>
+                    <span class="cd-metric-val" style="color: var(--cd-green);" id="dashboard-map-active-count">Loading...</span>
                 </div>
-                {% if inactive_count > 0 %}
                 <div class="cd-metric-row">
                     <span class="cd-metric-label">Offline Nodes</span>
-                    <span class="cd-metric-val" style="color: var(--cd-red);">{{ inactive_count }} node{{ inactive_count|pluralize }}</span>
+                    <span class="cd-metric-val" style="color: var(--cd-red);" id="dashboard-map-inactive-count">Loading...</span>
                 </div>
-                {% endif %}
             </div>
             <a href="{% url 'app:client_map' %}" class="cdashboard-quick-access">
                 Open Live Map &rarr;
@@ -903,8 +968,8 @@
         </div>
 
         {# ================================================================== #}
-        {# USERS / PERSONNEL CARD                                             #}
-        {# Driven by: user_stats                                              #}
+        {# USERS / PERSONNEL CARD (SIMPLIFIED)                                #}
+        {# Only shows: Total Users, Admins/Officials, Pending Approval       #}
         {# ================================================================== #}
         <div class="cdashboard-card cdashboard-network">
             <div class="cdashboard-card-header">
@@ -920,17 +985,17 @@
             <div class="cdashboard-card-body">
                 <div class="cd-metric-row">
                     <span class="cd-metric-label">Total Users</span>
-                    <span class="cd-metric-val shimmer-text">{{ user_stats.total_users|default:"0" }}</span>
+                    <span class="cd-metric-val shimmer-text" id="dashboard-users-total">{{ user_stats.total_users|default:"0" }}</span>
                 </div>
                 <div class="cd-metric-row">
                     <span class="cd-metric-label">Admins / Officials</span>
-                    <span class="cd-metric-val">
+                    <span class="cd-metric-val" id="dashboard-users-stats">
                         {{ user_stats.admin_count|default:"0" }} / {{ user_stats.official_count|default:"0" }}
                     </span>
                 </div>
                 <div class="cd-metric-row">
                     <span class="cd-metric-label">Pending Approval</span>
-                    <span class="cd-metric-val">
+                    <span class="cd-metric-val" id="dashboard-users-pending">
                         {{ user_stats.pending_approval|default:"0" }}
                         {% if user_stats.pending_approval > 0 %}
                             <span class="cd-pill red">Review Required</span>
@@ -939,13 +1004,16 @@
                         {% endif %}
                     </span>
                 </div>
+
                 <div class="cd-link-hint">
                     <i class="ph-fill ph-link"></i>
-                    {% if user_stats.pending_approval > 0 %}
-                        {{ user_stats.pending_approval }} user{{ user_stats.pending_approval|pluralize }} awaiting admin approval.
-                    {% else %}
-                        All registered users are approved and active.
-                    {% endif %}
+                    <span id="dashboard-users-hint">
+                        {% if user_stats.pending_approval > 0 %}
+                            {{ user_stats.pending_approval }} user{{ user_stats.pending_approval|pluralize }} awaiting admin approval.
+                        {% else %}
+                            All registered users are approved and active.
+                        {% endif %}
+                    </span>
                 </div>
             </div>
             <a href="{% url 'app:client_users' %}" class="cdashboard-quick-access {% if user_stats.pending_approval > 0 %}urgent{% endif %}">
@@ -1036,6 +1104,7 @@
             el.style.width = el.dataset.width + '%';
         });
 
+        // ========== FLOATING MENU ==========
         function toggleFloatingMenu() {
             const menu = document.getElementById('floatingMenu');
             const overlay = document.getElementById('floatingOverlay');
@@ -1053,36 +1122,51 @@
             }
         }
 
-        // Initialize mini Leaflet map on dashboard
-        function initDashboardMiniMap() {
-            const mapContainer = document.getElementById('cd-dashboard-mini-map');
+        // ========== SPATIAL CONTEXT MAP - MATCHING MAP VIEW EXACTLY ==========
+        let dashboardMap = null;
+        let dashboardMarkers = [];
+
+        // AQI color mapping matching the Map View
+        function getAQIColorClass(aqi) {
+            if (aqi === null || aqi === undefined) return 'dashboard-marker-offline';
+            if (aqi <= 50) return 'dashboard-marker-good';
+            if (aqi <= 100) return 'dashboard-marker-moderate';
+            if (aqi <= 150) return 'dashboard-marker-sensitive';
+            if (aqi <= 200) return 'dashboard-marker-unhealthy';
+            if (aqi <= 300) return 'dashboard-marker-very-unhealthy';
+            return 'dashboard-marker-hazardous';
+        }
+
+        function formatAQI(aqi) {
+            if (aqi === null || aqi === undefined) return 'N/A';
+            return Math.round(aqi);
+        }
+
+        function initDashboardMap() {
+            const mapContainer = document.getElementById('dashboard-mini-map');
             if (!mapContainer) return;
 
-            // Create map centered on Barangay Pembo
-            const map = L.map('cd-dashboard-mini-map', {
-                center: [14.5547, 121.0622],
-                zoom: 14,
-                dragging: false,
-                scrollWheelZoom: false,
-                boxZoom: false,
-                keyboard: false,
-                zoomControl: false,
-                doubleClickZoom: false,
-                tap: false
-            });
+            if (dashboardMap) {
+                dashboardMap.remove();
+                dashboardMap = null;
+            }
 
-            // Ensure map renders correctly in small container
-            setTimeout(() => map.invalidateSize(), 100);
+            // Create map with custom smaller zoom controls
+            dashboardMap = L.map('dashboard-mini-map', {
+                center: [14.5547, 121.0622],
+                zoom: 13,
+                dragging: true,
+                scrollWheelZoom: true,
+                zoomControl: false,
+                attributionControl: true
+            });
 
             // Add tile layer
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors',
                 maxZoom: 19
-            }).addTo(map);
+            }).addTo(dashboardMap);
 
-            // Store nodes for re-fitting
-            let nodesData = [];
-            
             // Fetch nodes data and add markers
             fetch('/api/nodes/live/')
                 .then(r => r.json())
@@ -1156,9 +1240,165 @@
                     });
                 })
                 .catch(err => console.warn('Failed to fetch nodes for mini map:', err));
+
+            // Custom smaller zoom controls
+            const zoomControlDiv = L.DomUtil.create('div', 'dashboard-map-zoom-control');
+            const zoomInBtn = L.DomUtil.create('button', 'dashboard-zoom-btn', zoomControlDiv);
+            zoomInBtn.innerHTML = '+';
+            zoomInBtn.onclick = () => dashboardMap.zoomIn();
+            const zoomOutBtn = L.DomUtil.create('button', 'dashboard-zoom-btn', zoomControlDiv);
+            zoomOutBtn.innerHTML = '−';
+            zoomOutBtn.onclick = () => dashboardMap.zoomOut();
+            dashboardMap.getContainer().appendChild(zoomControlDiv);
+
+            loadMapNodes();
         }
         
-        // Initialize when DOM is ready
-        document.addEventListener('DOMContentLoaded', initDashboardMiniMap);
+        function loadMapNodes() {
+            fetch('/api/nodes/live/')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Map data:', data);
+                    
+                    // Clear existing markers
+                    dashboardMarkers.forEach(marker => dashboardMap.removeLayer(marker));
+                    dashboardMarkers = [];
+                    
+                    let activeCount = 0;
+                    let inactiveCount = 0;
+                    const boundsPoints = [];
+                    
+                    // Process active nodes - these have pollutants with AQI
+                    if (data.active && data.active.length) {
+                        data.active.forEach(nodeWrapper => {
+                            const node = nodeWrapper.node;
+                            const pollutants = nodeWrapper.pollutants;
+                            
+                            if (node && node.latitude && node.longitude) {
+                                const lat = parseFloat(node.latitude);
+                                const lng = parseFloat(node.longitude);
+                                const aqi = pollutants?.aqi;
+                                const aqiDisplay = formatAQI(aqi);
+                                const colorClass = getAQIColorClass(aqi);
+                                
+                                boundsPoints.push([lat, lng]);
+                                
+                                // Create marker with AQI number - matches Map View style
+                                const icon = L.divIcon({
+                                    html: `<div class="dashboard-marker ${colorClass}" style="width: 36px; height: 36px; line-height: 36px; font-size: 13px;">${aqiDisplay}</div>`,
+                                    iconSize: [36, 36],
+                                    className: '',
+                                    popupAnchor: [0, -18]
+                                });
+                                
+                                const marker = L.marker([lat, lng], { icon: icon });
+                                marker.bindPopup(`
+                                    <strong>${node.name}</strong><br>
+                                    Status: ${node.status}<br>
+                                    Location: ${node.location || 'Unknown'}<br>
+                                    AQI: ${aqi}<br>
+                                    Level: ${pollutants?.aqi_level || 'Unknown'}
+                                `);
+                                marker.addTo(dashboardMap);
+                                dashboardMarkers.push(marker);
+                                activeCount++;
+                            }
+                        });
+                    }
+                    
+                    // Process inactive nodes
+                    if (data.inactive && data.inactive.length) {
+                        data.inactive.forEach(nodeWrapper => {
+                            const node = nodeWrapper.node;
+                            if (node && node.latitude && node.longitude) {
+                                const lat = parseFloat(node.latitude);
+                                const lng = parseFloat(node.longitude);
+                                boundsPoints.push([lat, lng]);
+                                
+                                const icon = L.divIcon({
+                                    html: `<div class="dashboard-marker dashboard-marker-offline" style="width: 30px; height: 30px; line-height: 30px; font-size: 10px;">OFF</div>`,
+                                    iconSize: [30, 30],
+                                    className: '',
+                                    popupAnchor: [0, -15]
+                                });
+                                const marker = L.marker([lat, lng], { icon: icon });
+                                marker.bindPopup(`
+                                    <strong>${node.name}</strong><br>
+                                    Status: ${node.status}<br>
+                                    Location: ${node.location || 'Unknown'}<br>
+                                    No recent data
+                                `);
+                                marker.addTo(dashboardMap);
+                                dashboardMarkers.push(marker);
+                                inactiveCount++;
+                            }
+                        });
+                    }
+                    
+                    // Update UI counters
+                    document.getElementById('dashboard-map-active-count').textContent = `${activeCount} node${activeCount !== 1 ? 's' : ''}`;
+                    document.getElementById('dashboard-map-inactive-count').textContent = `${inactiveCount} node${inactiveCount !== 1 ? 's' : ''}`;
+                    
+                    // Fit bounds to show all markers
+                    if (boundsPoints.length > 0) {
+                        const bounds = L.latLngBounds(boundsPoints);
+                        dashboardMap.fitBounds(bounds.pad(0.1));
+                    }
+                    
+                    console.log(`Map loaded: ${activeCount} active, ${inactiveCount} inactive`);
+                })
+                .catch(err => {
+                    console.error('Failed to load map nodes:', err);
+                    document.getElementById('dashboard-map-active-count').textContent = 'Error';
+                    document.getElementById('dashboard-map-inactive-count').textContent = 'Error';
+                });
+        }
+
+        // ========== USERS SECTION ==========
+        async function refreshUserMetrics() {
+            try {
+                const response = await fetch('/api/users/?limit=1&status=all');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const users = data.data || [];
+                    const totalUsers = data.pagination?.total || users.length;
+                    const adminCount = users.filter(u => u.role === 'admin').length;
+                    const officialCount = users.filter(u => u.role === 'official').length;
+                    const pendingCount = users.filter(u => u.status === 'pending').length;
+                    
+                    document.getElementById('dashboard-users-total').textContent = totalUsers;
+                    document.getElementById('dashboard-users-stats').textContent = `${adminCount} / ${officialCount}`;
+                    
+                    const pendingSpan = document.getElementById('dashboard-users-pending');
+                    pendingSpan.innerHTML = pendingCount;
+                    if (pendingCount > 0) {
+                        const pill = document.createElement('span');
+                        pill.className = 'cd-pill red';
+                        pill.textContent = 'Review Required';
+                        pendingSpan.appendChild(pill);
+                    } else {
+                        const trendSpan = document.createElement('span');
+                        trendSpan.className = 'cd-trend good';
+                        trendSpan.innerHTML = '↑ All Approved';
+                        pendingSpan.appendChild(trendSpan);
+                    }
+                    
+                    document.getElementById('dashboard-users-hint').innerHTML = pendingCount > 0 
+                        ? `${pendingCount} user${pendingCount !== 1 ? 's' : ''} awaiting admin approval.`
+                        : 'All registered users are approved and active.';
+                }
+            } catch (error) {
+                console.error('Failed to refresh user metrics:', error);
+            }
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            initDashboardMap();
+            refreshUserMetrics();
+            setInterval(refreshUserMetrics, 60000);
+            setInterval(loadMapNodes, 30000);
+        });
     </script>
 {% endblock %}
