@@ -58,15 +58,15 @@
     .gas-track { width: 100%; height: 4px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
     .gas-fill { height: 100%; border-radius: 4px; }
 
-    /* --- RIGHT PANEL: Trend Chart --- */
+    .trend-panel { max-height: 380px; overflow: hidden; }
     .trend-controls-header { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
     .gas-toggles { display: flex; gap: 4px; background: #f1f5f9; padding: 3px; border-radius: 4px; }
     .gas-btn { padding: 3px 10px; font-size: 0.7rem; font-weight: 700; color: var(--text-muted); background: transparent; border: none; border-radius: 3px; cursor: pointer; transition: 0.2s; }
     .gas-btn.active { background: var(--surface); color: var(--primary); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
     .trend-kpi-row { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.75rem; color: var(--text-muted); background: #f8fafc; padding: 6px 10px; border-radius: 4px; margin-bottom: 8px; border: 1px solid var(--border); align-items: center; }
     .kpi-divider { width: 1px; height: 12px; background: var(--border); }
-    .chart-container { position: relative; flex-grow: 1; min-height: 220px; width: 100%; display: flex; flex-direction: column; }
-    .line-chart-wrapper { flex-grow: 1; position: relative; }
+    .chart-container { position: relative; flex-grow: 1; min-height: 150px; max-height: 280px; width: 100%; display: flex; flex-direction: column; }
+    .line-chart-wrapper { flex-grow: 1; position: relative; max-height: 250px; overflow: hidden; }
     .heatmap-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; flex-grow: 1; padding: 4px 0; }
     .heatmap-col { display: flex; flex-direction: column; gap: 4px; }
     .heatmap-lbl { font-size: 0.6rem; text-align: center; color: var(--text-muted); font-weight: 700; margin-bottom: 2px; }
@@ -102,8 +102,10 @@
     .nt-val { font-size: 0.85rem; font-weight: 800; line-height: 1; }
 
     /* Enhanced Drilldown Focus Panel */
-    .node-drilldown { background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%); border-radius: 6px; border: 1px solid var(--border); padding: 6px 8px; display: flex; flex-direction: column; position: relative; overflow: hidden; }
-    .canalytics-dd-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+    .node-drilldown { background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%); border-radius: 6px; border: 1px solid var(--border); padding: 6px 8px; display: flex; flex-direction: column; position: relative; overflow: hidden; max-height: 100%; }
+    #nodeSparkline { display: block; width: 100% !important; height: 160px !important; flex-shrink: 0; max-height: 160px; overflow: hidden; }
+    #sparklineTogglesContainer { flex-shrink: 0; max-height: 70px; overflow: hidden; }
+    .canalytics-dd-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; flex-shrink: 0; }
     .canalytics-dd-title-wrap { display: flex; flex-direction: column; gap: 1px; }
     .canalytics-dd-subtitle { font-size: 0.55rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
     #dd-title { font-size: 0.85rem !important; }
@@ -147,6 +149,26 @@
       100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
     }
 
+    /* Spike Control Panel Button Styles */
+    #spikeControlPanel button {
+      transition: all 0.2s ease;
+    }
+
+    #spikeControlPanel button:not(:disabled):hover {
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      transform: translateY(-1px);
+      filter: brightness(0.95);
+    }
+
+    #spikeControlPanel button:active {
+      transform: translateY(0);
+    }
+
+    #spikeControlPanel button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
 
     /* --- ALERTS TRAY (Slide-out Drawer) --- */
     .alert-fab { position: relative; margin-left: 12px; }
@@ -186,16 +208,16 @@
       <span style="font-weight: 700; font-size: 0.7rem; color: var(--text-muted);"><i class="fas fa-filter"></i> VIEW:</span>
       <select class="filter-control" id="nodeFilter"><option value="all">All Nodes Group</option></select>
       
-      <div class="range-pills" id="timeframeButtons">
-        <div class="range-pill" onclick="setTimeframe('24h', this)">24H</div>
-        <div class="range-pill active" onclick="setTimeframe('7d', this)">7D</div>
-        <div class="range-pill" onclick="setTimeframe('30d', this)">30D</div>
-        <div class="range-pill" onclick="toggleCustomDate(true, this)">Custom</div>
+      <div class="range-pills" id="timeframeButtons" style="box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 4px;">
+        <div class="range-pill" onclick="setTimeframe('24h', this)" style="cursor: pointer; font-weight: 800;">24H</div>
+        <div class="range-pill active" onclick="setTimeframe('7d', this)" style="cursor: pointer; font-weight: 800;">7D</div>
+        <div class="range-pill" onclick="setTimeframe('30d', this)" style="cursor: pointer; font-weight: 800;">30D</div>
+        <div class="range-pill" onclick="toggleCustomDate(true, this)" style="cursor: pointer; font-weight: 800;">Custom</div>
       </div>
 
-      <div id="customDateGroup" style="display: none; align-items: center; gap: 4px;">
+      <div id="customDateGroup" style="display: none; align-items: center; gap: 4px; flex-wrap: wrap; background: #fff3cd; padding: 4px 8px; border-radius: 4px; border-left: 3px solid #ffc107;">
         <input type="date" class="filter-control" id="customDateStart" value="2026-04-09"> 
-        <span style="color:var(--text-muted); font-size: 0.75rem;">to</span> 
+        <span style="color:var(--text-muted); font-size: 0.75rem; font-weight: 600;">to</span> 
         <input type="date" class="filter-control" id="customDateEnd" value="2026-04-16">
       </div>
       
@@ -371,7 +393,12 @@
                 <span class="canalytics-dd-subtitle" id="dd-region">Focus Node</span>
                 <h4 id="dd-title" style="margin:0; font-size: 1.1rem; color: var(--text-main); font-weight: 800;">Node 1 (Home)</h4>
               </div>
-              <span id="dd-status" class="canalytics-status-pill online"><i class="fas fa-wifi"></i> Online</span>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <button id="viewAnomaliesBtn" onclick="if(window.AnalyticsState.lockedNodeId) window.Spikes.activateSpikeFiltering(window.AnalyticsState.lockedNodeId)" title="Review anomalies and spikes" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.65rem; white-space: nowrap; transition: all 0.2s; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 6px rgba(239,68,68,0.3);">
+                  <i class="fas fa-exclamation-triangle"></i> View Anomalies
+                </button>
+                <span id="dd-status" class="canalytics-status-pill online"><i class="fas fa-wifi"></i> Online</span>
+              </div>
             </div>
             
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 6px;">
@@ -389,7 +416,7 @@
               </div>
             </div>
             
-            <div style="flex-grow: 1; position: relative; min-height: 25px;">
+            <div style="flex-grow: 1; position: relative; min-height: 25px; max-height: 280px; display: flex; flex-direction: column; overflow-y: auto;">
               <!-- Mini chart will be populated here -->
               <canvas id="nodeSparkline"></canvas>
             </div>

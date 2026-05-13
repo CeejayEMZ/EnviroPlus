@@ -60,6 +60,21 @@ const AnalyticsState = {
   lastTrendMetric: 'aqi', // Track last metric selection
   trendChartUpdateInProgress: false, // Prevent concurrent updates
 
+  // Spike filtering state
+  spikeFilterActive: false,
+  detectedSpikes: [],
+  currentSpikeIndex: 0,
+  ignoredSpikeIndices: [], // Track ignored spikes
+  trendChartUpdateInProgress: false, // Prevent concurrent updates
+
+  // Metric toggles for sparkline
+  sparklineMetrics: {
+    aqi: true,
+    pm2_5: false,
+    pm10: false,
+    temperature: false
+  },
+
   // ⚡ OPTIMIZATION: Request deduplication
   lastRequestParams: {} // Track last params for each API call
 };
@@ -148,24 +163,33 @@ const API = {
 
   async getNodeDetail(nodeId) {
     try {
-      if (AnalyticsState.nodeDetails[nodeId]) {
-        return AnalyticsState.nodeDetails[nodeId];
-      }
-
-      if (shouldSkipRequest(`/api/nodes/${nodeId}/detail/`, {})) {
-        return AnalyticsState.nodeDetails[nodeId] || null;
-      }
-
-      const response = await fetch(`/api/nodes/${nodeId}/detail/`, {
-        headers: { 'Accept': 'application/json' }
-      });
-
-      if (!response.ok) throw new Error(`API error: ${response.status}`);
-      const data = await response.json();
+      // Include timeframe in cache key to support different time ranges
+      const cacheKey = `${nodeId}-${AnalyticsState.selectedTimeframe}`;
       
-      console.log('[Analytics] Node detail loaded:', nodeId, data);
-      AnalyticsState.nodeDetails[nodeId] = data;
-      return data;
+      // Check if we have cached data for this node+timeframe combo
+      if (!AnalyticsState.nodeDetails[cacheKey]) {
+        // Build request with timeframe parameter
+        const params = {
+          timeframe: AnalyticsState.selectedTimeframe,
+          start_date: AnalyticsState.selectedTimeframe === 'custom' ? (AnalyticsState.customDateStart || '') : '',
+          end_date: AnalyticsState.selectedTimeframe === 'custom' ? (AnalyticsState.customDateEnd || '') : ''
+        };
+        
+        if (shouldSkipRequest(`/api/nodes/${nodeId}/detail/`, params)) {
+          return AnalyticsState.nodeDetails[cacheKey] || null;
+        }
+
+        const response = await fetch(`/api/nodes/${nodeId}/detail/?${new URLSearchParams(params)}`, {
+          headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) throw new Error(`API error: ${response.status}`);
+        const data = await response.json();
+        
+        console.log('[Analytics] Node detail loaded:', nodeId, 'timeframe:', AnalyticsState.selectedTimeframe, 'data points:', data.sparkline_data?.length || 0);
+        AnalyticsState.nodeDetails[cacheKey] = data;
+      }
+      return AnalyticsState.nodeDetails[cacheKey];
     } catch (error) {
       console.error('[Analytics] Failed to fetch node detail:', error);
       return null;
@@ -493,8 +517,23 @@ const Charts = {
     const canvas = document.getElementById('nodeSparkline');
     if (!canvas) return;
 
-    // FIXED: Skip reinit if same node and timeframe already rendered
-    // This prevents expensive recalculations on every data reload
+    // FIXED: Set canvas to fixed 160px and prevent parent from growing
+    canvas.style.height = '160px';
+    canvas.style.width = '100%';
+    canvas.style.display = 'block';
+    
+    // Constrain parent wrapper strictly to canvas size
+    const parentWrapper = canvas.parentElement;
+    if (parentWrapper) {
+      parentWrapper.style.maxHeight = '160px';
+      parentWrapper.style.overflow = 'hidden';
+      parentWrapper.style.flexShrink = '0';
+    }
+
+    const noDataDiv = document.getElementById('sparklineNoData');
+    if (noDataDiv) noDataDiv.style.display = 'none';
+    canvas.style.display = '';
+
     if (AnalyticsState.lastSparklineNodeId === nodeId && 
         AnalyticsState.lastSparklineTimeframe === AnalyticsState.selectedTimeframe &&
         AnalyticsState.charts.sparkline !== null) {
@@ -503,10 +542,12 @@ const Charts = {
     }
 
     const ctx = canvas.getContext('2d');
-    const nodeData = AnalyticsState.nodeDetails[nodeId];
+    // Use cache key that includes timeframe to match how data is stored
+    const cacheKey = `${nodeId}-${AnalyticsState.selectedTimeframe}`;
+    const nodeData = AnalyticsState.nodeDetails[cacheKey] || AnalyticsState.nodeDetails[nodeId];
     
     if (!nodeData || !nodeData.sparkline_data) {
-      console.warn('[Analytics] No sparkline data for node:', nodeId);
+      console.warn('[Analytics] No sparkline data for node:', nodeId, 'using key:', cacheKey);
       return;
     }
 
@@ -541,14 +582,42 @@ const Charts = {
       return pointDate >= cutoffTime && pointDate <= now;
     });
 
-    // Guard: handle empty filtered data
+    // Guard: handle empty filtered data with visual feedback
     if (filteredData.length === 0) {
       console.warn('[Analytics] Sparkline data empty after timeframe filtering for node:', nodeId);
-      filteredData = nodeData.sparkline_data.slice(-50); // Fallback to last 50 points
+      Charts.showSparklineNoDataMessage();
+      return;
     }
 
-    // UPDATED: Apply downsampling and smoothing to sparkline data
-    const downsampledData = Utils.downsampleData(filteredData, AnalyticsState.selectedTimeframe);
+    // UPDATED: Apply aggressive downsampling based on timeframe to prevent lag
+    const maxPointsForSparkline = {
+      '24h': 48,
+      '7d': 56,
+      '30d': 60,
+      'custom': 60
+    }[AnalyticsState.selectedTimeframe] || 48;
+    
+    let downsampledData = filteredData;
+    if (filteredData.length > maxPointsForSparkline) {
+      const bucketSize = Math.ceil(filteredData.length / maxPointsForSparkline);
+      downsampledData = [];
+      for (let i = 0; i < filteredData.length; i += bucketSize) {
+        const bucket = filteredData.slice(i, Math.min(i + bucketSize, filteredData.length));
+        const avgAqi = bucket.reduce((sum, p) => sum + (p.aqi || p.value || 0), 0) / bucket.length;
+        const avgPm25 = bucket.reduce((sum, p) => sum + (p.pm2_5 || 0), 0) / bucket.length;
+        const avgPm10 = bucket.reduce((sum, p) => sum + (p.pm10 || 0), 0) / bucket.length;
+        const avgTemp = bucket.reduce((sum, p) => sum + (p.temperature || 0), 0) / bucket.length;
+        downsampledData.push({
+          timestamp: bucket[Math.floor(bucket.length / 2)].timestamp,
+          aqi: avgAqi,
+          pm2_5: avgPm25,
+          pm10: avgPm10,
+          temperature: avgTemp,
+          value: avgAqi,
+          label: bucket[0].label
+        });
+      }
+    }
     const smoothedData = Utils.smoothData(downsampledData, 3);
 
     // Create clean timestamp labels with proper time progression
@@ -600,9 +669,12 @@ const Charts = {
       AnalyticsState.charts.sparkline.destroy();
     }
 
-    // Build multi-metric dataset array
-    const datasets = [
-      {
+    // Build multi-metric dataset array (filtered by sparklineMetrics state)
+    const datasets = [];
+    
+    // Add AQI if enabled
+    if (AnalyticsState.sparklineMetrics.aqi) {
+      datasets.push({
         label: 'AQI',
         data: aqiPoints,
         borderColor: aqiColor,
@@ -613,10 +685,226 @@ const Charts = {
         fill: true,
         tension: 0.3,
         yAxisID: 'y'
+      });
+    }
+
+    // Add secondary metrics if available AND enabled
+    if (AnalyticsState.sparklineMetrics.pm2_5 && pm25Points.some(v => v !== null)) {
+      datasets.push({
+        label: 'PM2.5',
+        data: pm25Points,
+        borderColor: '#991b1b',
+        borderWidth: 1.5,
+        pointRadius: 0.5,
+        fill: false,
+        tension: 0.3,
+        borderDash: [2, 2],
+        yAxisID: 'y1'
+      });
+    }
+
+    if (AnalyticsState.sparklineMetrics.pm10 && pm10Points.some(v => v !== null)) {
+      datasets.push({
+        label: 'PM10',
+        data: pm10Points,
+        borderColor: '#f97316',
+        borderWidth: 1.5,
+        pointRadius: 0.5,
+        fill: false,
+        tension: 0.3,
+        borderDash: [4, 4],
+        yAxisID: 'y1'
+      });
+    }
+
+    if (AnalyticsState.sparklineMetrics.temperature && tempPoints.some(v => v !== null)) {
+      datasets.push({
+        label: 'Temp',
+        data: tempPoints,
+        borderColor: '#3b82f6',
+        borderWidth: 1.5,
+        pointRadius: 0.5,
+        fill: false,
+        tension: 0.3,
+        borderDash: [6, 3],
+        yAxisID: 'y2'
+      });
+    }
+
+    // Guard: ensure we have at least one dataset before creating chart
+    if (datasets.length === 0) {
+      console.warn('[Analytics] No metrics enabled for sparkline - showing no data message');
+      Charts.showSparklineNoDataMessage();
+      AnalyticsState.charts.sparkline = null;
+      return;
+    }
+
+    AnalyticsState.charts.sparkline = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          y: { 
+            position: 'left',
+            display: false,
+            min: aqiScale.min, 
+            max: aqiScale.max
+          },
+          y1: {
+            type: 'linear',
+            position: 'right',
+            display: false,
+            min: pm25Scale.min,
+            max: pm25Scale.max
+          },
+          y2: {
+            type: 'linear',
+            position: 'right',
+            display: false,
+            min: tempScale.min,
+            max: tempScale.max
+          },
+          x: { display: false }
+        },
+        plugins: { 
+          legend: { display: false }, 
+          tooltip: { 
+            enabled: true,
+            mode: 'index',
+            intersect: false,
+            backgroundColor: 'rgba(0,0,0,0.9)',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            borderColor: aqiColor,
+            borderWidth: 1,
+            padding: 8,
+            titleFont: { size: 12, weight: 'bold' },
+            bodyFont: { size: 11 },
+            callbacks: {
+              title: function(context) {
+                if (!context || context.length === 0) return 'No Data';
+                const idx = context[0].dataIndex;
+                if (idx < 0 || idx >= smoothedData.length) return 'No Data';
+                const point = smoothedData[idx];
+                if (!point) return 'No Data';
+                
+                if (point.timestamp) {
+                  const date = new Date(point.timestamp);
+                  if (!isNaN(date.getTime())) {
+                    return date.toLocaleString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                  }
+                }
+                return point.label ? String(point.label) : 'Data Point';
+              },
+              label: function(context) {
+                const metric = context.dataset.label || 'Unknown';
+                const value = Math.round(context.parsed.y * 10) / 10;
+                let unit = '';
+                if (metric === 'AQI') unit = '';
+                else if (metric === 'PM2.5' || metric === 'PM10') unit = ' µg/m³';
+                else if (metric === 'Temp') unit = ' °C';
+                return `${metric}: ${value}${unit}`;
+              }
+            }
+          } 
+        },
+        layout: { padding: { top: 10, bottom: 5 } }
+      }
+    });
+
+    AnalyticsState.lastSparklineNodeId = nodeId;
+    AnalyticsState.lastSparklineTimeframe = AnalyticsState.selectedTimeframe;
+
+    const aggregationStrategy = AnalyticsState.selectedTimeframe === '24h' ? 'hourly' : AnalyticsState.selectedTimeframe === '7d' ? 'daily' : 'daily';
+    console.log('[Analytics] Sparkline initialized for node:', nodeId, 'with', datasets.length, 'metrics,', smoothedData.length, 'points (aggregated:', aggregationStrategy, ')');
+  },
+
+  initSparklineWithHighlight(nodeId, highlightedData, highlightIdx) {
+    const canvas = document.getElementById('nodeSparkline');
+    if (!canvas) return;
+
+    const noDataDiv = document.getElementById('sparklineNoData');
+    if (noDataDiv) noDataDiv.style.display = 'none';
+    canvas.style.display = '';
+
+    const ctx = canvas.getContext('2d');
+    const cacheKey = `${nodeId}-${AnalyticsState.selectedTimeframe}`;
+    const nodeData = AnalyticsState.nodeDetails[cacheKey] || AnalyticsState.nodeDetails[nodeId];
+    
+    if (!nodeData) {
+      console.warn('[Analytics] No node data for highlight sparkline');
+      return;
+    }
+
+    const labels = highlightedData.map((d, idx) => {
+      if (d.timestamp) {
+        const date = new Date(d.timestamp);
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+      }
+      return d.label || `${idx}h`;
+    });
+    
+    const aqiPoints = highlightedData.map(d => (typeof d.aqi === 'number' ? d.aqi : d.value) || null);
+    const pm25Points = highlightedData.map(d => typeof d.pm2_5 === 'number' ? d.pm2_5 : null);
+    const pm10Points = highlightedData.map(d => typeof d.pm10 === 'number' ? d.pm10 : null);
+    const tempPoints = highlightedData.map(d => typeof d.temperature === 'number' ? d.temperature : null);
+
+    const calculateScaleRange = (points, defaultMin = 0, defaultMax = 200, padding = 0.1) => {
+      const validPoints = points.filter(p => p !== null && typeof p === 'number');
+      if (validPoints.length === 0) return { min: defaultMin, max: defaultMax };
+      
+      const min = Math.min(...validPoints);
+      const max = Math.max(...validPoints);
+      const range = max - min;
+      const paddingAmount = Math.max(range * padding, 1);
+      
+      return {
+        min: Math.max(0, Math.floor(min - paddingAmount)),
+        max: Math.ceil(max + paddingAmount)
+      };
+    };
+
+    const aqiScale = calculateScaleRange(aqiPoints, 0, 200, 0.1);
+    const pm25Scale = calculateScaleRange(pm25Points, 0, 200, 0.1);
+    const tempScale = calculateScaleRange(tempPoints, -20, 50, 0.15);
+
+    const spike = highlightedData[highlightIdx];
+    const aqiColor = spike && spike.aqi ? '#ef4444' : '#3b82f6';
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 100);
+    gradient.addColorStop(0, Utils.hexToRgba(aqiColor, 0.4));
+    gradient.addColorStop(1, Utils.hexToRgba(aqiColor, 0.0));
+
+    if (AnalyticsState.charts.sparkline) {
+      AnalyticsState.charts.sparkline.destroy();
+    }
+
+    const datasets = [
+      {
+        label: 'AQI',
+        data: aqiPoints,
+        borderColor: aqiColor,
+        backgroundColor: gradient,
+        borderWidth: 2.5,
+        pointRadius: (idx) => idx === highlightIdx ? 5 : 2,
+        pointBackgroundColor: (ctx) => ctx.dataIndex === highlightIdx ? '#ef4444' : aqiColor,
+        pointBorderColor: (ctx) => ctx.dataIndex === highlightIdx ? '#fff' : aqiColor,
+        pointBorderWidth: (ctx) => ctx.dataIndex === highlightIdx ? 2 : 0,
+        pointHoverRadius: 5,
+        fill: true,
+        tension: 0.3,
+        yAxisID: 'y'
       }
     ];
 
-    // Add secondary metrics if available
     if (pm25Points.some(v => v !== null)) {
       datasets.push({
         label: 'PM2.5',
@@ -710,14 +998,14 @@ const Charts = {
               title: function(context) {
                 if (!context || context.length === 0) return 'No Data';
                 const idx = context[0].dataIndex;
-                if (idx < 0 || idx >= smoothedData.length) return 'No Data';
-                const point = smoothedData[idx];
+                if (idx < 0 || idx >= highlightedData.length) return 'No Data';
+                const point = highlightedData[idx];
                 if (!point) return 'No Data';
                 
                 if (point.timestamp) {
                   const date = new Date(point.timestamp);
                   if (!isNaN(date.getTime())) {
-                    return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    return date.toLocaleString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
                   }
                 }
                 return point.label ? String(point.label) : 'Data Point';
@@ -734,14 +1022,49 @@ const Charts = {
             }
           } 
         },
-        layout: { padding: { top: 10, bottom: 5 } }
+        layout: { padding: { top: 10, bottom: 35 } }
       }
     });
 
-    AnalyticsState.lastSparklineNodeId = nodeId;
-    AnalyticsState.lastSparklineTimeframe = AnalyticsState.selectedTimeframe;
+    console.log('[Analytics] Sparkline highlighted for spike at index', highlightIdx);
+  },
 
-    console.log('[Analytics] Sparkline initialized for node:', nodeId, 'with', datasets.length, 'metrics,', smoothedData.length, 'points (downsampled & smoothed)');
+  showSparklineNoDataMessage() {
+    const canvas = document.getElementById('nodeSparkline');
+    if (!canvas) return;
+
+    const parent = canvas.parentElement;
+    if (!parent) return;
+
+    let noDataDiv = document.getElementById('sparklineNoData');
+    if (!noDataDiv) {
+      noDataDiv = document.createElement('div');
+      noDataDiv.id = 'sparklineNoData';
+      parent.appendChild(noDataDiv);
+    }
+
+    canvas.style.display = 'none';
+    noDataDiv.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      min-height: 200px;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 6px;
+      color: #64748b;
+      font-size: 0.85rem;
+      font-weight: 500;
+      gap: 8px;
+    `;
+    noDataDiv.innerHTML = `
+      <i class="fas fa-chart-line" style="font-size: 2.5rem; opacity: 0.3; color: #94a3b8;"></i>
+      <span>No data available for this time range</span>
+      <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 400;">Try selecting a wider timeframe</span>
+    `;
   }
 };
 
@@ -1089,7 +1412,9 @@ const DOM = {
    * Update drilldown panel for selected node
    */
   updateDrilldown(nodeId) {
-    const nodeData = AnalyticsState.nodeDetails[nodeId];
+    // Use cache key that includes timeframe to get correct data range
+    const cacheKey = `${nodeId}-${AnalyticsState.selectedTimeframe}`;
+    const nodeData = AnalyticsState.nodeDetails[cacheKey] || AnalyticsState.nodeDetails[nodeId];
     if (!nodeData) return;
 
     // Title and status
@@ -1126,8 +1451,64 @@ const DOM = {
       peakEl.style.color = safePeak > 150 ? 'var(--unhealthy)' :
                            safePeak > 100 ? 'var(--moderate)' : 'var(--text-main)';
     }
+    
+    // Add/update metric toggles in separate container (OUTSIDE sparkline parent)
+    let togglesContainer = document.getElementById('sparklineTogglesContainer');
+    if (!togglesContainer) {
+      togglesContainer = document.createElement('div');
+      togglesContainer.id = 'sparklineTogglesContainer';
+      const drilldownPanel = document.querySelector('.node-drilldown');
+      if (drilldownPanel) {
+        drilldownPanel.appendChild(togglesContainer);
+      }
+    }
+    
+    // Remove old toggles
+    const oldToggles = document.getElementById('sparklineMetricToggles');
+    if (oldToggles) oldToggles.remove();
+    
+    // Create toggles in separate container
+    const toggleDiv = document.createElement('div');
+    toggleDiv.id = 'sparklineMetricToggles';
+    toggleDiv.style.cssText = 'display: flex; gap: 6px; padding: 4px 0; border-top: 1px solid var(--border); flex-wrap: wrap; align-items: center; margin-top: 4px; font-size: 0.6rem; flex-shrink: 0;';
+    toggleDiv.innerHTML = `
+      <span style="color: var(--text-muted); font-weight: 600; flex-basis: 100%;">Show: </span>
+      <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text-main);">
+        <input type="checkbox" ${AnalyticsState.sparklineMetrics.aqi ? 'checked' : ''} onchange="window.DOM.toggleSparklineMetric('aqi', this.checked)" style="cursor: pointer; width: 14px; height: 14px;">
+        AQI
+      </label>
+      <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text-main);">
+        <input type="checkbox" ${AnalyticsState.sparklineMetrics.pm2_5 ? 'checked' : ''} onchange="window.DOM.toggleSparklineMetric('pm2_5', this.checked)" style="cursor: pointer; width: 14px; height: 14px;">
+        PM2.5
+      </label>
+      <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text-main);">
+        <input type="checkbox" ${AnalyticsState.sparklineMetrics.pm10 ? 'checked' : ''} onchange="window.DOM.toggleSparklineMetric('pm10', this.checked)" style="cursor: pointer; width: 14px; height: 14px;">
+        PM10
+      </label>
+      <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text-main);">
+        <input type="checkbox" ${AnalyticsState.sparklineMetrics.temperature ? 'checked' : ''} onchange="window.DOM.toggleSparklineMetric('temperature', this.checked)" style="cursor: pointer; width: 14px; height: 14px;">
+        Temp
+      </label>
+    `;
+    togglesContainer.appendChild(toggleDiv);
 
-    console.log('[Analytics] Drilldown updated for node:', nodeId);
+    console.log('[Analytics] Drilldown updated for node:', nodeId, 'timeframe:', AnalyticsState.selectedTimeframe);
+  },
+
+  toggleSparklineMetric(metric, isEnabled) {
+    AnalyticsState.sparklineMetrics[metric] = isEnabled;
+    console.log('[Analytics] Sparkline metric toggled:', metric, '=', isEnabled);
+    // Re-render sparkline with new metric selection
+    const nodeId = AnalyticsState.lockedNodeId || AnalyticsState.selectedNode;
+    if (nodeId) {
+      // Reset sparkline cache to force re-render
+      AnalyticsState.lastSparklineNodeId = null;
+      AnalyticsState.lastSparklineTimeframe = null;
+      Charts.initSparkline(nodeId);
+    }
+    if (nodeId) {
+      Charts.initSparkline(nodeId);
+    }
   },
 
   updateHeatmap() {
@@ -1347,23 +1728,463 @@ const DOM = {
     const qualityItem = healthItems.length > 2 ? healthItems[2] : null;
     if (qualityItem) {
       const value = qualityItem.querySelector('.canalytics-health-value');
-      const status = qualityItem.querySelector('button');
+      let reviewBtn = qualityItem.querySelector('button');
+      
       if (value) {
         value.innerText = anomalies > 0 ? `${anomalies} Spikes Detected` : 'Clean';
       }
+      
       if (anomalies > 0) {
         qualityItem.classList.add('canalytics-health-urgent');
-        if (status) {
-          status.style.display = '';
-          status.innerText = 'Review';
+        if (!reviewBtn) {
+          reviewBtn = document.createElement('button');
+          qualityItem.appendChild(reviewBtn);
         }
+        reviewBtn.className = 'btn';
+        reviewBtn.style.cssText = 'background:white; color:var(--unhealthy); border-color:#fca5a5; padding: 1px 4px; font-size: 0.55rem; cursor: pointer; font-weight: 600; border: 1px solid #fca5a5; border-radius: 3px;';
+        reviewBtn.innerText = 'Review';
+        reviewBtn.style.display = '';
+        reviewBtn.onclick = (e) => {
+          e.stopPropagation();
+          const nodeId = AnalyticsState.lockedNodeId;
+          if (nodeId) {
+            Spikes.activateSpikeFiltering(nodeId);
+          }
+        };
       } else {
         qualityItem.classList.remove('canalytics-health-urgent');
-        if (status) status.style.display = 'none';
+        if (reviewBtn) reviewBtn.style.display = 'none';
       }
     }
 
     console.log('[Analytics] System health updated:', { systemStatus, reliability, latency, anomalies });
+  }
+};
+
+// ============================================================================
+// SPIKE DETECTION & FILTERING
+// ============================================================================
+const Spikes = {
+  SPIKE_THRESHOLD: 150,
+
+  detectSpikes(data) {
+    if (!data || data.length === 0) return [];
+    const spikes = [];
+    const threshold = this.SPIKE_THRESHOLD;
+    
+    for (let i = 0; i < data.length; i++) {
+      const point = data[i];
+      if (!point) continue;
+      
+      const aqi = point.aqi || point.value || 0;
+      if (aqi > threshold) {
+        spikes.push({
+          index: i,
+          timestamp: point.timestamp,
+          aqi: aqi,
+          pm2_5: point.pm2_5 || 0,
+          pm10: point.pm10 || 0,
+          temperature: point.temperature || 0,
+          label: point.label,
+          reading_id: point.reading_id  // FIXED: Include reading_id for API calls
+        });
+      }
+    }
+    return spikes;
+  },
+
+  activateSpikeFiltering(nodeId) {
+    // TOGGLE: If already active, deactivate
+    if (AnalyticsState.spikeFilterActive) {
+      console.log('[Analytics] Spike filtering already active, toggling off');
+      this.stopSpikeFiltering();
+      return;
+    }
+
+    if (!nodeId) return;
+    
+    // Show loading state
+    const btn = document.getElementById('viewAnomaliesBtn');
+    if (btn) {
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Detecting...';
+      btn.disabled = true;
+    }
+    
+    const cacheKey = `${nodeId}-${AnalyticsState.selectedTimeframe}`;
+    const nodeData = AnalyticsState.nodeDetails[cacheKey] || AnalyticsState.nodeDetails[nodeId];
+    if (!nodeData || !nodeData.sparkline_data) {
+      console.warn('[Analytics] No sparkline data for spike filtering');
+      DOM.showErrorNotification('No Data', 'Unable to load sparkline data for anomaly detection', 'spike-load');
+      if (btn) {
+        btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> View Anomalies';
+        btn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+        btn.disabled = false;
+      }
+      return;
+    }
+
+    // Filter sparkline data by current timeframe before detecting spikes
+    let filteredData = nodeData.sparkline_data;
+    const now = new Date();
+    let cutoffTime = new Date();
+
+    if (AnalyticsState.selectedTimeframe === '24h') {
+      cutoffTime.setHours(cutoffTime.getHours() - 24);
+    } else if (AnalyticsState.selectedTimeframe === '7d') {
+      cutoffTime.setDate(cutoffTime.getDate() - 7);
+    } else if (AnalyticsState.selectedTimeframe === '30d') {
+      cutoffTime.setDate(cutoffTime.getDate() - 30);
+    } else if (AnalyticsState.selectedTimeframe === 'custom') {
+      if (AnalyticsState.customDateStart) {
+        cutoffTime = new Date(AnalyticsState.customDateStart);
+      }
+    }
+
+    // Filter by timestamp
+    filteredData = nodeData.sparkline_data.filter(point => {
+      if (!point || !point.timestamp) return true;
+      const pointDate = new Date(point.timestamp);
+      if (isNaN(pointDate.getTime())) return true;
+      if (AnalyticsState.selectedTimeframe === 'custom' && AnalyticsState.customDateEnd) {
+        const endDate = new Date(AnalyticsState.customDateEnd);
+        return pointDate >= cutoffTime && pointDate <= endDate;
+      }
+      return pointDate >= cutoffTime && pointDate <= now;
+    });
+
+    AnalyticsState.detectedSpikes = this.detectSpikes(filteredData);
+    AnalyticsState.ignoredSpikeIndices = [];
+    
+    if (AnalyticsState.detectedSpikes.length === 0) {
+      console.log('[Analytics] No spikes detected in current timeframe');
+      if (btn) {
+        btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> View Anomalies';
+        btn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+        btn.disabled = false;
+      }
+      DOM.showErrorNotification('No Anomalies', 'No spike readings detected in the selected time range.', 'spike-none');
+      return;
+    }
+
+    AnalyticsState.spikeFilterActive = true;
+    AnalyticsState.currentSpikeIndex = 0;
+    this.renderSpikeModeUI(nodeId);
+    this.renderSparklineForSpike(nodeId, 0);
+    
+    // Update button state to show active mode
+    if (btn) {
+      btn.innerHTML = '<i class="fas fa-times"></i> Close Anomalies';
+      btn.style.background = 'linear-gradient(135deg, #06b6d4, #0891b2)';
+      btn.disabled = false;
+    }
+    
+    console.log('[Analytics] Spike filtering activated:', AnalyticsState.detectedSpikes.length, 'spikes detected');
+  },
+
+  renderSpikeModeUI(nodeId) {
+    // Create minimal control panel UNDER the graph
+    let panel = document.getElementById('spikeControlPanel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'spikeControlPanel';
+      const canvas = document.getElementById('nodeSparkline');
+      if (canvas && canvas.parentElement) {
+        canvas.parentElement.insertBefore(panel, canvas.nextSibling);
+      }
+    }
+
+    const totalSpikes = AnalyticsState.detectedSpikes.length;
+    const spike = AnalyticsState.detectedSpikes[AnalyticsState.currentSpikeIndex];
+    const progress = `${AnalyticsState.currentSpikeIndex + 1}/${totalSpikes}`;
+    
+    panel.style.cssText = `
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 8px 10px;
+      margin-top: 4px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+    `;
+    
+    const btnStyle = `
+      background: white;
+      border: 1px solid #cbd5e1;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.7rem;
+      transition: all 0.2s;
+      white-space: nowrap;
+    `;
+    
+    panel.innerHTML = `
+      <span style="color: #64748b; font-weight: 700; font-size: 0.65rem;">
+        ⚠️ Spike ${progress} | AQI: ${Math.round(spike.aqi)}
+      </span>
+      <button onclick="window.Spikes.prevSpike()" style="${btnStyle}">◀ Prev</button>
+      <button onclick="window.Spikes.nextSpike()" style="${btnStyle}">Next ▶</button>
+      <button onclick="window.Spikes.ignoreSpikeAtIndex(${AnalyticsState.currentSpikeIndex})" style="
+        ${btnStyle}
+        background: #8b5cf6;
+        color: white;
+        border-color: #8b5cf6;
+      ">🚩 Flag</button>
+      <button onclick="window.Spikes.deleteSpikeAtIndex(${AnalyticsState.currentSpikeIndex})" style="
+        ${btnStyle}
+        background: #dc2626;
+        color: white;
+        border-color: #dc2626;
+      ">🗑️ Delete</button>
+      <button onclick="window.Spikes.stopSpikeFiltering()" style="
+        ${btnStyle}
+        margin-left: auto;
+        background: #6b7280;
+        color: white;
+        border-color: #6b7280;
+      ">✕ Done</button>
+    `;
+  },
+
+  renderSparklineForSpike(nodeId, spikeIndex) {
+    const cacheKey = `${nodeId}-${AnalyticsState.selectedTimeframe}`;
+    const nodeData = AnalyticsState.nodeDetails[cacheKey] || AnalyticsState.nodeDetails[nodeId];
+    if (!nodeData || !nodeData.sparkline_data) return;
+
+    const spike = AnalyticsState.detectedSpikes[spikeIndex];
+    if (!spike) return;
+
+    const sparklineData = nodeData.sparkline_data;
+    const spikeIdx = spike.index;
+    // Use 6-hour context window (smaller for cleaner visualization)
+    const contextHours = 6;
+    const pointsPerHour = Math.max(1, Math.floor(sparklineData.length / (7 * 24)));
+    const contextPoints = Math.max(3, contextHours * pointsPerHour);
+    const start = Math.max(0, spikeIdx - contextPoints);
+    const end = Math.min(sparklineData.length, spikeIdx + contextPoints + 1);
+    
+    const highlightedData = sparklineData.slice(start, end);
+    Charts.initSparklineWithHighlight(nodeId, highlightedData, spikeIdx - start);
+  },
+
+  nextSpike() {
+    if (AnalyticsState.currentSpikeIndex < AnalyticsState.detectedSpikes.length - 1) {
+      AnalyticsState.currentSpikeIndex++;
+      const nodeId = AnalyticsState.lockedNodeId;
+      this.renderSpikeModeUI(nodeId);
+      this.renderSparklineForSpike(nodeId, AnalyticsState.currentSpikeIndex);
+    }
+  },
+
+  prevSpike() {
+    if (AnalyticsState.currentSpikeIndex > 0) {
+      AnalyticsState.currentSpikeIndex--;
+      const nodeId = AnalyticsState.lockedNodeId;
+      this.renderSpikeModeUI(nodeId);
+      this.renderSparklineForSpike(nodeId, AnalyticsState.currentSpikeIndex);
+    }
+  },
+
+  async ignoreSpikeAtIndex(spikeIndex) {
+    if (spikeIndex < 0 || spikeIndex >= AnalyticsState.detectedSpikes.length) return;
+    
+    const spike = AnalyticsState.detectedSpikes[spikeIndex];
+    if (!spike || !spike.reading_id) {
+      console.error('[Analytics] No reading_id for spike at index', spikeIndex);
+      return;
+    }
+    
+    try {
+      // Find and disable Flag button
+      const flagBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Flag'));
+      if (flagBtn) {
+        flagBtn.disabled = true;
+        const originalHTML = flagBtn.innerHTML;
+        flagBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        flagBtn.style.opacity = '0.6';
+        
+        const response = await fetch(`/api/spike/flag/?reading_id=${spike.reading_id}&action=flag`, {
+          method: 'POST',
+          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || `Error ${response.status}: Failed to flag spike`);
+        }
+        
+        const result = await response.json();
+        console.log('[Analytics] Spike flagged for review:', result);
+        
+        // Update UI feedback
+        flagBtn.innerHTML = '<i class="fas fa-check"></i> Flagged!';
+        flagBtn.style.background = '#10b981';
+        
+        // Mark in ignored list
+        AnalyticsState.ignoredSpikeIndices.push(spikeIndex);
+        console.log('[Analytics] Spike ignored at index', spikeIndex);
+        
+        // Auto-advance after 500ms
+        setTimeout(() => {
+          this.goToNextUningnoredSpike();
+        }, 500);
+      }
+    } catch (error) {
+      console.error('[Analytics] Flag spike error:', error);
+      DOM.showErrorNotification('Flag Failed', error.message, 'spike-flag');
+      
+      // Restore button
+      const flagBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Flag') || b.textContent.includes('Processing'));
+      if (flagBtn) {
+        flagBtn.disabled = false;
+        flagBtn.innerHTML = '<i class="fas fa-flag"></i> Flag';
+        flagBtn.style.opacity = '1';
+      }
+    }
+  },
+
+  async deleteSpikeAtIndex(spikeIndex) {
+    if (spikeIndex < 0 || spikeIndex >= AnalyticsState.detectedSpikes.length) return;
+    
+    const spike = AnalyticsState.detectedSpikes[spikeIndex];
+    if (!spike || !spike.reading_id) {
+      console.error('[Analytics] No reading_id for spike at index', spikeIndex);
+      return;
+    }
+    
+    // Show confirmation dialog
+    const aqi = Math.round(spike.aqi);
+    if (!confirm(`⚠️ Delete Anomaly #${spikeIndex + 1}?\n\nAQI: ${aqi} | PM2.5: ${Math.round(spike.pm2_5)}µg/m³\n\nThis action cannot be undone. The reading will be permanently removed from the database.`)) {
+      return;
+    }
+    
+    try {
+      // Find and disable Delete button
+      const deleteBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Delete'));
+      if (deleteBtn) {
+        deleteBtn.disabled = true;
+        const originalHTML = deleteBtn.innerHTML;
+        deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+        deleteBtn.style.opacity = '0.6';
+        
+        const response = await fetch(`/api/spike/delete/?reading_id=${spike.reading_id}`, {
+          method: 'DELETE',
+          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || `Error ${response.status}: Failed to delete spike`);
+        }
+        
+        const result = await response.json();
+        console.log('[Analytics] Spike deleted successfully:', result);
+        
+        // Update UI feedback
+        deleteBtn.innerHTML = '<i class="fas fa-check"></i> Deleted!';
+        deleteBtn.style.background = '#10b981';
+        
+        // Remove spike from array
+        AnalyticsState.detectedSpikes.splice(spikeIndex, 1);
+        
+        // Adjust current index if needed
+        if (AnalyticsState.currentSpikeIndex >= AnalyticsState.detectedSpikes.length) {
+          AnalyticsState.currentSpikeIndex = Math.max(0, AnalyticsState.detectedSpikes.length - 1);
+        }
+        
+        // Show success message and continue
+        DOM.showErrorNotification('Success', '✓ Spike reading deleted successfully', 'spike-deleted');
+        
+        // Go to next spike or stop if no more
+        setTimeout(() => {
+          if (AnalyticsState.detectedSpikes.length === 0) {
+            this.stopSpikeFiltering();
+          } else {
+            const nodeId = AnalyticsState.lockedNodeId;
+            this.renderSpikeModeUI(nodeId);
+            this.renderSparklineForSpike(nodeId, AnalyticsState.currentSpikeIndex);
+          }
+        }, 800);
+      }
+    } catch (error) {
+      console.error('[Analytics] Delete spike error:', error);
+      DOM.showErrorNotification('Delete Failed', error.message, 'spike-delete');
+      
+      // Restore button
+      const deleteBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Delete') || b.textContent.includes('Deleting'));
+      if (deleteBtn) {
+        deleteBtn.disabled = false;
+        deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Delete';
+        deleteBtn.style.opacity = '1';
+      }
+    }
+  },
+
+  goToNextUningnoredSpike() {
+    while (AnalyticsState.currentSpikeIndex < AnalyticsState.detectedSpikes.length) {
+      if (!AnalyticsState.ignoredSpikeIndices.includes(AnalyticsState.currentSpikeIndex)) {
+        // Found next unignored spike
+        const nodeId = AnalyticsState.lockedNodeId;
+        this.renderSpikeModeUI(nodeId);
+        this.renderSparklineForSpike(nodeId, AnalyticsState.currentSpikeIndex);
+        return;
+      }
+      AnalyticsState.currentSpikeIndex++;
+    }
+    
+    // No more unignored spikes
+    this.stopSpikeFiltering();
+    alert('All remaining spikes have been ignored.');
+  },
+
+  toggleMetric(metric, isEnabled) {
+    AnalyticsState.sparklineMetrics[metric] = isEnabled;
+    console.log('[Analytics] Metric toggle:', metric, '=', isEnabled);
+    
+    // Re-render sparkline with new metric selection
+    const nodeId = AnalyticsState.lockedNodeId;
+    if (nodeId && AnalyticsState.spikeFilterActive) {
+      this.renderSparklineForSpike(nodeId, AnalyticsState.currentSpikeIndex);
+    } else if (nodeId) {
+      Charts.initSparkline(nodeId);
+    }
+  },
+
+  stopSpikeFiltering() {
+    AnalyticsState.spikeFilterActive = false;
+    AnalyticsState.detectedSpikes = [];
+    AnalyticsState.currentSpikeIndex = 0;
+    AnalyticsState.ignoredSpikeIndices = [];
+    
+    // Clean up spike control panel
+    const panel = document.getElementById('spikeControlPanel');
+    if (panel) panel.remove();
+    
+    // Reset View Anomalies button state
+    const viewAnomaliesBtn = document.getElementById('viewAnomaliesBtn');
+    if (viewAnomaliesBtn) {
+      viewAnomaliesBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> View Anomalies';
+      viewAnomaliesBtn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+      viewAnomaliesBtn.disabled = false;
+    }
+    
+    // Show canvas again if it exists
+    const canvas = document.getElementById('nodeSparkline');
+    if (canvas) canvas.style.display = '';
+    
+    // Reinitialize normal sparkline
+    const nodeId = AnalyticsState.lockedNodeId;
+    if (nodeId) {
+      Charts.initSparkline(nodeId);
+    }
+    
+    console.log('[Analytics] Spike filtering stopped');
   }
 };
 
@@ -1375,7 +2196,8 @@ const UI = {
     const regionEl = document.getElementById('dd-region');
     if (regionEl) regionEl.innerText = 'Previewing...';
 
-    if (!AnalyticsState.nodeDetails[nodeId]) {
+    const cacheKey = `${nodeId}-${AnalyticsState.selectedTimeframe}`;
+    if (!AnalyticsState.nodeDetails[cacheKey]) {
       API.getNodeDetail(nodeId).then(() => {
         DOM.updateDrilldown(nodeId);
       });
@@ -1401,7 +2223,8 @@ const UI = {
     const tile = document.getElementById(`tile-${nodeId}`);
     if (tile) tile.classList.add('active');
 
-    if (!AnalyticsState.nodeDetails[nodeId]) {
+    const cacheKey = `${nodeId}-${AnalyticsState.selectedTimeframe}`;
+    if (!AnalyticsState.nodeDetails[cacheKey]) {
       API.getNodeDetail(nodeId).then(() => {
         DOM.updateDrilldown(nodeId);
         Charts.initSparkline(nodeId);
@@ -1411,7 +2234,7 @@ const UI = {
       Charts.initSparkline(nodeId);
     }
 
-    console.log('[Analytics] Node locked:', nodeId);
+    console.log('[Analytics] Node locked:', nodeId, 'timeframe:', AnalyticsState.selectedTimeframe);
   },
 
   toggleTrendView(view, element) {
@@ -2181,6 +3004,8 @@ window.setTimeframe = UI.setTimeframe;
 window.previewNode = UI.previewNode;
 window.clearPreview = UI.clearPreview;
 window.lockNode = UI.lockNode;
+window.Spikes = Spikes;
+window.DOM = DOM;
 window.openAIModal = (type) => {
   const modal = document.getElementById('aiModal');
   if (modal) modal.classList.add('active');
