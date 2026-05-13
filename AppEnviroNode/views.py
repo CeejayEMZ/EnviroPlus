@@ -2080,25 +2080,142 @@ def node_delete(request, pk):
 @login_required(login_url='app:login')
 def client_realtime(request):
     """Display real-time sensor data from all active nodes."""
-    # Get all active nodes with latest readings
-    nodes = SensorNode.objects.filter(is_active=True, status='active').prefetch_related('readings')
-    
-    node_data = []
-    for node in nodes:
-        latest_reading = node.readings.first()
-        if latest_reading:
-            node_data.append({
-                'node': node,
-                'reading': latest_reading,
+    import json
+    from django.core.serializers.json import DjangoJSONEncoder
+    from django.db.models.functions import TruncMinute
+    from django.db.models import Avg
+
+    now = timezone.now()
+    time_start = now - timedelta(minutes=15)
+
+    # Get all active nodes with their latest readings
+    all_nodes = SensorNode.objects.filter(is_active=True).prefetch_related('readings')
+
+    # Build nodes list for initial data
+    nodes_list = []
+    active_count = 0
+    total_aqi = []
+
+    for node in all_nodes:
+        latest = node.readings.first()
+        if latest:
+            node_aqi = latest.aqi
+            if node_aqi is not None:
+                total_aqi.append(node_aqi)
+
+            node_item = {
+                'node_id': node.id,
+                'name': node.name,
+                'zone': node.zone or node.location or 'Unknown',
+                'location': node.location or '',
+                'status': node.status or 'inactive',
+                'aqi': node_aqi,
+                'latest_aqi': node_aqi,
+                'pm2_5': latest.pm2_5,
+                'pm10': latest.pm10,
+                'temperature': latest.temperature,
+                'humidity': latest.humidity,
+                'co2': getattr(latest, 'co2', None),
+                'timestamp': int(latest.timestamp.timestamp()) if latest.timestamp else None,
+                'last_seen': latest.timestamp.strftime('%Y-%m-%d %H:%M:%S') if latest.timestamp else None,
+            }
+            nodes_list.append(node_item)
+
+            if node.status == 'active':
+                active_count += 1
+
+    # Get readings for feed events
+    readings_qs = SensorReading.objects.filter(
+        timestamp__gte=time_start,
+        timestamp__lte=now
+    ).select_related('node').order_by('-timestamp')[:10]
+
+    feed_events = []
+    for reading in readings_qs:
+        if reading.aqi is not None:
+            severity = 'critical' if reading.aqi > 150 else 'warning' if reading.aqi > 100 else 'info'
+            feed_events.append({
+                'node_id': reading.node_id,
+                'title': f'AQI reading: {reading.aqi}',
+                'description': f'{reading.node.name} reported AQI {reading.aqi}',
+                'severity': severity,
+                'tag_label': severity.upper(),
+                'tag_class': f'crealtime-tag-{severity}',
+                'bg_class': 'crealtime-bg-green' if severity == 'info' else 'crealtime-bg-yellow' if severity == 'warning' else 'crealtime-bg-red',
+                'icon': '✓' if severity == 'info' else '⚠' if severity == 'warning' else '🚨',
+                'timestamp': int(reading.timestamp.timestamp()) if reading.timestamp else None,
+                'timestamp_unix': int(reading.timestamp.timestamp()) if reading.timestamp else None,
             })
-    
-    # Get latest overall reading for reference
-    latest_overall = SensorReading.objects.filter(node__is_active=True, node__status='active').first()
-    
+
+    # Generate alerts
+    alert_entries = []
+    for node in nodes_list:
+        if node['status'] != 'active':
+            alert_entries.append({
+                'node_name': node['name'],
+                'title': f'Node Offline: {node["name"]}',
+                'description': f'Node has not reported data recently',
+                'severity': 'critical',
+            })
+        elif node['aqi'] is not None and node['aqi'] > 100:
+            alert_entries.append({
+                'node_name': node['name'],
+                'title': f'High AQI Alert: {node["name"]}',
+                'description': f'AQI level {node["aqi"]} exceeds safe threshold',
+                'severity': 'warning' if node['aqi'] <= 150 else 'critical',
+            })
+
+    # Calculate chart values
+    chart_values = []
+    if total_aqi:
+        # Get aggregated chart data
+        chart_agg = SensorReading.objects.filter(
+            timestamp__gte=time_start,
+            timestamp__lte=now,
+            aqi__isnull=False
+        ).annotate(
+            period=TruncMinute('timestamp')
+        ).values('period').annotate(
+            avg_aqi=Avg('aqi')
+        ).order_by('period')[:30]
+
+        chart_values = [round(item['avg_aqi'], 1) for item in chart_agg if item['avg_aqi'] is not None]
+
+    # Build system info
+    avg_aqi = round(sum(total_aqi) / len(total_aqi), 1) if total_aqi else None
+
+    # Get zones
+    zones = list(all_nodes.exclude(zone__isnull=True).exclude(zone='').values_list('zone', flat=True).distinct())
+
+    # Build realtime payload for initial data
+    realtime_payload = {
+        'nodes': nodes_list,
+        'feed_events': feed_events,
+        'alert_entries': alert_entries,
+        'system': {
+            'active_count': active_count,
+            'total_nodes': all_nodes.count(),
+            'avg_aqi': avg_aqi,
+        },
+        'chart_values': chart_values,
+        'zones': zones,
+    }
+
+    # Also provide API-compatible format for polling
+    realtime_payload.update({
+        'data': nodes_list,
+        'feed': feed_events,
+        'alerts': alert_entries,
+        'active_nodes': active_count,
+        'total_nodes': all_nodes.count(),
+        'live_aqi': avg_aqi,
+    })
+
     context = {
-        'latest_update': latest_overall.timestamp if latest_overall else None,
-        'node_data': node_data,
-        'total_nodes': len(node_data),
+        'latest_update': now,
+        'node_data': nodes_list,
+        'total_nodes': len(nodes_list),
+        'realtime_payload_json': json.dumps(realtime_payload, cls=DjangoJSONEncoder),
     }
     return render(request, 'AppEnviroNode/admin/clientrealtime.html', context)
 
@@ -3383,150 +3500,174 @@ def build_realtime_chart_data(readings_qs, selected_range):
 def api_realtime_data(request):
     """
     GET /api/realtime-data/
-    
-    Returns real-time chart and summary data for realtime.html template.
-    Handles range, node, start_date, end_date filters from UI.
+
+    Admin realtime monitoring endpoint - returns node data, events feed, alerts,
+    and chart values for the clientrealtime.html template.
+
+    Query parameters:
+    - filter: 'all', 'online', 'alerts'
+    - zone: zone name or 'all'
+    - time_range: '1m', '5m', '15m'
     """
     try:
-        from django.db.models.functions import TruncHour, TruncDay
-        
         now = timezone.now()
-        
-        # Parse filter parameters from template UI
-        selected_range = request.GET.get('range', '24h').lower()
-        node_param = request.GET.get('node', '').strip()
-        start_date_str = request.GET.get('start_date', '').strip()
-        end_date_str = request.GET.get('end_date', '').strip()
-        
-        # Determine time window
-        if selected_range == 'custom' and start_date_str and end_date_str:
-            try:
-                time_start = datetime.strptime(start_date_str, '%Y-%m-%d').replace(tzinfo=timezone.utc)
-                time_end = datetime.strptime(end_date_str, '%Y-%m-%d').replace(tzinfo=timezone.utc)
-                time_end = time_end.replace(hour=23, minute=59, second=59)
-                range_label = f"{start_date_str} to {end_date_str}"
-            except:
-                time_start = now - timedelta(hours=24)
-                time_end = now
-                range_label = "Last 24 hours"
-                selected_range = '24h'
-        elif selected_range == '7d':
-            time_start = now - timedelta(days=7)
-            time_end = now
-            range_label = "Last 7 days"
-        elif selected_range == '30d':
-            time_start = now - timedelta(days=30)
-            time_end = now
-            range_label = "Last 30 days"
-        else:
-            time_start = now - timedelta(hours=24)
-            time_end = now
-            range_label = "Last 24 hours"
-            selected_range = '24h'
-        
-        # Parse node filter
-        selected_node_id = None
-        selected_location = None
-        
-        if node_param.startswith('node:'):
-            try:
-                selected_node_id = int(node_param.split(':')[1])
-            except:
-                pass
-        elif node_param.startswith('location:'):
-            selected_location = node_param.split(':', 1)[1]
-        
-        # Build readings queryset
+
+        # Parse filter parameters from clientrealtime.js
+        current_filter = request.GET.get('filter', 'all').lower()
+        current_zone = request.GET.get('zone', 'all').lower()
+        time_range = request.GET.get('time_range', '15m').lower()
+
+        # Determine time window based on time_range
+        if time_range == '1m':
+            time_start = now - timedelta(minutes=1)
+        elif time_range == '5m':
+            time_start = now - timedelta(minutes=5)
+        else:  # 15m default
+            time_start = now - timedelta(minutes=15)
+
+        # Get all active nodes
+        all_nodes = SensorNode.objects.filter(is_active=True).select_related('zone')
+
+        # Get zones list
+        zones = list(all_nodes.exclude(zone__isnull=True).exclude(zone='').values_list('zone', flat=True).distinct())
+
+        # Get readings within time range
         readings_qs = SensorReading.objects.filter(
             timestamp__gte=time_start,
-            timestamp__lte=time_end
+            timestamp__lte=now
         ).select_related('node')
-        
-        if selected_node_id:
-            readings_qs = readings_qs.filter(node_id=selected_node_id)
-        elif selected_location:
-            readings_qs = readings_qs.filter(node__location__iexact=selected_location)
-        
-        # Calculate aggregation strategy based on time range
-        if selected_range == '24h':
-            trunc_func = TruncHour
-        elif selected_range == '7d':
-            trunc_func = TruncDay
-        else:
-            trunc_func = TruncDay
-        
-        # Aggregate chart data
-        chart_agg = readings_qs.annotate(
-            period=trunc_func('timestamp')
-        ).values('period').annotate(
-            avg_aqi=Avg('aqi'),
-            avg_pm2_5=Avg('pm2_5'),
-            avg_pm10=Avg('pm10'),
-            avg_temperature=Avg('temperature')
-        ).order_by('period')
-        
-        chart_data = []
-        for item in chart_agg:
-            if item['period']:
-                chart_data.append({
-                    'period': item['period'].isoformat() if item['period'] else '',
-                    'date': item['period'].strftime('%Y-%m-%d %H:%M') if item['period'] else '',
-                    'avg_aqi': round(item['avg_aqi'], 1) if item['avg_aqi'] is not None else None,
-                    'avg_pm2_5': round(item['avg_pm2_5'], 2) if item['avg_pm2_5'] is not None else None,
-                    'avg_pm10': round(item['avg_pm10'], 2) if item['avg_pm10'] is not None else None,
-                    'avg_temperature': round(item['avg_temperature'], 1) if item['avg_temperature'] is not None else None,
+
+        # Build node data with latest readings
+        node_data = []
+        active_nodes_count = 0
+        total_aqi_values = []
+
+        for node in all_nodes:
+            # Get latest reading for this node
+            latest = readings_qs.filter(node=node).order_by('-timestamp').first()
+
+            if latest:
+                node_aqi = latest.aqi
+                if node_aqi is not None:
+                    total_aqi_values.append(node_aqi)
+
+                node_item = {
+                    'node_id': node.id,
+                    'name': node.name,
+                    'zone': node.zone or node.location or 'Unknown',
+                    'location': node.location or '',
+                    'status': node.status or 'inactive',
+                    'aqi': node_aqi,
+                    'latest_aqi': node_aqi,
+                    'pm2_5': latest.pm2_5,
+                    'pm10': latest.pm10,
+                    'temperature': latest.temperature,
+                    'humidity': latest.humidity,
+                    'co2': getattr(latest, 'co2', None),
+                    'co2_level': getattr(latest, 'co2_level', None),
+                    'timestamp': int(latest.timestamp.timestamp()) if latest.timestamp else None,
+                    'last_seen': latest.timestamp.strftime('%Y-%m-%d %H:%M:%S') if latest.timestamp else None,
+                    'battery': getattr(node, 'battery_level', None),
+                    'battery_level': getattr(node, 'battery_level', None),
+                    'signal_strength': getattr(node, 'signal_strength', None),
+                    'rssi': getattr(node, 'rssi', None),
+                    'uptime': getattr(node, 'uptime', None),
+                    'uptime_seconds': getattr(node, 'uptime_seconds', None),
+                }
+
+                if node.status == 'active':
+                    active_nodes_count += 1
+
+                node_data.append(node_item)
+
+        # Apply filters
+        filtered_data = node_data
+        if current_filter == 'online':
+            filtered_data = [n for n in filtered_data if n['status'] == 'active']
+        elif current_filter == 'alerts':
+            filtered_data = [n for n in filtered_data if n['status'] != 'active' or (n['aqi'] is not None and n['aqi'] > 65)]
+
+        if current_zone != 'all':
+            filtered_data = [n for n in filtered_data if n['zone'].lower() == current_zone]
+
+        # Calculate live AQI (average)
+        live_aqi = round(sum(total_aqi_values) / len(total_aqi_values), 1) if total_aqi_values else None
+
+        # Build chart values from aggregated readings
+        chart_values = []
+        if readings_qs.exists():
+            # Get readings in 1-minute intervals for the chart
+            from django.db.models.functions import TruncMinute
+            chart_agg = readings_qs.filter(aqi__isnull=False).annotate(
+                period=TruncMinute('timestamp')
+            ).values('period').annotate(
+                avg_aqi=Avg('aqi')
+            ).order_by('period')[:30]
+
+            chart_values = [round(item['avg_aqi'], 1) for item in chart_agg if item['avg_aqi'] is not None]
+
+        # Build feed events (mocked from recent readings activity)
+        feed = []
+        recent_readings = readings_qs.order_by('-timestamp')[:10]
+        for reading in recent_readings:
+            if reading.aqi is not None:
+                severity = 'critical' if reading.aqi > 150 else 'warning' if reading.aqi > 100 else 'info'
+                feed.append({
+                    'node_id': reading.node_id,
+                    'title': f'AQI reading: {reading.aqi}',
+                    'description': f'{reading.node.name} reported AQI {reading.aqi}',
+                    'severity': severity,
+                    'tag_label': severity.upper(),
+                    'tag_class': f'crealtime-tag-{severity}',
+                    'bg_class': 'crealtime-bg-green' if severity == 'info' else 'crealtime-bg-yellow' if severity == 'warning' else 'crealtime-bg-red',
+                    'icon': '✓' if severity == 'info' else '⚠' if severity == 'warning' else '🚨',
+                    'timestamp': int(reading.timestamp.timestamp()) if reading.timestamp else None,
+                    'timestamp_unix': int(reading.timestamp.timestamp()) if reading.timestamp else None,
                 })
-        
-        # Calculate summary metrics
-        aqi_values = readings_qs.filter(aqi__isnull=False).values_list('aqi', flat=True)
-        avg_aqi = round(sum(aqi_values) / len(aqi_values), 1) if aqi_values else None
-        
-        total_readings = readings_qs.count()
-        
-        # Get latest reading info
-        latest_reading = readings_qs.filter(aqi__isnull=False).order_by('-timestamp').first()
-        latest_aqi = latest_reading.aqi if latest_reading else None
-        latest_node_name = latest_reading.node.name if latest_reading else 'Unknown'
-        latest_node_location = latest_reading.node.location if latest_reading else 'Unknown'
-        latest_timestamp = latest_reading.timestamp if latest_reading else None
-        
-        # Count active nodes
-        active_nodes = SensorNode.objects.filter(is_active=True).count()
-        
-        summary = {
-            'success': True,
-            'avg_aqi': avg_aqi,
-            'total_readings': total_readings,
-            'active_nodes': active_nodes,
-            'range_label': range_label,
-            'latest_aqi': latest_aqi,
-            'latest_node_name': latest_node_name,
-            'latest_node_location': latest_node_location,
-            'latest_timestamp': latest_timestamp.isoformat() if latest_timestamp else None,
-        }
-        
+
+        # Build alerts
+        alerts = []
+        for node in node_data:
+            if node['status'] != 'active':
+                alerts.append({
+                    'node_name': node['name'],
+                    'title': f'Node Offline: {node["name"]}',
+                    'description': f'Node has not reported data recently',
+                    'severity': 'critical',
+                })
+            elif node['aqi'] is not None and node['aqi'] > 100:
+                alerts.append({
+                    'node_name': node['name'],
+                    'title': f'High AQI Alert: {node["name"]}',
+                    'description': f'AQI level {node["aqi"]} exceeds safe threshold',
+                    'severity': 'warning' if node['aqi'] <= 150 else 'critical',
+                })
+
         return JsonResponse({
-            'success': True,
-            'summary': summary,
-            'chart_data': chart_data,
+            'status': 'success',
+            'data': filtered_data,
+            'feed': feed,
+            'alerts': alerts,
+            'chart_values': chart_values,
+            'active_nodes': active_nodes_count,
+            'total_nodes': all_nodes.count(),
+            'live_aqi': live_aqi,
+            'zones': zones,
         })
-        
+
     except Exception as e:
         logger.error(f"API realtime data error: {e}", exc_info=True)
         return JsonResponse({
-            'success': False,
-            'error': 'Failed to load',
-            'summary': {
-                'avg_aqi': None,
-                'total_readings': 0,
-                'active_nodes': 0,
-                'range_label': '',
-                'latest_aqi': None,
-                'latest_node_name': 'Unknown',
-                'latest_node_location': 'Unknown',
-                'latest_timestamp': None,
-            },
-            'chart_data': [],
+            'status': 'error',
+            'error': str(e),
+            'data': [],
+            'feed': [],
+            'alerts': [],
+            'chart_values': [],
+            'active_nodes': 0,
+            'total_nodes': 0,
+            'live_aqi': None,
+            'zones': [],
         }, status=500)
 
 
