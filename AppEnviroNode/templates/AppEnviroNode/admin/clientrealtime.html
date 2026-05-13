@@ -46,12 +46,25 @@
 .crealtime-font-bold { font-weight: 700; }
 .crealtime-text-muted { color: var(--crealtime-text-muted); }
 
-/* Layout Grids */
+/* Layout Grids - FIXED: Use fixed proportions to prevent width shifts during filter changes */
 .crealtime-layout {
     display: grid;
-    grid-template-columns: 65fr 35fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
     align-items: start;
+}
+
+@media (min-width: 1200px) {
+    .crealtime-layout {
+        grid-template-columns: minmax(0, 1.857fr) minmax(0, 1fr);  /* 65% / 35% proportional, but flexible */
+    }
+}
+
+/* Container stability - prevent width shifts */
+.crealtime-col-left,
+.crealtime-col-right {
+    min-width: 0;  /* Required for flex/grid with overflow content */
+    width: 100%;
 }
 
 /* Priority Banner */
@@ -332,19 +345,20 @@
     white-space: nowrap;
 }
 
-/* Graph - ENLARGED for better visibility */
+/* Graph Container - FIXED for proper aspect ratio */
 .crealtime-graph-container {
-    height: 240px;
-    width: 100%;
     position: relative;
+    width: 100%;
+    min-height: 200px;
     margin: 4px 0;
 }
 
-/* Ensure canvas fills container properly */
+/* Ensure canvas fills container properly with correct aspect ratio */
 .crealtime-graph-container canvas {
-    width: 100% !important;
-    height: 100% !important;
     display: block;
+    width: 100% !important;
+    height: auto !important;
+    max-height: 220px;
 }
 
 /* Node Table */
@@ -483,6 +497,11 @@
 
 .crealtime-feed-header-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
 
+/* Highlight animation for new items */
+.crealtime-highlight-new {
+    animation: crealtime-highlight-flash 1.5s ease-out;
+}
+
 </style>
 
 <!-- Main Component Structure -->
@@ -549,7 +568,7 @@
         <!-- LEFT COLUMN (65%) -->
         <div class="crealtime-col-left">
             
-            <!-- Mini Live Graph - ENLARGED -->
+            <!-- Mini Live Graph - FIXED for proper aspect ratio -->
             <div class="crealtime-panel">
                 <div class="crealtime-panel-header">
                     <span>Aggregated Network AQI</span>
@@ -562,6 +581,7 @@
                     </div>
                 </div>
                 <div class="crealtime-panel-body">
+                    <!-- FIX: Added proper aspect ratio wrapper for chart -->
                     <div class="crealtime-graph-container">
                         <canvas id="crealtime-sparkline"></canvas>
                     </div>

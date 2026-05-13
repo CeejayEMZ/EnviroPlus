@@ -1,9 +1,12 @@
 // clientrealtime.js - Complete Real-Time Monitoring System
+// FIXED: Status now displays AQI level category instead of online/offline
+// ENHANCED: Dynamic node status with AQI color mapping, improved pause mode, detailed last sync timestamp
 (function() {
     'use strict';
     
     // Configuration
     const DATA_ENDPOINT = '/api/realtime-data/';
+    const WEBSOCKET_ENDPOINT = '/ws/realtime/';
     const REFRESH_INTERVAL_MS = 5000;
     const MAX_FEED_ITEMS = 30;
     
@@ -34,6 +37,270 @@
     let pollInterval = null;
     let isLoadingData = false;
     let activeModal = null;
+    let lastSyncTimestamp = null;
+    
+    // Real-time WebSocket connection
+    let wsConnection = null;
+    let wsReconnectTimer = null;
+    let wsReconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 10;
+    const WS_RECONNECT_DELAY = 3000;
+    
+    // Event deduplication cache
+    const recentEventIds = new Set();
+    const EVENT_DEDUPE_WINDOW_MS = 5000;
+    
+    // Alert deduplication cache
+    const recentAlertIds = new Map();
+    const ALERT_DEDUPE_WINDOW_MS = 30000;
+    
+    // Alert dismissal persistence with localStorage
+    let dismissedAlerts = new Set();
+    const DISMISSED_ALERTS_KEY = 'crealtime_dismissed_alerts';
+    
+    // Load dismissed alerts from localStorage on init
+    const loadDismissedAlerts = () => {
+        try {
+            const stored = localStorage.getItem(DISMISSED_ALERTS_KEY);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                const now = Date.now();
+                for (const [key, timestamp] of Object.entries(parsed)) {
+                    if (now - timestamp < 30 * 60 * 1000) {
+                        dismissedAlerts.add(key);
+                    }
+                }
+                saveDismissedAlerts();
+            }
+        } catch (e) {
+            console.warn('[Realtime] Failed to load dismissed alerts:', e);
+        }
+    };
+    
+    // Save dismissed alerts to localStorage
+    const saveDismissedAlerts = () => {
+        try {
+            const data = {};
+            dismissedAlerts.forEach(key => {
+                data[key] = Date.now();
+            });
+            localStorage.setItem(DISMISSED_ALERTS_KEY, JSON.stringify(data));
+        } catch (e) {
+            console.warn('[Realtime] Failed to save dismissed alerts:', e);
+        }
+    };
+    
+    // Paused overlay with "Turn Back Live" button
+    let pausedOverlay = null;
+    
+    const createPausedOverlay = () => {
+        if (pausedOverlay) return;
+        
+        pausedOverlay = document.createElement('div');
+        pausedOverlay.id = 'crealtime-paused-overlay';
+        pausedOverlay.className = 'crealtime-paused-overlay';
+        pausedOverlay.innerHTML = `
+            <div class="crealtime-paused-content">
+                <div class="crealtime-paused-icon">⏸</div>
+                <div class="crealtime-paused-title">Real-time monitoring is now paused</div>
+                <div class="crealtime-paused-subtitle">Click below to resume updates</div>
+                <button class="crealtime-paused-resume-btn" id="crealtime-resume-live-btn">Turn Back Live</button>
+            </div>
+        `;
+        
+        document.body.appendChild(pausedOverlay);
+        
+        const resumeBtn = document.getElementById('crealtime-resume-live-btn');
+        if (resumeBtn) {
+            resumeBtn.addEventListener('click', () => {
+                if (autoRefreshToggle) {
+                    isLive = true;
+                    autoRefreshToggle.classList.remove('crealtime-off');
+                    const toggleWrapper = autoRefreshToggle.closest('.crealtime-toggle-wrapper');
+                    const pausedLabel = toggleWrapper?.querySelector('.crealtime-paused-label');
+                    if (pausedLabel) pausedLabel.remove();
+                    
+                    removePausedOverlay();
+                    
+                    startPolling();
+                    
+                    if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) {
+                        connectWebSocket();
+                    }
+                    
+                    manualRefresh();
+                    showToast('Real-time monitoring resumed', false);
+                }
+            });
+        }
+    };
+    
+    const removePausedOverlay = () => {
+        if (pausedOverlay) {
+            pausedOverlay.remove();
+            pausedOverlay = null;
+        }
+    };
+    
+    // ============================================================================
+    // AQI Level Information - Single source of truth
+    // ============================================================================
+    const getAqiLevelInfo = (aqi) => {
+        // Disconnected/No Data case
+        if (aqi === null || aqi === undefined || aqi === '—') {
+            return {
+                label: 'Disconnected',
+                color: '#94a3b8',
+                backgroundColor: '#f1f5f9',
+                dotColor: '#94a3b8',
+                dotClass: 'crealtime-dot-gray',
+                level: 'disconnected'
+            };
+        }
+        // Good: 0-50
+        if (aqi <= 50) {
+            return {
+                label: 'Good',
+                color: '#10b981',
+                backgroundColor: '#d1fae5',
+                dotColor: '#10b981',
+                dotClass: 'crealtime-dot-green',
+                level: 'good'
+            };
+        }
+        // Moderate: 51-100
+        if (aqi <= 100) {
+            return {
+                label: 'Moderate',
+                color: '#f59e0b',
+                backgroundColor: '#fef3c7',
+                dotColor: '#f59e0b',
+                dotClass: 'crealtime-dot-yellow',
+                level: 'moderate'
+            };
+        }
+        // Unhealthy for Sensitive Groups: 101-150
+        if (aqi <= 150) {
+            return {
+                label: 'Unhealthy for Sensitive Groups',
+                color: '#f97316',
+                backgroundColor: '#ffedd5',
+                dotColor: '#f97316',
+                dotClass: 'crealtime-dot-orange',
+                level: 'unhealthy-sensitive'
+            };
+        }
+        // Unhealthy: 151-200
+        if (aqi <= 200) {
+            return {
+                label: 'Unhealthy',
+                color: '#ef4444',
+                backgroundColor: '#fee2e2',
+                dotColor: '#ef4444',
+                dotClass: 'crealtime-dot-red',
+                level: 'unhealthy'
+            };
+        }
+        // Very Unhealthy: 201-300
+        if (aqi <= 300) {
+            return {
+                label: 'Very Unhealthy',
+                color: '#8b5cf6',
+                backgroundColor: '#f3e8ff',
+                dotColor: '#8b5cf6',
+                dotClass: 'crealtime-dot-purple',
+                level: 'very-unhealthy'
+            };
+        }
+        // Hazardous: 301+
+        return {
+            label: 'Hazardous',
+            color: '#b91c1c',
+            backgroundColor: '#fecaca',
+            dotColor: '#7f1d1d',
+            dotClass: 'crealtime-dot-maroon',
+            level: 'hazardous'
+        };
+    };
+    
+    // Helper: Get AQI label
+    const getAqiLabel = (aqi) => {
+        return getAqiLevelInfo(aqi).label;
+    };
+    
+    // Helper: Get AQI color
+    const getAqiColor = (aqi) => {
+        return getAqiLevelInfo(aqi).color;
+    };
+    
+    // Helper: Get AQI dot class
+    const getAqiDotClass = (aqi) => {
+        return getAqiLevelInfo(aqi).dotClass;
+    };
+    
+    // Helper: Get AQI badge class
+    const getAqiBadgeClass = (aqi) => {
+        const info = getAqiLevelInfo(aqi);
+        switch(info.level) {
+            case 'good': return 'aqi-good';
+            case 'moderate': return 'aqi-moderate';
+            case 'unhealthy-sensitive': return 'aqi-unhealthy-sensitive';
+            case 'unhealthy': return 'aqi-unhealthy';
+            case 'very-unhealthy': return 'aqi-very-unhealthy';
+            case 'hazardous': return 'aqi-hazardous';
+            default: return 'aqi-unknown';
+        }
+    };
+    
+    // Helper: Get status text (returns AQI label or 'Disconnected')
+    const getStatusText = (aqi, hasTimestamp = true, isStale = false) => {
+        // Check if node is disconnected (no AQI data OR stale data OR no timestamp)
+        if (aqi === null || aqi === undefined || aqi === '—') {
+            return 'Disconnected';
+        }
+        // Check if data is stale (5+ minutes old)
+        if (isStale) {
+            return 'Disconnected';
+        }
+        // Return AQI level label
+        return getAqiLevelInfo(aqi).label;
+    };
+    
+    // Helper: Get status dot class (based on AQI)
+    const getStatusDotClass = (aqi, isStale = false) => {
+        if (aqi === null || aqi === undefined || aqi === '—' || isStale) {
+            return 'crealtime-dot-gray';
+        }
+        return getAqiLevelInfo(aqi).dotClass;
+    };
+    
+    // Format last sync timestamp with full date and time
+    const formatLastSync = (timestamp) => {
+        if (!timestamp) return 'Never';
+        const date = new Date(timestamp * 1000);
+        const options = { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit',
+            hour12: true
+        };
+        return date.toLocaleString('en-US', options);
+    };
+    
+    const updateSyncTimeDisplay = (syncTimestamp = null) => {
+        if (syncTimeLabel) {
+            const now = syncTimestamp || (Date.now() / 1000);
+            lastSyncTimestamp = now;
+            syncTimeLabel.textContent = formatLastSync(now);
+            syncTimeLabel.classList.add('crealtime-is-highlighted');
+            setTimeout(() => {
+                if (syncTimeLabel) syncTimeLabel.classList.remove('crealtime-is-highlighted');
+            }, 1000);
+        }
+    };
     
     // Helper: Parse timestamp
     const parseTimestamp = (value) => {
@@ -57,55 +324,13 @@
         return `${diffDays}d${shortFormat ? '' : ' ago'}`;
     };
     
-    // Helper: Get AQI color
-    const getAqiColor = (aqi) => {
-        if (aqi === null || aqi === undefined) return '#94a3b8';
-        if (aqi <= 50) return '#10b981';
-        if (aqi <= 100) return '#f59e0b';
-        if (aqi <= 150) return '#f97316';
-        if (aqi <= 200) return '#ef4444';
-        if (aqi <= 300) return '#8b5cf6';
-        return '#dc2626';
-    };
-    
-    // Helper: Get AQI label
-    const getAqiLabel = (aqi) => {
-        if (aqi === null || aqi === undefined) return 'Unknown';
-        if (aqi <= 50) return 'Good';
-        if (aqi <= 100) return 'Moderate';
-        if (aqi <= 150) return 'Unhealthy for Sensitive';
-        if (aqi <= 200) return 'Unhealthy';
-        if (aqi <= 300) return 'Very Unhealthy';
-        return 'Hazardous';
-    };
-    
-    // Helper: Get AQI badge class
-    const getAqiBadgeClass = (aqi) => {
-        if (aqi === null || aqi === undefined) return 'aqi-unknown';
-        if (aqi <= 50) return 'aqi-good';
-        if (aqi <= 100) return 'aqi-moderate';
-        if (aqi <= 150) return 'aqi-unhealthy-sensitive';
-        if (aqi <= 200) return 'aqi-unhealthy';
-        if (aqi <= 300) return 'aqi-very-unhealthy';
-        return 'aqi-hazardous';
-    };
-    
-    // Helper: Get status dot class
-    const getStatusDotClass = (status) => {
-        switch ((status || '').toLowerCase()) {
-            case 'active': return 'crealtime-dot-green';
-            case 'inactive': return 'crealtime-dot-yellow';
-            default: return 'crealtime-dot-red';
-        }
-    };
-    
-    // Helper: Get status text
-    const getStatusText = (status) => {
-        switch ((status || '').toLowerCase()) {
-            case 'active': return 'Online';
-            case 'inactive': return 'Offline';
-            default: return 'Warning';
-        }
+    // Helper: Check if data is stale (no update in 5+ minutes)
+    const isDataStale = (timestamp) => {
+        if (!timestamp) return true;
+        const now = Date.now();
+        const lastUpdate = parseTimestamp(timestamp);
+        const diffMinutes = (now - lastUpdate) / 1000 / 60;
+        return diffMinutes >= 5;
     };
     
     // Helper: Escape HTML
@@ -116,50 +341,454 @@
         return div.innerHTML;
     };
     
-    // Helper: Format duration (uptime)
-    const formatDuration = (seconds) => {
-        if (!seconds || seconds <= 0) return 'N/A';
-        const days = Math.floor(seconds / 86400);
-        const hours = Math.floor((seconds % 86400) / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
+    // Helper: Check if alert is dismissed
+    const isAlertDismissed = (alert) => {
+        const alertKey = `${alert.node_name || 'system'}_${alert.severity}_${alert.title}`;
+        return dismissedAlerts.has(alertKey);
+    };
+    
+    // Helper: Dismiss alert and persist
+    const dismissAlertPermanently = (alertKey) => {
+        dismissedAlerts.add(alertKey);
+        saveDismissedAlerts();
+    };
+    
+    // Helper: Check if event is duplicate
+    const isDuplicateEvent = (event) => {
+        const eventId = `${event.node_id || 'system'}_${event.title}_${event.timestamp_unix || event.timestamp}`;
+        if (recentEventIds.has(eventId)) {
+            console.log('[Realtime] Duplicate event filtered:', event.title);
+            return true;
+        }
+        recentEventIds.add(eventId);
+        setTimeout(() => recentEventIds.delete(eventId), EVENT_DEDUPE_WINDOW_MS);
+        return false;
+    };
+    
+    // Helper: Check if alert is duplicate
+    const isDuplicateAlert = (alert) => {
+        const alertKey = `${alert.node_name || 'system'}_${alert.severity}_${alert.title}`;
+        const lastTime = recentAlertIds.get(alertKey);
+        const now = Date.now();
         
-        if (days > 0) return `${days}d ${hours}h`;
-        if (hours > 0) return `${hours}h ${minutes}m`;
-        if (minutes > 0) return `${minutes}m`;
-        return `${seconds}s`;
-    };
-    
-    // Helper: Get signal strength icon
-    const getSignalIcon = (strength) => {
-        if (!strength) return '📶 N/A';
-        if (strength >= -50) return '📶 Excellent';
-        if (strength >= -70) return '📶 Good';
-        if (strength >= -90) return '📶 Fair';
-        return '📶 Poor';
-    };
-    
-    // Helper: Get battery icon
-    const getBatteryIcon = (level) => {
-        if (!level) return '🔋 N/A';
-        if (level >= 90) return '🔋 Full';
-        if (level >= 70) return '🔋 High';
-        if (level >= 50) return '🔋 Medium';
-        if (level >= 20) return '🔋 Low';
-        return '🪫 Critical';
+        if (lastTime && (now - lastTime) < ALERT_DEDUPE_WINDOW_MS) {
+            console.log('[Realtime] Duplicate alert filtered:', alert.title);
+            return true;
+        }
+        recentAlertIds.set(alertKey, now);
+        return false;
     };
     
     // ============================================================================
-    // MODAL SYSTEM - CENTERED ON SCREEN
+    // REAL-TIME WEBSOCKET CONNECTION
     // ============================================================================
     
-    // Function to inject modal styles dynamically
+    const connectWebSocket = () => {
+        if (!isLive) return;
+        
+        const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${WEBSOCKET_ENDPOINT}`;
+        
+        try {
+            wsConnection = new WebSocket(wsUrl);
+            
+            wsConnection.onopen = () => {
+                console.log('[Realtime] WebSocket connected - live updates active');
+                wsReconnectAttempts = 0;
+                updateSyncTimeDisplay();
+                
+                wsConnection.send(JSON.stringify({
+                    type: 'subscribe',
+                    channels: ['nodes', 'events', 'alerts']
+                }));
+            };
+            
+            wsConnection.onmessage = (event) => {
+                if (!isLive) return;
+                try {
+                    const data = JSON.parse(event.data);
+                    handleRealtimeMessage(data);
+                } catch (err) {
+                    console.error('[Realtime] WebSocket message parse error:', err);
+                }
+            };
+            
+            wsConnection.onerror = (error) => {
+                console.error('[Realtime] WebSocket error:', error);
+            };
+            
+            wsConnection.onclose = () => {
+                console.log('[Realtime] WebSocket disconnected');
+                scheduleReconnect();
+            };
+        } catch (err) {
+            console.error('[Realtime] WebSocket connection failed:', err);
+            scheduleReconnect();
+        }
+    };
+    
+    const scheduleReconnect = () => {
+        if (!isLive) return;
+        
+        if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+        
+        if (wsReconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            wsReconnectAttempts++;
+            const delay = WS_RECONNECT_DELAY * Math.min(wsReconnectAttempts, 5);
+            console.log(`[Realtime] Scheduling reconnect attempt ${wsReconnectAttempts} in ${delay}ms`);
+            wsReconnectTimer = setTimeout(connectWebSocket, delay);
+        } else {
+            console.warn('[Realtime] Max reconnect attempts reached, falling back to polling');
+            if (pollInterval) startPolling();
+        }
+    };
+    
+    const handleRealtimeMessage = (data) => {
+        if (!data || !data.type) return;
+        
+        updateSyncTimeDisplay();
+        
+        switch (data.type) {
+            case 'node_update':
+                handleNodeUpdateRealtime(data);
+                break;
+            case 'event_update':
+                handleEventUpdateRealtime(data);
+                break;
+            case 'alert_update':
+                handleAlertUpdateRealtime(data);
+                break;
+            case 'chart_update':
+                handleChartUpdateRealtime(data);
+                break;
+            case 'system_status':
+                handleSystemStatusRealtime(data);
+                break;
+            default:
+                console.log('[Realtime] Unknown message type:', data.type);
+        }
+    };
+    
+    // Create node row HTML with dynamic status based on AQI
+    const createNodeRowHtml = (node) => {
+        const aqi = node.aqi !== null && node.aqi !== undefined ? node.aqi : null;
+        const isStale = isDataStale(node.timestamp);
+        const statusText = getStatusText(aqi, !!node.timestamp, isStale);
+        const statusDotClass = getStatusDotClass(aqi, isStale);
+        const aqiInfo = getAqiLevelInfo(aqi);
+        const zone = node.zone || node.location || 'Unknown';
+        const lastSeen = node.timestamp ? formatTimeAgo(node.timestamp, true) : 'Never';
+        const isCriticalRow = (aqi === null || aqi === '—' || aqi > 150);
+        
+        return `
+            <tr data-node-id="${escapeHtml(node.name)}" data-node-real-id="${node.node_id}" data-zone="${zone.toLowerCase().replace(/\s+/g, '-')}" data-timestamp="${node.timestamp || ''}" data-aqi="${aqi !== null ? aqi : ''}" class="${isCriticalRow ? 'crealtime-row-critical' : ''}">
+                <td class="crealtime-mono crealtime-font-medium">${escapeHtml(node.name)}</td>
+                <td class="crealtime-text-xs">${escapeHtml(zone)}</td>
+                <td>
+                    <span class="crealtime-dot ${statusDotClass}" style="margin-right: 8px;"></span>
+                    <span class="crealtime-status-text" style="color: ${aqiInfo.color}; font-size: 0.75rem; font-weight: 500;">${escapeHtml(statusText)}</span>
+                </td>
+                <td class="crealtime-mono" style="color: ${aqiInfo.color}; font-weight: 600;">
+                    ${aqi !== null ? aqi : '—'}
+                </td>
+                <td class="crealtime-text-xs crealtime-text-muted crealtime-dynamic-time">${lastSeen}</td>
+                <td>
+                    <div class="crealtime-action-group">
+                        <div class="crealtime-action-btn-wrap" data-tooltip="View Details">
+                            <button class="crealtime-action-btn" data-action="view-details" data-node-name="${escapeHtml(node.name)}" data-node-id="${node.node_id}">👁</button>
+                        </div>
+                        <div class="crealtime-action-btn-wrap" data-tooltip="View on Map">
+                            <button class="crealtime-action-btn" data-action="view-map" data-node-name="${escapeHtml(node.name)}" data-node-id="${node.node_id}">🗺</button>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        `;
+    };
+    
+    const handleNodeUpdateRealtime = (data) => {
+        if (!data.node) return;
+        
+        updateNodeInTable(data.node);
+        
+        if (data.active_count !== undefined && activeNodesLabel) {
+            activeNodesLabel.textContent = `${data.active_count}/${data.total_count || data.active_count}`;
+        }
+        
+        if (data.node.aqi !== undefined && liveAqiLabel) {
+            const aqi = data.node.aqi;
+            const aqiInfo = getAqiLevelInfo(aqi);
+            liveAqiLabel.textContent = aqi !== null && aqi !== undefined ? aqi.toFixed(1) : '—';
+            if (aqi !== null && aqi !== undefined) {
+                liveAqiLabel.style.color = aqiInfo.color;
+            }
+        }
+    };
+    
+    // Update node in table with dynamic status
+    const updateNodeInTable = (node) => {
+        if (!nodeTableBody) return;
+        
+        const existingRow = nodeTableBody.querySelector(`tr[data-node-id="${node.name}"]`);
+        const aqi = node.aqi !== undefined && node.aqi !== null ? node.aqi : null;
+        const isStale = isDataStale(node.timestamp);
+        const statusText = getStatusText(aqi, !!node.timestamp, isStale);
+        const statusDotClass = getStatusDotClass(aqi, isStale);
+        const aqiInfo = getAqiLevelInfo(aqi);
+        const aqiValue = aqi !== null ? aqi : '—';
+        const lastSeen = node.timestamp ? formatTimeAgo(node.timestamp, true) : 'Never';
+        
+        if (existingRow) {
+            const statusCell = existingRow.querySelector('td:nth-child(3)');
+            if (statusCell) {
+                const dot = statusCell.querySelector('.crealtime-dot');
+                const statusSpan = statusCell.querySelector('.crealtime-status-text');
+                if (dot) {
+                    dot.className = `crealtime-dot ${statusDotClass}`;
+                }
+                if (statusSpan) {
+                    statusSpan.textContent = statusText;
+                    statusSpan.style.color = aqiInfo.color;
+                }
+            }
+            
+            const aqiCell = existingRow.querySelector('td:nth-child(4)');
+            if (aqiCell) {
+                aqiCell.textContent = aqiValue;
+                aqiCell.style.color = aqiInfo.color;
+            }
+            
+            const lastSeenCell = existingRow.querySelector('td:nth-child(5)');
+            if (lastSeenCell) {
+                lastSeenCell.textContent = lastSeen;
+                lastSeenCell.setAttribute('data-timestamp', node.timestamp || '');
+            }
+            
+            // Update data-aqi attribute
+            existingRow.setAttribute('data-aqi', aqi !== null ? aqi : '');
+            
+            existingRow.classList.add('crealtime-is-highlighted');
+            setTimeout(() => {
+                existingRow.classList.remove('crealtime-is-highlighted');
+            }, 2000);
+        } else {
+            const newRowHtml = createNodeRowHtml(node);
+            nodeTableBody.insertAdjacentHTML('afterbegin', newRowHtml);
+            
+            const newRow = nodeTableBody.querySelector(`tr[data-node-id="${node.name}"]`);
+            if (newRow) {
+                newRow.classList.add('crealtime-is-highlighted');
+                setTimeout(() => {
+                    newRow.classList.remove('crealtime-is-highlighted');
+                }, 2000);
+            }
+        }
+    };
+    
+    // Alert handling with persistent dismissal
+    const handleAlertUpdateRealtime = (data) => {
+        if (!data.alert) return;
+        
+        const alertKey = `${data.alert.node_name || 'system'}_${data.alert.severity}_${data.alert.title}`;
+        
+        if (isAlertDismissed(data.alert)) {
+            console.log('[Realtime] Skipping dismissed alert:', data.alert.title);
+            return;
+        }
+        
+        if (!isDuplicateAlert(data.alert)) {
+            addAlertRealtime(data.alert);
+        }
+    };
+    
+    // Add alert with dismiss functionality
+    const addAlertRealtime = (alert) => {
+        if (!alertList) return;
+        
+        const alertKey = `${alert.node_name || 'system'}_${alert.severity}_${alert.title}`;
+        
+        if (isAlertDismissed(alert)) return;
+        
+        const placeholder = alertList.querySelector('.crealtime-alert-item:first-child');
+        if (placeholder && placeholder.querySelector('.crealtime-alert-msg')?.textContent === 'No active alerts') {
+            alertList.innerHTML = '';
+        }
+        
+        const existingAlert = alertList.querySelector(`.crealtime-alert-item[data-alert-key="${alertKey}"]`);
+        if (existingAlert) return;
+        
+        const alertHtml = createAlertHtml(alert, alertKey);
+        alertList.insertAdjacentHTML('afterbegin', alertHtml);
+        
+        while (alertList.children.length > 30) {
+            alertList.removeChild(alertList.lastChild);
+        }
+        
+        updateAlertCount();
+        
+        const newAlert = alertList.firstElementChild;
+        if (newAlert) {
+            const dismissBtn = newAlert.querySelector('.crealtime-alert-dismiss');
+            if (dismissBtn) {
+                dismissBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const alertKeyAttr = newAlert.getAttribute('data-alert-key');
+                    if (alertKeyAttr) {
+                        dismissAlertPermanently(alertKeyAttr);
+                    }
+                    newAlert.style.opacity = '0';
+                    setTimeout(() => {
+                        newAlert.remove();
+                        updateAlertCount();
+                        if (alertList.children.length === 0) {
+                            alertList.innerHTML = `<div class="crealtime-alert-item"><div><div class="crealtime-alert-msg">No active alerts</div><div class="crealtime-text-xs crealtime-text-muted">All monitored nodes are operating normally.</div></div></div>`;
+                        }
+                    }, 200);
+                });
+            }
+        }
+        
+        if (alert.severity === 'critical' && systemBadge) {
+            systemBadge.classList.add('crealtime-badge-critical');
+            setTimeout(() => {}, 5000);
+        }
+    };
+    
+    const updateAlertCount = () => {
+        if (!alertList || !alertCountLabel) return;
+        const visibleAlerts = alertList.querySelectorAll('.crealtime-alert-item:not(.placeholder)').length;
+        alertCountLabel.textContent = `${visibleAlerts} Alerts`;
+    };
+    
+    // Create alert HTML with data-alert-key attribute
+    const createAlertHtml = (alert, alertKey) => {
+        const warningClass = alert.severity === 'warning' ? 'crealtime-warning' : '';
+        const criticalClass = alert.severity === 'critical' ? 'crealtime-feed-critical' : '';
+        const styleAttr = alert.severity === 'critical' ? ' style="color:var(--crealtime-red)"' : '';
+        const timestamp = alert.timestamp_unix || alert.timestamp;
+        
+        return `
+            <div class="crealtime-alert-item ${warningClass} ${criticalClass}" data-node-id="${escapeHtml(alert.node_name || 'system')}" data-timestamp="${timestamp}" data-alert-key="${escapeHtml(alertKey)}">
+                <div>
+                    <div class="crealtime-alert-msg"${styleAttr}>${escapeHtml(alert.title || 'Alert')}</div>
+                    <div class="crealtime-text-xs crealtime-text-muted">${escapeHtml(alert.description || '')} <span class="crealtime-dynamic-time">Just now</span></div>
+                </div>
+                <button class="crealtime-alert-dismiss" data-alert-title="${escapeHtml(alert.title)}">&times;</button>
+            </div>
+        `;
+    };
+    
+    const handleEventUpdateRealtime = (data) => {
+        if (!data.event) return;
+        
+        const event = data.event;
+        const filteredTitles = ['heartbeat', 'system check', 'data sync', 'poll completed'];
+        const titleLower = (event.title || '').toLowerCase();
+        
+        if (filteredTitles.some(t => titleLower.includes(t))) {
+            return;
+        }
+        
+        if (!isDuplicateEvent(event)) {
+            addFeedEvent(event);
+        }
+    };
+    
+    const handleChartUpdateRealtime = (data) => {
+        if (data.chart_values && Array.isArray(data.chart_values) && data.chart_values.length > 0) {
+            updateChartRealtime(data.chart_values);
+        }
+        
+        if (data.live_aqi !== undefined && liveAqiLabel) {
+            const aqi = data.live_aqi;
+            const aqiInfo = getAqiLevelInfo(aqi);
+            liveAqiLabel.textContent = aqi !== null && aqi !== undefined ? aqi.toFixed(1) : '—';
+            if (aqi !== null && aqi !== undefined) {
+                liveAqiLabel.style.color = aqiInfo.color;
+            }
+        }
+    };
+    
+    const handleSystemStatusRealtime = (data) => {
+        if (data.status) {
+            updateSystemStatusRealtime(data);
+        }
+    };
+    
+    const updateChartRealtime = (values) => {
+        if (!chartCanvas || !values || values.length === 0) return;
+        
+        chartData = values.slice();
+        
+        if (chartInstance) {
+            chartInstance.data.datasets[0].data = chartData;
+            chartInstance.update('none');
+        }
+        
+        updateTrendIndicator(chartData);
+    };
+    
+    const updateSystemStatusRealtime = (data) => {
+        if (!systemBadge || !systemPulse) return;
+        
+        const activeCount = data.active_count || 0;
+        const totalCount = data.total_count || 0;
+        const avgAqi = data.avg_aqi || null;
+        const hasOffline = (totalCount - activeCount) > 0;
+        
+        let status = 'GOOD';
+        let badgeClass = 'crealtime-badge-good';
+        let pulseClass = 'crealtime-dot-green';
+        let bannerActive = false;
+        let bannerText = '';
+        
+        if (activeCount === 0) {
+            status = 'CRITICAL';
+            badgeClass = 'crealtime-badge-critical';
+            pulseClass = 'crealtime-dot-red';
+            bannerActive = true;
+            bannerText = 'System Critical - No Active Nodes';
+        } else if (hasOffline || (avgAqi !== null && avgAqi > 150)) {
+            status = 'CRITICAL';
+            badgeClass = 'crealtime-badge-critical';
+            pulseClass = 'crealtime-dot-red';
+            bannerActive = true;
+            const offlineCount = totalCount - activeCount;
+            bannerText = offlineCount > 0 ? `${offlineCount} Node(s) Offline` : 'Critical Air Quality Levels';
+        } else if (hasOffline || (avgAqi !== null && avgAqi > 100)) {
+            status = 'WARNING';
+            badgeClass = 'crealtime-badge-degraded';
+            pulseClass = 'crealtime-dot-yellow';
+        }
+        
+        systemBadge.className = `crealtime-badge ${badgeClass}`;
+        systemBadge.textContent = status;
+        systemPulse.className = `crealtime-dot ${pulseClass}`;
+        if (status !== 'GOOD') systemPulse.classList.add('crealtime-pulse');
+        
+        if (priorityBanner) {
+            if (bannerActive) {
+                priorityBanner.classList.add('crealtime-banner-active');
+                if (bannerMsg) bannerMsg.textContent = bannerText;
+            } else {
+                priorityBanner.classList.remove('crealtime-banner-active');
+            }
+        }
+        
+        if (activeNodesLabel) {
+            activeNodesLabel.textContent = `${activeCount}/${totalCount}`;
+        }
+    };
+    
+    // ============================================================================
+    // MODAL SYSTEM
+    // ============================================================================
+    
     const injectModalStyles = () => {
         if (document.querySelector('#crealtime-modal-styles')) return;
         
         const style = document.createElement('style');
         style.id = 'crealtime-modal-styles';
         style.textContent = `
-            /* Modal Overlay - Full screen with flex centering */
             .crealtime-modal-overlay {
                 position: fixed !important;
                 top: 0 !important;
@@ -187,7 +816,6 @@
                 visibility: visible !important;
             }
             
-            /* Modal Container - Centered */
             .crealtime-modal {
                 position: relative !important;
                 background: #ffffff !important;
@@ -326,7 +954,6 @@
                 cursor: not-allowed !important;
             }
             
-            /* Node Detail Modal Specific Styles */
             .crealtime-node-detail-section {
                 margin-bottom: 20px !important;
             }
@@ -397,10 +1024,6 @@
                 font-size: 0.7rem !important;
                 font-weight: 600 !important;
             }
-            
-            .status-online { background: #d1fae5 !important; color: #059669 !important; }
-            .status-offline { background: #fee2e2 !important; color: #dc2626 !important; }
-            .status-warning { background: #fef3c7 !important; color: #d97706 !important; }
             
             .crealtime-activity-item {
                 padding: 8px 0 !important;
@@ -474,14 +1097,90 @@
                 background: #cbd5e1 !important;
                 border-radius: 3px !important;
             }
+            
+            /* Dot colors for AQI levels */
+            .crealtime-dot-green { background: #10b981; box-shadow: 0 0 4px #10b981; }
+            .crealtime-dot-yellow { background: #f59e0b; box-shadow: 0 0 4px #f59e0b; }
+            .crealtime-dot-orange { background: #f97316; box-shadow: 0 0 4px #f97316; }
+            .crealtime-dot-red { background: #ef4444; box-shadow: 0 0 4px #ef4444; }
+            .crealtime-dot-purple { background: #8b5cf6; box-shadow: 0 0 4px #8b5cf6; }
+            .crealtime-dot-maroon { background: #7f1d1d; box-shadow: 0 0 4px #7f1d1d; }
+            .crealtime-dot-gray { background: #94a3b8; box-shadow: 0 0 4px #94a3b8; }
+            
+            .crealtime-paused-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.75);
+                backdrop-filter: blur(4px);
+                z-index: 99999;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                animation: crealtime-fade-in 0.3s ease;
+            }
+            
+            .crealtime-paused-content {
+                background: #1e293b;
+                border-radius: 16px;
+                padding: 32px 48px;
+                text-align: center;
+                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+                animation: crealtime-scale-in 0.3s cubic-bezier(0.34, 1.2, 0.64, 1);
+            }
+            
+            .crealtime-paused-icon {
+                font-size: 48px;
+                margin-bottom: 16px;
+            }
+            
+            .crealtime-paused-title {
+                font-size: 1.25rem;
+                font-weight: 600;
+                color: #f1f5f9;
+                margin-bottom: 8px;
+            }
+            
+            .crealtime-paused-subtitle {
+                font-size: 0.85rem;
+                color: #94a3b8;
+                margin-bottom: 20px;
+            }
+            
+            .crealtime-paused-resume-btn {
+                background: #3b82f6;
+                color: white;
+                border: none;
+                padding: 10px 24px;
+                border-radius: 8px;
+                font-size: 0.875rem;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            
+            .crealtime-paused-resume-btn:hover {
+                background: #2563eb;
+                transform: scale(1.02);
+            }
+            
+            @keyframes crealtime-fade-in {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            
+            @keyframes crealtime-scale-in {
+                from { transform: scale(0.95); opacity: 0; }
+                to { transform: scale(1); opacity: 1; }
+            }
         `;
         document.head.appendChild(style);
     };
     
-    // Inject styles immediately
     injectModalStyles();
     
-    // Show toast notification
     const showToast = (message, isError = false) => {
         const existingToast = document.querySelector('.crealtime-toast');
         if (existingToast) existingToast.remove();
@@ -498,7 +1197,6 @@
         }, 3000);
     };
     
-    // Close modal function
     const closeModal = () => {
         if (!activeModal) return;
         const overlay = activeModal;
@@ -513,31 +1211,28 @@
             document.removeEventListener('keydown', escHandler);
         }
         
-        // Restore body scroll
         document.body.style.overflow = '';
     };
     
-    // Show node details modal - CENTERED ON SCREEN
     const showNodeDetailsModal = (node) => {
         if (activeModal) closeModal();
         
-        // Prevent body scroll when modal is open
         document.body.style.overflow = 'hidden';
         
         const aqi = node.aqi !== undefined && node.aqi !== null ? node.aqi : node.latest_aqi;
-        const aqiLabel = getAqiLabel(aqi);
+        const aqiInfo = getAqiLevelInfo(aqi);
+        const aqiLabel = aqiInfo.label;
         const aqiBadgeClass = getAqiBadgeClass(aqi);
-        const statusText = getStatusText(node.status);
-        const statusDotClass = getStatusDotClass(node.status);
+        const statusText = getStatusText(aqi, !!node.timestamp, isDataStale(node.timestamp));
+        const statusDotClass = getStatusDotClass(aqi, isDataStale(node.timestamp));
         
-        // Generate recent activity log
         const activities = [];
         
-        if (node.status === 'active') {
-            activities.push({
+        if (aqi !== null && aqi !== '—') {
+            activities.unshift({
                 icon: '✓',
                 bgColor: 'crealtime-bg-green',
-                text: 'Node connected successfully',
+                text: `Current AQI: ${aqi} - ${aqiLabel}`,
                 timeAgo: 'Just now'
             });
             activities.push({
@@ -546,48 +1241,18 @@
                 text: 'Data transmission active',
                 timeAgo: '2 minutes ago'
             });
-        } else if (node.status === 'inactive') {
-            activities.push({
-                icon: '⚠',
-                bgColor: 'crealtime-bg-yellow',
-                text: 'Node disconnected',
-                timeAgo: '5 minutes ago'
-            });
-            activities.push({
-                icon: '🔄',
-                bgColor: 'crealtime-bg-yellow',
-                text: 'Reconnection attempt scheduled',
-                timeAgo: 'Just now'
-            });
         } else {
             activities.push({
-                icon: '⚡',
+                icon: '❌',
                 bgColor: 'crealtime-bg-red',
-                text: 'Warning: Unusual readings detected',
+                text: 'Node disconnected - No data received',
                 timeAgo: 'Just now'
             });
-        }
-        
-        if (aqi && aqi > 100) {
-            activities.unshift({
-                icon: '⚠',
+            activities.push({
+                icon: '⏱',
                 bgColor: 'crealtime-bg-red',
-                text: `AQI level ${aqi} - ${aqiLabel} alert`,
-                timeAgo: 'Just now'
-            });
-        } else if (aqi && aqi > 50) {
-            activities.unshift({
-                icon: 'ℹ',
-                bgColor: 'crealtime-bg-yellow',
-                text: `Moderate air quality detected (AQI: ${aqi})`,
-                timeAgo: 'Just now'
-            });
-        } else if (aqi) {
-            activities.unshift({
-                icon: '✓',
-                bgColor: 'crealtime-bg-green',
-                text: `Good air quality maintained (AQI: ${aqi})`,
-                timeAgo: '2 minutes ago'
+                text: `Last reading: ${node.last_seen || 'Never'}`,
+                timeAgo: node.timestamp ? formatTimeAgo(node.timestamp, true) : 'N/A'
             });
         }
         
@@ -610,7 +1275,6 @@
             </div>
         `).join('');
         
-        // Create overlay and modal
         const overlay = document.createElement('div');
         overlay.className = 'crealtime-modal-overlay';
         overlay.innerHTML = `
@@ -638,16 +1302,16 @@
                                 <span class="crealtime-node-detail-label">AQI:</span>
                                 <span class="crealtime-node-detail-value">
                                     <span class="crealtime-aqi-badge ${aqiBadgeClass}">
-                                        ${aqi !== null && aqi !== undefined ? aqi : '—'} - ${aqiLabel}
+                                        ${aqi !== null && aqi !== '—' ? aqi : '—'} - ${aqiLabel}
                                     </span>
                                 </span>
                             </div>
                             <div class="crealtime-node-detail-row">
                                 <span class="crealtime-node-detail-label">Node Status:</span>
                                 <span class="crealtime-node-detail-value">
-                                    <span class="crealtime-status-badge status-${statusText.toLowerCase()}">
+                                    <span class="crealtime-status-badge">
                                         <span class="crealtime-dot ${statusDotClass}" style="margin-right: 4px;"></span>
-                                        ${statusText}
+                                        ${escapeHtml(statusText)}
                                     </span>
                                 </span>
                             </div>
@@ -674,34 +1338,8 @@
                                 <span class="crealtime-node-detail-value">${node.pm10 !== undefined && node.pm10 !== null ? node.pm10 + ' µg/m³' : '—'}</span>
                             </div>
                             <div class="crealtime-node-detail-row">
-                                <span class="crealtime-node-detail-label">CO2 Level:</span>
-                                <span class="crealtime-node-detail-value">${node.co2 || node.co2_level || '—'} ppm</span>
-                            </div>
-                            <div class="crealtime-node-detail-row">
                                 <span class="crealtime-node-detail-label">Last Seen:</span>
                                 <span class="crealtime-node-detail-value">${node.last_seen || (node.timestamp ? formatTimeAgo(node.timestamp) : 'Never')}</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="crealtime-node-detail-section">
-                        <div class="crealtime-node-detail-section-title">Device Status</div>
-                        <div class="crealtime-node-detail-grid">
-                            <div class="crealtime-node-detail-row">
-                                <span class="crealtime-node-detail-label">Device Uptime:</span>
-                                <span class="crealtime-node-detail-value">${node.uptime || formatDuration(node.uptime_seconds || 86400)}</span>
-                            </div>
-                            <div class="crealtime-node-detail-row">
-                                <span class="crealtime-node-detail-label">Battery Status:</span>
-                                <span class="crealtime-node-detail-value">${getBatteryIcon(node.battery_level || node.battery)}</span>
-                            </div>
-                            <div class="crealtime-node-detail-row">
-                                <span class="crealtime-node-detail-label">Signal Strength:</span>
-                                <span class="crealtime-node-detail-value">${getSignalIcon(node.signal_strength || node.rssi)}</span>
-                            </div>
-                            <div class="crealtime-node-detail-row">
-                                <span class="crealtime-node-detail-label">Connection:</span>
-                                <span class="crealtime-node-detail-value">${node.status === 'active' ? '✓ Connected' : '✗ Disconnected'}</span>
                             </div>
                         </div>
                     </div>
@@ -750,7 +1388,6 @@
         setTimeout(() => overlay.classList.add('active'), 10);
     };
     
-    // Show confirmation modal
     const showConfirmModal = (title, message, onConfirm) => {
         if (activeModal) closeModal();
         
@@ -832,6 +1469,13 @@
     };
     
     const createFeedItemHtml = (event, index = 0) => {
+        const titleLower = (event.title || '').toLowerCase();
+        const filteredTitles = ['heartbeat', 'system check', 'data sync', 'poll completed'];
+        
+        if (filteredTitles.some(t => titleLower.includes(t))) {
+            return null;
+        }
+        
         const isCritical = event.severity === 'critical';
         const eventClass = isCritical ? 'crealtime-feed-critical' : '';
         const label = event.tag_label || (event.severity || 'INFO').toUpperCase();
@@ -854,7 +1498,14 @@
     
     const renderFeed = (feed = []) => {
         if (!feedContainer) return;
-        if (!feed.length) {
+        
+        const filteredFeed = feed.filter(event => {
+            const titleLower = (event.title || '').toLowerCase();
+            const filteredTitles = ['heartbeat', 'system check', 'data sync', 'poll completed', 'test event'];
+            return !filteredTitles.some(t => titleLower.includes(t));
+        });
+        
+        if (!filteredFeed.length) {
             feedContainer.innerHTML = `
                 <div class="crealtime-feed-item" data-node-id="none" data-timestamp="${Date.now() / 1000}">
                     <div class="crealtime-feed-icon crealtime-bg-green">✓</div>
@@ -871,49 +1522,36 @@
             return;
         }
         
-        feedContainer.innerHTML = feed.map(createFeedItemHtml).join('');
+        feedContainer.innerHTML = filteredFeed.map(createFeedItemHtml).join('');
         updateDynamicTimes();
         if (isLive && feedContainer) feedContainer.scrollTop = 0;
     };
     
     const addFeedEvent = (event) => {
         if (!feedContainer) return;
-        const html = createFeedItemHtml(event, 0);
-        feedContainer.insertAdjacentHTML('afterbegin', html);
-        while (feedContainer.children.length > MAX_FEED_ITEMS) {
-            feedContainer.removeChild(feedContainer.lastChild);
-        }
-        updateDynamicTimes();
-        if (isLive && feedContainer) feedContainer.scrollTop = 0;
-    };
-    
-    const createNodeRowHtml = (node) => {
-        const statusClass = getStatusDotClass(node.status);
-        const isCriticalRow = node.status !== 'active' || (node.aqi !== null && node.aqi > 100);
-        const aqiValue = node.aqi !== null ? node.aqi : '—';
-        const aqiColor = getAqiColor(node.aqi);
-        const zone = node.zone || node.location || 'Unknown';
-        const lastSeen = node.timestamp ? formatTimeAgo(node.timestamp, true) : 'Never';
         
-        return `
-            <tr data-node-id="${escapeHtml(node.name)}" data-node-real-id="${node.node_id}" data-zone="${zone.toLowerCase().replace(/\s+/g, '-')}" data-status="${node.status || 'unknown'}" data-timestamp="${node.timestamp || ''}" class="${isCriticalRow ? 'crealtime-row-critical' : ''}">
-                <td class="crealtime-mono crealtime-font-medium">${escapeHtml(node.name)}</td>
-                <td class="crealtime-text-xs">${escapeHtml(zone)}</td>
-                <td><span class="crealtime-dot ${statusClass}"></span></td>
-                <td class="crealtime-mono" style="color: ${aqiColor}; font-weight: 600;">${aqiValue}</td>
-                <td class="crealtime-text-xs crealtime-text-muted crealtime-dynamic-time">${lastSeen}</td>
-                <td>
-                    <div class="crealtime-action-group">
-                        <div class="crealtime-action-btn-wrap" data-tooltip="View Details">
-                            <button class="crealtime-action-btn" data-action="view-details" data-node-name="${escapeHtml(node.name)}" data-node-id="${node.node_id}">👁</button>
-                        </div>
-                        <div class="crealtime-action-btn-wrap" data-tooltip="View on Map">
-                            <button class="crealtime-action-btn" data-action="view-map" data-node-name="${escapeHtml(node.name)}" data-node-id="${node.node_id}">🗺</button>
-                        </div>
-                    </div>
-                </td>
-            </tr>
-        `;
+        const titleLower = (event.title || '').toLowerCase();
+        const filteredTitles = ['heartbeat', 'system check', 'data sync', 'poll completed', 'test event'];
+        if (filteredTitles.some(t => titleLower.includes(t))) {
+            console.log('[Realtime] Skipping system heartbeat event:', event.title);
+            return;
+        }
+        
+        const placeholder = feedContainer.querySelector('.crealtime-feed-item:first-child');
+        if (placeholder && placeholder.querySelector('.crealtime-feed-header-row .crealtime-tag')?.textContent === 'INFO' &&
+            placeholder.querySelector('.crealtime-text-sm')?.textContent === 'System Ready') {
+            feedContainer.innerHTML = '';
+        }
+        
+        const html = createFeedItemHtml(event, 0);
+        if (html) {
+            feedContainer.insertAdjacentHTML('afterbegin', html);
+            while (feedContainer.children.length > MAX_FEED_ITEMS) {
+                feedContainer.removeChild(feedContainer.lastChild);
+            }
+            updateDynamicTimes();
+            if (isLive && feedContainer) feedContainer.scrollTop = 0;
+        }
     };
     
     let nodeDataCache = {};
@@ -936,9 +1574,11 @@
             filteredNodes = filteredNodes.filter(n => (n.zone || n.location || '').toLowerCase() === currentZone.toLowerCase());
         }
         if (currentFilter === 'online') {
-            filteredNodes = filteredNodes.filter(n => n.status === 'active');
+            filteredNodes = filteredNodes.filter(n => n.aqi !== null && n.aqi !== '—' && !isDataStale(n.timestamp));
         } else if (currentFilter === 'alerts') {
-            filteredNodes = filteredNodes.filter(n => n.status !== 'active' || (n.aqi !== null && n.aqi > 65));
+            filteredNodes = filteredNodes.filter(n => 
+                n.aqi === null || n.aqi === '—' || isDataStale(n.timestamp) || (n.aqi !== null && n.aqi >= 101)
+            );
         }
         
         nodeTableBody.innerHTML = filteredNodes.map(createNodeRowHtml).join('');
@@ -965,43 +1605,38 @@
         });
     };
     
-    const createAlertHtml = (alert) => {
-        const warningClass = alert.severity === 'warning' ? 'crealtime-warning' : '';
-        const criticalClass = alert.severity === 'critical' ? 'crealtime-feed-critical' : '';
-        const styleAttr = alert.severity === 'critical' ? ' style="color:var(--crealtime-red)"' : '';
-        const timestamp = alert.timestamp_unix || alert.timestamp;
-        
-        return `
-            <div class="crealtime-alert-item ${warningClass} ${criticalClass}" data-node-id="${escapeHtml(alert.node_name || 'system')}" data-timestamp="${timestamp}">
-                <div>
-                    <div class="crealtime-alert-msg"${styleAttr}>${escapeHtml(alert.title || 'Alert')}</div>
-                    <div class="crealtime-text-xs crealtime-text-muted">${escapeHtml(alert.description || '')} <span class="crealtime-dynamic-time">Just now</span></div>
-                </div>
-                <button class="crealtime-alert-dismiss" data-alert-title="${escapeHtml(alert.title)}">&times;</button>
-            </div>
-        `;
-    };
-    
     const renderAlerts = (alerts = []) => {
         if (!alertList) return;
         
-        if (!alerts.length) {
+        const filteredAlerts = alerts.filter(alert => !isAlertDismissed(alert));
+        
+        if (!filteredAlerts.length) {
             alertList.innerHTML = `<div class="crealtime-alert-item"><div><div class="crealtime-alert-msg">No active alerts</div><div class="crealtime-text-xs crealtime-text-muted">All monitored nodes are operating normally.</div></div></div>`;
             if (alertCountLabel) alertCountLabel.textContent = '0 Alerts';
             return;
         }
         
-        alertList.innerHTML = alerts.map(createAlertHtml).join('');
+        alertList.innerHTML = filteredAlerts.map(alert => createAlertHtml(alert, `${alert.node_name || 'system'}_${alert.severity}_${alert.title}`)).join('');
         updateDynamicTimes();
-        if (alertCountLabel) alertCountLabel.textContent = `${alerts.length} Alerts`;
+        if (alertCountLabel) alertCountLabel.textContent = `${filteredAlerts.length} Alerts`;
         
         document.querySelectorAll('.crealtime-alert-dismiss').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const alertItem = btn.closest('.crealtime-alert-item');
                 if (alertItem) {
+                    const alertKey = alertItem.getAttribute('data-alert-key');
+                    if (alertKey) {
+                        dismissAlertPermanently(alertKey);
+                    }
                     alertItem.style.opacity = '0';
-                    setTimeout(() => alertItem.remove(), 200);
+                    setTimeout(() => {
+                        alertItem.remove();
+                        updateAlertCount();
+                        if (alertList.children.length === 0) {
+                            alertList.innerHTML = `<div class="crealtime-alert-item"><div><div class="crealtime-alert-msg">No active alerts</div><div class="crealtime-text-xs crealtime-text-muted">All monitored nodes are operating normally.</div></div></div>`;
+                        }
+                    }, 200);
                 }
             });
         });
@@ -1022,14 +1657,14 @@
             pulseClass = 'crealtime-dot-red';
             bannerActive = true;
             bannerText = 'System Critical - No Active Nodes';
-        } else if (hasOffline || (avgAqi !== null && avgAqi > 150)) {
+        } else if (hasOffline || (avgAqi !== null && avgAqi >= 101)) {
             status = 'CRITICAL';
             badgeClass = 'crealtime-badge-critical';
             pulseClass = 'crealtime-dot-red';
             bannerActive = true;
             const offlineCount = totalCount - activeCount;
-            bannerText = offlineCount > 0 ? `${offlineCount} Node(s) Offline` : 'Critical Air Quality Levels';
-        } else if (hasOffline || (avgAqi !== null && avgAqi > 100)) {
+            bannerText = offlineCount > 0 ? `${offlineCount} Node(s) Disconnected/Offline` : 'Critical Air Quality Levels';
+        } else if ((avgAqi !== null && avgAqi > 50)) {
             status = 'WARNING';
             badgeClass = 'crealtime-badge-degraded';
             pulseClass = 'crealtime-dot-yellow';
@@ -1055,7 +1690,8 @@
         const displayValue = avgAqi !== null ? avgAqi.toFixed(1) : '—';
         liveAqiLabel.textContent = displayValue;
         if (avgAqi !== null) {
-            liveAqiLabel.style.color = getAqiColor(avgAqi);
+            const aqiInfo = getAqiLevelInfo(avgAqi);
+            liveAqiLabel.style.color = aqiInfo.color;
         }
     };
     
@@ -1091,8 +1727,9 @@
         
         chartData = values.slice();
         
+        const ctx = chartCanvas.getContext('2d');
+        
         if (!chartInstance) {
-            const ctx = chartCanvas.getContext('2d');
             chartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -1111,9 +1748,43 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: true,
+                    aspectRatio: 2.5,
                     animation: { duration: 300 },
-                    plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false, callbacks: { label: (ctx) => `AQI: ${ctx.raw}` } } },
-                    scales: { x: { display: true, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } }, y: { display: true, beginAtZero: true, grid: { color: '#f1f5f9' } } }
+                    plugins: { 
+                        legend: { display: false }, 
+                        tooltip: { 
+                            mode: 'index', 
+                            intersect: false, 
+                            callbacks: { 
+                                label: (ctx) => `AQI: ${ctx.raw}` 
+                            } 
+                        } 
+                    },
+                    scales: { 
+                        x: { 
+                            display: true, 
+                            ticks: { 
+                                maxRotation: 0, 
+                                autoSkip: true, 
+                                maxTicksLimit: 6 
+                            },
+                            grid: { display: false }
+                        }, 
+                        y: { 
+                            display: true, 
+                            beginAtZero: true, 
+                            grid: { color: '#f1f5f9' },
+                            ticks: { stepSize: 50 }
+                        } 
+                    },
+                    layout: {
+                        padding: {
+                            top: 10,
+                            bottom: 10,
+                            left: 5,
+                            right: 5
+                        }
+                    }
                 }
             });
         } else {
@@ -1150,29 +1821,48 @@
             const json = await response.json();
             if (json.status !== 'success') return;
             
+            if (json.timestamp) {
+                updateSyncTimeDisplay(json.timestamp);
+            } else {
+                updateSyncTimeDisplay();
+            }
+            
             if (json.data) renderNodeTable(json.data);
             
             if (json.feed && json.feed.length) {
-                const latestTimestamp = json.feed[0]?.timestamp_unix || json.feed[0]?.timestamp;
-                if (latestTimestamp && (!lastEventTimestamp || latestTimestamp > lastEventTimestamp)) {
-                    addFeedEvent(json.feed[0]);
-                    lastEventTimestamp = latestTimestamp;
-                } else if (!lastEventTimestamp) {
-                    renderFeed(json.feed);
-                    if (json.feed[0]) lastEventTimestamp = json.feed[0].timestamp_unix || json.feed[0].timestamp;
+                const relevantEvents = json.feed.filter(event => {
+                    const titleLower = (event.title || '').toLowerCase();
+                    const filteredTitles = ['heartbeat', 'system check', 'data sync', 'poll completed'];
+                    return !filteredTitles.some(t => titleLower.includes(t));
+                });
+                
+                if (relevantEvents.length > 0) {
+                    const latestTimestamp = relevantEvents[0]?.timestamp_unix || relevantEvents[0]?.timestamp;
+                    if (latestTimestamp && (!lastEventTimestamp || latestTimestamp > lastEventTimestamp)) {
+                        addFeedEvent(relevantEvents[0]);
+                        lastEventTimestamp = latestTimestamp;
+                    } else if (!lastEventTimestamp) {
+                        renderFeed(relevantEvents);
+                        if (relevantEvents[0]) lastEventTimestamp = relevantEvents[0].timestamp_unix || relevantEvents[0].timestamp;
+                    }
+                } else {
+                    renderFeed([]);
                 }
             }
             
-            if (json.alerts) renderAlerts(json.alerts);
+            if (json.alerts) {
+                renderAlerts(json.alerts);
+            }
+            
             if (json.chart_values && json.chart_values.length) updateChart(json.chart_values);
             
-            const activeCount = json.active_nodes || 0;
-            const totalCount = json.total_nodes || 0;
+            const nodesWithData = (json.data || []).filter(n => n.aqi !== null && n.aqi !== '—' && !isDataStale(n.timestamp));
+            const activeCount = nodesWithData.length;
+            const totalCount = json.total_nodes || (json.data || []).length;
             const hasOffline = (totalCount - activeCount) > 0;
             updateSystemStatus(activeCount, totalCount, json.live_aqi, hasOffline);
             updateLiveAqi(json.live_aqi);
             if (activeNodesLabel) activeNodesLabel.textContent = `${activeCount}/${totalCount}`;
-            if (syncTimeLabel) syncTimeLabel.textContent = 'Just now';
             
             if (zoneSelect && json.zones && json.zones.length && zoneSelect.options.length <= 1) {
                 const currentValue = zoneSelect.value;
@@ -1215,13 +1905,36 @@
                 autoRefreshToggle.classList.toggle('crealtime-off', !isLive);
                 const toggleWrapper = autoRefreshToggle.closest('.crealtime-toggle-wrapper');
                 let pausedLabel = toggleWrapper?.querySelector('.crealtime-paused-label');
+                
                 if (!isLive) {
-                    if (!pausedLabel) { pausedLabel = document.createElement('span'); pausedLabel.className = 'crealtime-paused-label'; pausedLabel.textContent = 'Paused'; toggleWrapper?.appendChild(pausedLabel); }
+                    if (!pausedLabel) { 
+                        pausedLabel = document.createElement('span'); 
+                        pausedLabel.className = 'crealtime-paused-label'; 
+                        pausedLabel.textContent = 'Paused'; 
+                        toggleWrapper?.appendChild(pausedLabel); 
+                    }
                     if (pollInterval) clearInterval(pollInterval);
                     pollInterval = null;
+                    
+                    if (wsConnection) {
+                        wsConnection.close();
+                        wsConnection = null;
+                    }
+                    
+                    createPausedOverlay();
                 } else {
                     if (pausedLabel) pausedLabel.remove();
+                    
+                    removePausedOverlay();
+                    
                     startPolling();
+                    
+                    if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) {
+                        connectWebSocket();
+                    }
+                    
+                    manualRefresh();
+                    showToast('Real-time monitoring resumed', false);
                 }
             });
         }
@@ -1249,10 +1962,18 @@
                 if (e.target.classList.contains('crealtime-alert-dismiss')) {
                     const alertItem = e.target.closest('.crealtime-alert-item');
                     if (alertItem) {
+                        const alertKey = alertItem.getAttribute('data-alert-key');
+                        if (alertKey) {
+                            dismissAlertPermanently(alertKey);
+                        }
                         alertItem.style.opacity = '0';
-                        setTimeout(() => alertItem.remove(), 200);
-                        const remaining = alertList.querySelectorAll('.crealtime-alert-item').length;
-                        if (alertCountLabel) alertCountLabel.textContent = `${remaining} Alerts`;
+                        setTimeout(() => {
+                            alertItem.remove();
+                            updateAlertCount();
+                            if (alertList.children.length === 0) {
+                                alertList.innerHTML = `<div class="crealtime-alert-item"><div><div class="crealtime-alert-msg">No active alerts</div><div class="crealtime-text-xs crealtime-text-muted">All monitored nodes are operating normally.</div></div></div>`;
+                            }
+                        }, 200);
                     }
                 }
             });
@@ -1266,20 +1987,48 @@
         if (initialDataScript && initialDataScript.textContent) {
             try {
                 const payload = JSON.parse(initialDataScript.textContent);
-                if (payload.nodes) renderNodeTable(payload.nodes);
-                if (payload.feed_events) renderFeed(payload.feed_events);
-                if (payload.alert_entries) renderAlerts(payload.alert_entries);
-                if (payload.system) {
-                    updateSystemStatus(payload.system.active_count || 0, payload.system.total_nodes || 0, payload.system.avg_aqi || null, false);
-                    updateLiveAqi(payload.system.avg_aqi);
-                    if (activeNodesLabel) activeNodesLabel.textContent = `${payload.system.active_count || 0}/${payload.system.total_nodes || 0}`;
+                if (payload.data) renderNodeTable(payload.data);
+                if (payload.feed) {
+                    const filteredFeed = payload.feed.filter(event => {
+                        const titleLower = (event.title || '').toLowerCase();
+                        const filteredTitles = ['heartbeat', 'system check', 'data sync', 'poll completed'];
+                        return !filteredTitles.some(t => titleLower.includes(t));
+                    });
+                    renderFeed(filteredFeed);
+                }
+                if (payload.alerts) {
+                    renderAlerts(payload.alerts);
                 }
                 if (payload.chart_values) updateChart(payload.chart_values);
+                
+                const nodesWithData = (payload.data || []).filter(n => n.aqi !== null && n.aqi !== '—' && !isDataStale(n.timestamp));
+                const activeCount = nodesWithData.length;
+                const totalCount = payload.total_nodes || (payload.data || []).length;
+                const hasOffline = (totalCount - activeCount) > 0;
+                updateSystemStatus(activeCount, totalCount, payload.live_aqi, hasOffline);
+                updateLiveAqi(payload.live_aqi);
+                if (activeNodesLabel) activeNodesLabel.textContent = `${activeCount}/${totalCount}`;
+                
+                if (payload.timestamp) {
+                    updateSyncTimeDisplay(payload.timestamp);
+                }
+                
+                if (payload.zones && payload.zones.length) {
+                    zoneSelect.innerHTML = '<option value="all">All Nodes</option>';
+                    payload.zones.forEach(zone => { zoneSelect.innerHTML += `<option value="${zone.toLowerCase()}">${escapeHtml(zone)}</option>`; });
+                }
             } catch (e) { console.error('Error parsing initial data:', e); }
         }
     };
     
-    const init = () => { setupEventListeners(); initFromTemplate(); startPolling(); setInterval(updateDynamicTimes, 10000); };
+    const init = () => { 
+        loadDismissedAlerts();
+        setupEventListeners(); 
+        initFromTemplate(); 
+        startPolling(); 
+        connectWebSocket();
+        setInterval(updateDynamicTimes, 10000); 
+    };
     
     if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
 })();
