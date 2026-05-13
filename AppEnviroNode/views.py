@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.db import models
 from django.db.models import Q, Max, Count, Avg, Min
 from django.core.serializers.json import DjangoJSONEncoder
+from django.core.mail import send_mail
 from django.core.paginator import Paginator
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
@@ -2106,7 +2107,7 @@ def client_realtime(request):
             node_item = {
                 'node_id': node.id,
                 'name': node.name,
-                'zone': node.zone or node.location or 'Unknown',
+                'zone': getattr(node, 'zone', None) or node.location or 'Unknown',
                 'location': node.location or '',
                 'status': node.status or 'inactive',
                 'aqi': node_aqi,
@@ -2184,8 +2185,8 @@ def client_realtime(request):
     # Build system info
     avg_aqi = round(sum(total_aqi) / len(total_aqi), 1) if total_aqi else None
 
-    # Get zones
-    zones = list(all_nodes.exclude(zone__isnull=True).exclude(zone='').values_list('zone', flat=True).distinct())
+    # Get zones (using location field since zone doesn't exist)
+    zones = list(all_nodes.exclude(location__isnull=True).exclude(location='').values_list('location', flat=True).distinct())
 
     # Build realtime payload for initial data
     realtime_payload = {
@@ -2289,7 +2290,7 @@ def api_client_reports(request):
     
     if node_id and node_id != 'all':
         try:
-            readings_qs = readings_qs.filter(node__id=int(node_filter))
+            readings_qs = readings_qs.filter(node__id=int(node_id))
         except (ValueError, TypeError):
             pass
     
@@ -2372,7 +2373,7 @@ def api_client_reports(request):
         report_type = 'Monthly'
 
     response_data = {
-        'nodes': nodes_response,
+        'nodes': [],
         'avg_aqi': avg_aqi,
         'peak_aqi': peak_aqi,
         'peak_level': peak_reading.aqi_level if peak_reading else None,
@@ -3526,10 +3527,10 @@ def api_realtime_data(request):
             time_start = now - timedelta(minutes=15)
 
         # Get all active nodes
-        all_nodes = SensorNode.objects.filter(is_active=True).select_related('zone')
+        all_nodes = SensorNode.objects.filter(is_active=True)
 
-        # Get zones list
-        zones = list(all_nodes.exclude(zone__isnull=True).exclude(zone='').values_list('zone', flat=True).distinct())
+        # Get zones list (using location field since zone doesn't exist)
+        zones = list(all_nodes.exclude(location__isnull=True).exclude(location='').values_list('location', flat=True).distinct())
 
         # Get readings within time range
         readings_qs = SensorReading.objects.filter(
@@ -3554,7 +3555,7 @@ def api_realtime_data(request):
                 node_item = {
                     'node_id': node.id,
                     'name': node.name,
-                    'zone': node.zone or node.location or 'Unknown',
+                    'zone': getattr(node, 'zone', None) or node.location or 'Unknown',
                     'location': node.location or '',
                     'status': node.status or 'inactive',
                     'aqi': node_aqi,
