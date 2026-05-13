@@ -385,6 +385,12 @@
             .cdashboard-wrapper > div { grid-column: span 12 !important; }
             .cd-time-context-block { grid-template-columns: 1fr; }
         }
+        .cd-alert-critical { color: var(--cd-red) !important; }
+        .cd-alert-warning { color: var(--cd-yellow) !important; }
+        .cd-alert-ok { color: var(--cd-green) !important; }
+        .cd-metric-critical { color: var(--cd-red) !important; }
+        .cd-metric-warning { color: var(--cd-yellow-text) !important; }
+        .cd-metric-ok { color: var(--cd-text-muted) !important; }
     </style>
 
     <div class="cdashboard-wrapper">
@@ -430,7 +436,7 @@
                     <div>Active: <span>{{ system_health.active_nodes }} / {{ system_health.total_nodes }}</span></div>
                     <div>
                         Alerts:
-                        <span style="color: {% if severity_counts.critical > 0 %}var(--cd-red){% elif severity_counts.warning > 0 %}var(--cd-yellow){% else %}var(--cd-green){% endif %};">
+                        <span class="{% if severity_counts.critical > 0 %}cd-alert-critical{% elif severity_counts.warning > 0 %}cd-alert-warning{% else %}cd-alert-ok{% endif %}">
                             {% if severity_counts.critical > 0 %}
                                 {{ severity_counts.critical }} Critical
                             {% elif severity_counts.warning > 0 %}
@@ -767,14 +773,12 @@
                         data-tooltip="{{ active_count }} active, {{ inactive_count }} offline out of {{ total_nodes }} total">
                         {# Active portion #}
                         {% if active_count > 0 %}
-                        <div class="cd-progress-fill good"
-                            style="width: {% widthratio active_count total_nodes 100 %}%;">
+                        <div class="cd-progress-fill good" data-width="{% widthratio active_count total_nodes 100 %}">
                         </div>
                         {% endif %}
                         {# Offline portion #}
                         {% if inactive_count > 0 %}
-                        <div class="cd-progress-fill offline"
-                            style="width: {% widthratio inactive_count total_nodes 100 %}%;">
+                        <div class="cd-progress-fill offline" data-width="{% widthratio inactive_count total_nodes 100 %}">
                         </div>
                         {% endif %}
                     </div>
@@ -969,13 +973,13 @@
             <div class="cdashboard-card-body">
                 <div class="cd-metric-row">
                     <span class="cd-metric-label">Critical</span>
-                    <span class="cd-metric-val" style="color: {% if severity_counts.critical > 0 %}var(--cd-red){% else %}var(--cd-text-muted){% endif %};">
+                    <span class="cd-metric-val {% if severity_counts.critical > 0 %}cd-metric-critical{% else %}cd-metric-ok{% endif %}">
                         {{ severity_counts.critical|default:"0" }}
                     </span>
                 </div>
                 <div class="cd-metric-row">
                     <span class="cd-metric-label">Warnings</span>
-                    <span class="cd-metric-val" style="color: {% if severity_counts.warning > 0 %}var(--cd-yellow-text){% else %}var(--cd-text-muted){% endif %};">
+                    <span class="cd-metric-val {% if severity_counts.warning > 0 %}cd-metric-warning{% else %}cd-metric-ok{% endif %}">
                         {{ severity_counts.warning|default:"0" }}
                     </span>
                 </div>
@@ -1027,6 +1031,11 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        // Set progress bar widths from data attributes
+        document.querySelectorAll('.cd-progress-fill[data-width]').forEach(function(el) {
+            el.style.width = el.dataset.width + '%';
+        });
+
         function toggleFloatingMenu() {
             const menu = document.getElementById('floatingMenu');
             const overlay = document.getElementById('floatingOverlay');
