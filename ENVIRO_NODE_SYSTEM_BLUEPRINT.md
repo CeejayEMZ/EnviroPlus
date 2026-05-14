@@ -1,8 +1,25 @@
 # 🌍 EnviroNode System Blueprint
 
-**Last Updated:** April 30, 2026 (Stability & Debug Phase)  
-**Status:** Production-Ready + Hardened (Phase 3.1 - Debug & Optimize)  
-**Framework:** Django 5.2 + Leaflet.js 1.9.4 + ESP8266 IoT
+**Last Updated:** May 14, 2026 (Full Architecture Audit & Documentation Refresh)  
+**Status:** Production-Ready + Feature-Rich (Phase 4 - Complete System Audit)  
+**Framework:** Django 5.2 + Leaflet.js 1.9.4 + Chart.js + Groq AI + APScheduler
+
+---
+
+## 🔍 Last Architecture Scan Summary (May 14, 2026)
+
+**Audit Scope:** Complete codebase analysis including backend (Django), frontend (JavaScript), databases, APIs, background jobs, AI integration, and deployment configuration.
+
+**Key Findings:**
+- ✅ **Comprehensive API Surface:** 40+ endpoints covering sensor ingestion, analytics, user management, realtime data, and AI
+- ✅ **Real-time Systems:** Poll-based realtime (5s interval) with WebSocket placeholders, alert deduplication, and stateful updates
+- ✅ **Advanced Analytics:** Temporal aggregation (minute/hourly/daily), spike detection, trend analysis, and system health metrics
+- ✅ **Production Features:** APScheduler for background jobs, Groq AI integration, email service, and comprehensive logging
+- ✅ **Optimizations:** In-memory API caching (45-60s TTL), marker clustering, debounced filters, request deduplication
+- ✅ **Security:** CSRF exemption for ESP8266 only, role-based access control (RBAC), Django auth system, user approval workflow
+- ✅ **Database Health:** Strategic indexes on timestamp and node fields, efficient ORM queries with select_related/prefetch_related
+- ✅ **Frontend Modules:** 15+ JavaScript modules for realtime, analytics, dashboards, maps, and user management
+- ✅ **Missing/Planned:** WebSocket implementation (currently polling-based), bulk data export, mobile optimization
 
 ---
 
@@ -13,13 +30,20 @@
 3. [Core Components](#core-components)
 4. [Database Models](#database-models)
 5. [Data Flow](#data-flow)
-6. [API Endpoints](#api-endpoints)
-7. [Frontend Architecture](#frontend-architecture)
-8. [Shared Modules](#shared-modules)
-9. [File-by-File Breakdown](#file-by-file-breakdown)
-10. [System Rules (DO NOT BREAK)](#system-rules-do-not-break)
-11. [Extensibility Guidelines](#extensibility-guidelines)
-12. [Production Hardening (Phase 3)](#-production-hardening-phase-3--april-30-2026)
+6. [API Endpoints (Complete Reference)](#api-endpoints-complete-reference)
+7. [Frontend Architecture & JavaScript Modules](#frontend-architecture--javascript-modules)
+8. [Real-time & Polling Systems](#real-time--polling-systems)
+9. [Analytics System Architecture](#analytics-system-architecture)
+10. [Background Jobs & Scheduler](#background-jobs--scheduler)
+11. [AI Integration (Groq)](#ai-integration-groq)
+12. [File-by-File Breakdown](#file-by-file-breakdown)
+13. [Database Optimizations](#database-optimizations)
+14. [Performance Analysis & Recommendations](#performance-analysis--recommendations)
+15. [Security Audit & Findings](#security-audit--findings)
+16. [Developer Notes & Debugging](#developer-notes--debugging)
+17. [Production Deployment](#production-deployment)
+18. [System Rules (DO NOT BREAK)](#system-rules-do-not-break)
+19. [Known Limitations & Roadmap](#known-limitations--roadmap)
 
 ---
 
