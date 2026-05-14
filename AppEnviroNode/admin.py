@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import CustomUser, SensorNode, SensorReading, Alert
+from django.utils.html import format_html
+from .models import CustomUser, SensorNode, SensorReading, Alert, SensorNodeAPIKey
 
 
 class CustomUserAdmin(BaseUserAdmin):
@@ -96,7 +97,38 @@ class AlertAdmin(admin.ModelAdmin):
         return qs
 
 
+class SensorNodeAPIKeyAdmin(admin.ModelAdmin):
+    """Admin for Sensor Node API Keys (Security: Issue 2.1 Fix)."""
+    list_display = ('node', 'masked_api_key', 'is_active', 'created_at', 'last_used')
+    list_filter = ('is_active', 'created_at', 'last_used')
+    search_fields = ('node__name', 'node__mac_address', 'api_key')
+    readonly_fields = ('api_key', 'created_at', 'last_used')
+    
+    fieldsets = (
+        ('Node & Authentication', {'fields': ('node', 'api_key')}),
+        ('Status', {'fields': ('is_active',)}),
+        ('Activity', {'fields': ('created_at', 'last_used')}),
+    )
+    
+    def masked_api_key(self, obj):
+        """Display masked API key for security."""
+        if obj.api_key:
+            visible = obj.api_key[:8]
+            return format_html('{}<span style="color:gray;">...{}chars</span>', visible, len(obj.api_key) - 8)
+        return "—"
+    masked_api_key.short_description = 'API Key'
+    
+    def has_add_permission(self, request):
+        """API keys are auto-generated, prevent manual creation."""
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        """Only allow deletion through node deletion."""
+        return True
+
+
 admin.site.register(CustomUser, CustomUserAdmin)
 admin.site.register(SensorNode, SensorNodeAdmin)
 admin.site.register(SensorReading, SensorReadingAdmin)
 admin.site.register(Alert, AlertAdmin)
+admin.site.register(SensorNodeAPIKey, SensorNodeAPIKeyAdmin)

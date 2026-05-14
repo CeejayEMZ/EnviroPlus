@@ -3,6 +3,7 @@ from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from datetime import timedelta
 import json
+import secrets
 
 class CustomUser(AbstractUser):
     """Extended User model with role and organization fields."""
@@ -350,3 +351,29 @@ class AdminActionLog(models.Model):
     def __str__(self):
         user_str = self.user.username if self.user else "System"
         return f"{user_str} - {self.get_action_display()}"
+
+
+class SensorNodeAPIKey(models.Model):
+    """API authentication tokens for ESP8266 sensor nodes (fixes security issue 2.1)."""
+    node = models.OneToOneField(SensorNode, on_delete=models.CASCADE, related_name='api_key', help_text="Associated sensor node")
+    api_key = models.CharField(max_length=50, unique=True, db_index=True, help_text="Unique API key for authentication")
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used = models.DateTimeField(null=True, blank=True, help_text="Last time this key was used")
+    is_active = models.BooleanField(default=True, help_text="API key is active")
+    
+    class Meta:
+        verbose_name = 'Sensor Node API Key'
+        verbose_name_plural = 'Sensor Node API Keys'
+        indexes = [
+            models.Index(fields=['api_key']),
+            models.Index(fields=['node']),
+        ]
+    
+    def save(self, *args, **kwargs):
+        """Generate API key on creation."""
+        if not self.api_key:
+            self.api_key = secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"API Key for {self.node.name}"
