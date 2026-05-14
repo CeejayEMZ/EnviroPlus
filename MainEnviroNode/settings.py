@@ -163,40 +163,43 @@ SECURE_SSL_REDIRECT = False  # Set True in production with HTTPS
 SECURE_HSTS_SECONDS = 31536000
 
 # ============================================
-# EMAIL CONFIGURATION
+# EMAIL CONFIGURATION - SENDGRID
 # ============================================
 
-import os
-import certifi
-import ssl
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 
-# Gmail SMTP Configuration (production)
-# Development: Set EMAIL_BACKEND=console to print emails to terminal
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '').strip()
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '').strip()
+# For LOCAL TESTING WITH REAL EMAILS: Force SendGrid backend
+# Set USE_SENDGRID_LOCALLY to True in .env to test with real SendGrid
+USE_SENDGRID_LOCALLY = os.getenv("USE_SENDGRID_LOCALLY", "False") == "True"
 
-# SSL Certificate verification (for Gmail SMTP on production)
-EMAIL_SSL_CERTFILE = certifi.where()
+if DEBUG and not USE_SENDGRID_LOCALLY:
+    # Local development - emails print to terminal only
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    print("✅ EMAIL: Using Console Backend (DEBUG=True, emails printed to terminal)")
+    print("   Set USE_SENDGRID_LOCALLY=True in .env to send real emails via SendGrid")
+elif USE_SENDGRID_LOCALLY or not DEBUG:
+    # Use SendGrid (either forced locally or in production)
+    if SENDGRID_API_KEY:
+        EMAIL_BACKEND = "sgbackend.SendGridBackend"
+        env_type = "Production" if not DEBUG else "Local Testing"
+        print(f"✅ EMAIL: Using SendGrid Backend ({env_type})")
+    else:
+        # Fallback if API key missing
+        EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+        import warnings
+        warnings.warn(
+            "⚠️ SENDGRID_API_KEY not set! Falling back to console backend. "
+            "Set SENDGRID_API_KEY in .env or Render environment variables."
+        )
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-# Email timeout (in seconds) - prevents hanging on slow connections
-EMAIL_TIMEOUT = 10
+# Email sender configuration
+DEFAULT_FROM_EMAIL = "noreply@webenvironode.com"
+SERVER_EMAIL = "server@webenvironode.com"  # For error emails
 
-# Warn if credentials missing
-if not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD:
-    import warnings
-    warnings.warn(
-        "⚠️ EMAIL_HOST_USER and EMAIL_HOST_PASSWORD not set! "
-        "Email sending will fail. Set environment variables for Gmail SMTP. "
-        "See GMAIL_SMTP_SETUP.md for setup instructions."
-    )
-
-# Default sender email address
-DEFAULT_FROM_EMAIL = 'noreply@environode.com'
-SERVER_EMAIL = 'server@environode.com'  # For error emails
+# SendGrid settings (only used when using SendGrid backend)
+SENDGRID_SANDBOX_MODE_IN_DEBUG = False
 
 # Frontend base URL for email links (activation, password reset)
 # Use environment variable for flexibility across environments:
@@ -209,30 +212,5 @@ FRONTEND_BASE_URL = os.getenv('FRONTEND_BASE_URL', 'http://127.0.0.1:8000')
 PASSWORD_RESET_TIMEOUT = 3600 * 24 * 7  # 7 days in seconds
 # Note: Django user activation tokens also use PASSWORD_RESET_TIMEOUT by default
 
-# Email logging configuration (for debugging)
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
-        'file': {
-            'class': 'logging.FileHandler',
-            'filename': 'email_debug.log',
-        },
-    },
-    'loggers': {
-        'AppEnviroNode.services': {
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
-        },
-    },
-}
-
-#LOGGING['loggers']['django.db.backends'] = {'handlers': ['console'],'level': 'DEBUG',}
-
 # AI Configuration
-GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')  
-
-
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')

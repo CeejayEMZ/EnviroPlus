@@ -2714,12 +2714,13 @@ def api_sensor_data(request):
         data = json.loads(body_str)
         mac_address = data.get('mac_address', '').strip()
         
-        # Validate MAC address format
+        # Validate MAC address format (accepts both standard MAC and custom identifiers like ENVIRONODE_XXX)
         import re
-        if not re.match(r'^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$', mac_address):
+        # Match either: AA:BB:CC:DD:EE:FF or custom identifiers like ENVIRONODE_001
+        if not re.match(r'^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$|^[A-Za-z0-9_-]+$', mac_address):
             return JsonResponse({
                 'success': False,
-                'message': 'Invalid MAC address format. Expected: AA:BB:CC:DD:EE:FF'
+                'message': 'Invalid MAC address format. Expected: AA:BB:CC:DD:EE:FF or custom identifier like ENVIRONODE_001'
             }, status=400)
         
         # ✅ VERIFY MAC ADDRESS MATCHES REGISTERED NODE (prevents spoofing)

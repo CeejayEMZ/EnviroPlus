@@ -195,7 +195,7 @@ CSRF_COOKIE_SECURE = False  # ⚠️ Not set
 **Recommendation:**
 ```python
 # Production settings.py
-DEBUG = False
+DEBUG = Falses
 ALLOWED_HOSTS = ['yourdomain.com', 'www.yourdomain.com']
 SESSION_COOKIE_AGE = 3600  # 1 hour max
 SESSION_COOKIE_SECURE = True  # HTTPS only
