@@ -155,16 +155,20 @@ LOGOUT_REDIRECT_URL = 'app:index'
 
 # Session configuration
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_AGE = 1209600  # 2 weeks
+SESSION_COOKIE_AGE = 3600  # 1hr
 SESSION_COOKIE_SECURE = False  # Set True in production with HTTPS
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SECURE = False  # Set True in production with HTTPS
+SECURE_SSL_REDIRECT = False  # Set True in production with HTTPS
+SECURE_HSTS_SECONDS = 31536000
 
 # ============================================
 # EMAIL CONFIGURATION
 # ============================================
 
 import os
+import certifi
+import ssl
 
 # Gmail SMTP Configuration (production)
 # Development: Set EMAIL_BACKEND=console to print emails to terminal
@@ -172,8 +176,14 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '').strip()
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '').strip()
+
+# SSL Certificate verification (for Gmail SMTP on production)
+EMAIL_SSL_CERTFILE = certifi.where()
+
+# Email timeout (in seconds) - prevents hanging on slow connections
+EMAIL_TIMEOUT = 10
 
 # Warn if credentials missing
 if not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD:
@@ -181,7 +191,7 @@ if not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD:
     warnings.warn(
         "⚠️ EMAIL_HOST_USER and EMAIL_HOST_PASSWORD not set! "
         "Email sending will fail. Set environment variables for Gmail SMTP. "
-        "See EMAIL_SYSTEM_IMPLEMENTATION.md for setup instructions."
+        "See GMAIL_SMTP_SETUP.md for setup instructions."
     )
 
 # Default sender email address
