@@ -119,6 +119,40 @@ class SensorReading(models.Model):
         null=True,
     )
     
+    # Gas Quality Fields (computed from mq135_raw or BME680)
+    gas_quality = models.CharField(
+        max_length=20,
+        choices=[
+            ('normal', 'Normal'),
+            ('good', 'Good'),
+            ('moderate', 'Moderate'),
+            ('poor', 'Poor'),
+            ('critical', 'Critical'),
+            ('unknown', 'Unknown'),
+        ],
+        default='normal',
+        help_text="Computed gas quality from MQ135 sensor or BME680 gas resistance"
+    )
+    
+    pollution_source = models.CharField(
+        max_length=50,
+        default='unknown',
+        help_text="Inferred pollution source (e.g., traffic, industrial, biomass, unknown)"
+    )
+    
+    gas_alert = models.BooleanField(
+        default=False,
+        null=True,
+        help_text="Gas quality alert triggered (high pollution detected)"
+    )
+    
+    # Raw MQ135 value from ESP8266 (for gas calculations)
+    mq135_raw = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Raw MQ135 sensor value (0-1024) or -1 if unavailable"
+    )
+    
     # System Health & Sensor Status Fields (NEW)
     system_status = models.CharField(
         max_length=20,
@@ -167,10 +201,19 @@ class SensorReading(models.Model):
         return f"{self.node.name} - {self.timestamp}"
     
     def save(self, *args, **kwargs):
-        """Calculate AQI before saving."""
+        """Calculate AQI and ensure gas fields have safe defaults."""
         if self.pm2_5 is not None:
             from .utils import calculate_aqi
             self.aqi, self.aqi_level = calculate_aqi(self.pm2_5)
+        
+        # Defensive: ensure gas fields never NULL (database constraint safety)
+        if self.gas_quality is None:
+            self.gas_quality = 'normal'
+        if self.pollution_source is None:
+            self.pollution_source = 'unknown'
+        if self.gas_alert is None:
+            self.gas_alert = False
+            
         super().save(*args, **kwargs)
 
 

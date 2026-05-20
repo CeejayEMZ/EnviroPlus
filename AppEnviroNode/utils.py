@@ -98,6 +98,158 @@ def get_aqi_health_advice(aqi_level):
     return advice_map.get(aqi_level, 'Unknown air quality level')
 
 
+def calculate_gas_quality(mq135_raw=None, gas_resistance=None):
+    """
+    Calculate gas quality from MQ135 raw sensor value or BME680 gas resistance.
+    
+    MQ135 Sensor:
+    - Raw value 0-1024 (analog reading)
+    - Lower values = higher pollution (lower resistance)
+    - -1 or None = sensor unavailable
+    
+    BME680 Gas Resistance:
+    - Measured in kΩ
+    - Lower values = higher pollution (lower air quality)
+    
+    Returns:
+        tuple: (gas_quality_level, pollution_source, gas_alert)
+            - gas_quality_level: 'normal', 'good', 'moderate', 'poor', 'critical', 'unknown'
+            - pollution_source: 'traffic', 'industrial', 'biomass', 'unknown'
+            - gas_alert: True if critical, False otherwise
+    """
+    import logging
+    logger = logging.getLogger('environode')
+    
+    # Defensive fallback: treat None/0 as "no reading available"
+    if mq135_raw is None:
+        mq135_raw = -1
+    if mq135_raw < 0:
+        mq135_raw = -1
+    
+    # Log incoming values for debugging
+    logger.debug(f"[Gas Calc] mq135_raw={mq135_raw}, gas_resistance={gas_resistance}")
+    
+    # Default: no gas data available
+    if mq135_raw == -1 and (gas_resistance is None or gas_resistance <= 0):
+        logger.debug("[Gas Calc] No gas data available, using defaults")
+        return 'normal', 'unknown', False
+    
+    # Prefer MQ135 if available
+    if mq135_raw > 0:
+        # MQ135 calibration: 
+        # 0-200: Very high pollution (critical)
+        # 200-400: High pollution (poor)
+        # 400-600: Moderate pollution (moderate)
+        # 600-800: Good air (good)
+        # 800-1024: Very good air (normal)
+        
+        if mq135_raw < 200:
+            quality = 'critical'
+            source = 'industrial'
+            alert = True
+        elif mq135_raw < 400:
+            quality = 'poor'
+            source = 'traffic'
+            alert = True
+        elif mq135_raw < 600:
+            quality = 'moderate'
+            source = 'traffic'
+            alert = False
+        elif mq135_raw < 800:
+            quality = 'good'
+            source = 'unknown'
+            alert = False
+        else:
+            quality = 'normal'
+            source = 'unknown'
+            alert = False
+        
+        logger.debug(f"[Gas Calc] Using MQ135: quality={quality}, source={source}, alert={alert}")
+        return quality, source, alert
+    
+    # Fallback to BME680 gas resistance
+    if gas_resistance is not None and gas_resistance > 0:
+        # Gas resistance calibration (kΩ):
+        # 0-5: Very high pollution (critical)
+        # 5-10: High pollution (poor)
+        # 10-20: Moderate pollution (moderate)
+        # 20-50: Good air (good)
+        # 50+: Very good air (normal)
+        
+        if gas_resistance < 5:
+            quality = 'critical'
+            source = 'industrial'
+            alert = True
+        elif gas_resistance < 10:
+            quality = 'poor'
+            source = 'traffic'
+            alert = True
+        elif gas_resistance < 20:
+            quality = 'moderate'
+            source = 'traffic'
+            alert = False
+        elif gas_resistance < 50:
+            quality = 'good'
+            source = 'unknown'
+            alert = False
+        else:
+            quality = 'normal'
+            source = 'unknown'
+            alert = False
+        
+        logger.debug(f"[Gas Calc] Using gas_resistance: quality={quality}, source={source}, alert={alert}")
+        return quality, source, alert
+    
+    # Final fallback
+    logger.debug("[Gas Calc] No valid gas data, using defaults")
+    return 'normal', 'unknown', False
+
+
+def infer_pollution_source(aqi_level, gas_quality, pm2_5=None, pm10=None, temperature=None, humidity=None):
+    """
+    Infer pollution source based on AQI level and gas quality measurements.
+    
+    Args:
+        aqi_level: AQI category from PM measurements
+        gas_quality: Gas quality level
+        pm2_5: PM2.5 concentration
+        pm10: PM10 concentration
+        temperature: Temperature (°C)
+        humidity: Humidity (%)
+    
+    Returns:
+        str: Inferred pollution source ('traffic', 'industrial', 'biomass', 'unknown')
+    """
+    import logging
+    logger = logging.getLogger('environode')
+    
+    # If gas measurement is poor/critical, likely to be industrial or traffic
+    if gas_quality in ['critical', 'poor']:
+        # Check PM2.5/PM10 ratio to distinguish
+        if pm2_5 is not None and pm10 is not None and pm10 > 0:
+            ratio = pm2_5 / pm10
+            if ratio > 0.5:
+                logger.debug(f"[Pollution Source] High PM2.5/PM10 ratio ({ratio:.2f}) suggests traffic")
+                return 'traffic'
+            else:
+                logger.debug(f"[Pollution Source] Low PM2.5/PM10 ratio ({ratio:.2f}) suggests industrial or biomass")
+                return 'industrial'
+        
+        # Default to traffic if PM ratio unclear
+        logger.debug("[Pollution Source] Poor gas quality, defaulting to traffic")
+        return 'traffic'
+    
+    # Moderate pollution might be biomass (seasonal burning)
+    if gas_quality == 'moderate' and temperature is not None and humidity is not None:
+        # Biomass burning often occurs in warm, dry conditions
+        if temperature > 25 and humidity < 60:
+            logger.debug("[Pollution Source] Warm, dry conditions suggest possible biomass burning")
+            return 'biomass'
+    
+    logger.debug("[Pollution Source] No clear source detected, marking as unknown")
+    return 'unknown'
+
+
 def get_pm2_5_category(pm2_5):
     """
     Quick lookup for PM2.5 category without calculating full AQI.
