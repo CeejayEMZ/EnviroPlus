@@ -75,13 +75,7 @@ class EmailService:
             logger.error(error_msg)
             print(f"ERROR: {error_msg}", file=sys.stderr)
             
-            # Add debugging for SendGrid-specific errors
-            if "403" in str(e):
-                debug_hint = "This is likely a sender verification issue. Verify your sender email in SendGrid dashboard."
-            elif "401" in str(e) or "authentication" in str(e).lower():
-                debug_hint = "API key issue. Check SENDGRID_API_KEY in .env file."
-            else:
-                debug_hint = str(e)
+            debug_hint = str(e)
             
             return {
                 'success': False,
