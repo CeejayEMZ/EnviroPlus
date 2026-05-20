@@ -119,6 +119,39 @@ class SensorReading(models.Model):
         null=True,
     )
     
+    # Gas Quality Fields (computed from mq135_raw or BME680)
+    gas_quality = models.CharField(
+        max_length=20,
+        choices=[
+            ('normal', 'Normal'),
+            ('good', 'Good'),
+            ('moderate', 'Moderate'),
+            ('poor', 'Poor'),
+            ('critical', 'Critical'),
+            ('unknown', 'Unknown'),
+        ],
+        default='normal',
+        help_text="Computed gas quality from MQ135 sensor or BME680 gas resistance"
+    )
+    
+    pollution_source = models.CharField(
+        max_length=50,
+        default='unknown',
+        help_text="Inferred pollution source (e.g., traffic, industrial, biomass, unknown)"
+    )
+    
+    gas_alert = models.BooleanField(
+        default=False,
+        help_text="Gas quality alert triggered (high pollution detected)"
+    )
+    
+    # Raw MQ135 value from ESP8266 (for gas calculations)
+    mq135_raw = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Raw MQ135 sensor value (0-1024) or -1 if unavailable"
+    )
+    
     # System Health & Sensor Status Fields (NEW)
     system_status = models.CharField(
         max_length=20,

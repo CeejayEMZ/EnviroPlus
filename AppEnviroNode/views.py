@@ -2752,6 +2752,25 @@ def api_sensor_data(request):
             pressure = validate_sensor_value(data.get('pressure'), 300, 1100, "Pressure")
             gas_resistance = validate_sensor_value(data.get('gas_resistance'), 0, 1000000, "Gas Resistance")
             latency_ms = validate_sensor_value(data.get('latency_ms'), 0, 60000, "Latency")
+            
+            # 🔧 DEFENSIVE: Validate MQ135 raw value with fallback
+            mq135_raw = data.get('mq135_raw')
+            if mq135_raw is None:
+                mq135_raw = -1
+            else:
+                try:
+                    mq135_raw = int(mq135_raw)
+                    # Clamp to valid range (0-1024) or mark as unavailable (-1)
+                    if mq135_raw < -1:
+                        mq135_raw = -1
+                    elif mq135_raw > 1024:
+                        mq135_raw = 1024
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid mq135_raw value: {data.get('mq135_raw')}, using fallback -1")
+                    mq135_raw = -1
+            
+            logger.debug(f"[API] Incoming sensor data: pm2_5={pm2_5}, mq135_raw={mq135_raw}, gas_resistance={gas_resistance}")
+            
         except ValueError as e:
             return JsonResponse({
                 'success': False,
@@ -2774,11 +2793,36 @@ def api_sensor_data(request):
         if bme_status not in valid_sensor_statuses:
             bme_status = 'ok'
         
+        # 🔧 CALCULATE GAS QUALITY FIELDS (never leave null)
+        from .utils import calculate_gas_quality, infer_pollution_source, calculate_aqi
+        
+        gas_quality_level, gas_source, gas_alert_flag = calculate_gas_quality(
+            mq135_raw=mq135_raw if mq135_raw >= 0 else None,
+            gas_resistance=gas_resistance
+        )
+        
+        # Infer pollution source from multiple factors
+        if pm2_5 is not None:
+            aqi_level, _ = calculate_aqi(pm2_5)  # Get AQI level from PM2.5
+        else:
+            aqi_level = None
+        
+        pollution_source = infer_pollution_source(
+            aqi_level=aqi_level,
+            gas_quality=gas_quality_level,
+            pm2_5=pm2_5,
+            pm10=pm10,
+            temperature=temperature,
+            humidity=humidity
+        )
+        
+        logger.debug(f"[API] Computed gas fields: quality={gas_quality_level}, source={pollution_source}, alert={gas_alert_flag}")
+        
         # Node is already verified by API key, update status to active
         if authenticated_node.status != 'active':
             authenticated_node.status = 'active'
         
-        # Create sensor reading
+        # Create sensor reading with ALL fields including gas fields (NEVER NULL)
         reading = SensorReading.objects.create(
             node=authenticated_node,
             pm1_0=pm1_0,
@@ -2788,6 +2832,10 @@ def api_sensor_data(request):
             humidity=humidity,
             pressure=pressure,
             gas_resistance=gas_resistance,
+            mq135_raw=mq135_raw if mq135_raw >= 0 else None,  # Store raw value for debugging
+            gas_quality=gas_quality_level,  # ✅ ALWAYS SET - never null
+            pollution_source=pollution_source,  # ✅ ALWAYS SET - never null
+            gas_alert=gas_alert_flag,  # ✅ ALWAYS SET - never null
             system_status=system_status,
             pms_status=pms_status,
             bme_status=bme_status,
@@ -2800,7 +2848,10 @@ def api_sensor_data(request):
         authenticated_node.last_seen = timezone.now()
         authenticated_node.save()
         
-        logger.info(f"Reading recorded: node={authenticated_node.name}, reading_id={reading.id}, aqi={reading.aqi}")
+        logger.info(
+            f"Reading recorded: node={authenticated_node.name}, reading_id={reading.id}, "
+            f"aqi={reading.aqi}, gas_quality={reading.gas_quality}, gas_alert={reading.gas_alert}"
+        )
         
         return JsonResponse({
             'success': True,
@@ -2810,6 +2861,9 @@ def api_sensor_data(request):
             'node_status': authenticated_node.status,
             'aqi': reading.aqi,
             'aqi_level': reading.aqi_level,
+            'gas_quality': reading.gas_quality,
+            'gas_alert': reading.gas_alert,
+            'pollution_source': reading.pollution_source,
         }, status=201)
         
     except json.JSONDecodeError as e:

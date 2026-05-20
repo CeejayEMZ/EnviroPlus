@@ -888,8 +888,9 @@ class EnviroMapController {
     this.map = L.map(this.mapId, { zoomControl: false })
       .setView([this.initialLat, this.initialLng], this.initialZoom);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: '&copy; Esri'
     }).addTo(this.map);
 
     this.unifiedControl = new UnifiedMapControl({ position: 'bottomleft' });
