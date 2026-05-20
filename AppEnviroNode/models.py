@@ -142,6 +142,7 @@ class SensorReading(models.Model):
     
     gas_alert = models.BooleanField(
         default=False,
+        null=True,
         help_text="Gas quality alert triggered (high pollution detected)"
     )
     
@@ -200,10 +201,19 @@ class SensorReading(models.Model):
         return f"{self.node.name} - {self.timestamp}"
     
     def save(self, *args, **kwargs):
-        """Calculate AQI before saving."""
+        """Calculate AQI and ensure gas fields have safe defaults."""
         if self.pm2_5 is not None:
             from .utils import calculate_aqi
             self.aqi, self.aqi_level = calculate_aqi(self.pm2_5)
+        
+        # Defensive: ensure gas fields never NULL (database constraint safety)
+        if self.gas_quality is None:
+            self.gas_quality = 'normal'
+        if self.pollution_source is None:
+            self.pollution_source = 'unknown'
+        if self.gas_alert is None:
+            self.gas_alert = False
+            
         super().save(*args, **kwargs)
 
 
