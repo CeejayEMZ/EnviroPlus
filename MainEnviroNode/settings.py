@@ -163,43 +163,20 @@ SECURE_SSL_REDIRECT = False  # Set True in production with HTTPS
 SECURE_HSTS_SECONDS = 31536000
 
 # ============================================
-# EMAIL CONFIGURATION - SENDGRID
+# EMAIL CONFIGURATION - Brevo SMTP
 # ============================================
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp-relay.brevo.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.getenv('BREVO_SMTP_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('BREVO_SMTP_PASSWORD', '')
+DEFAULT_FROM_EMAIL = 'EnviroNode <environodeembo@gmail.com>'
+SERVER_EMAIL = 'EnviroNode <environodeembo@gmail.com>'
 
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-
-# For LOCAL TESTING WITH REAL EMAILS: Force SendGrid backend
-# Set USE_SENDGRID_LOCALLY to True in .env to test with real SendGrid
-USE_SENDGRID_LOCALLY = os.getenv("USE_SENDGRID_LOCALLY", "False") == "True"
-
-if DEBUG and not USE_SENDGRID_LOCALLY:
-    # Local development - emails print to terminal only
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    print("✅ EMAIL: Using Console Backend (DEBUG=True, emails printed to terminal)")
-    print("   Set USE_SENDGRID_LOCALLY=True in .env to send real emails via SendGrid")
-elif USE_SENDGRID_LOCALLY or not DEBUG:
-    # Use SendGrid (either forced locally or in production)
-    if SENDGRID_API_KEY:
-        EMAIL_BACKEND = "sgbackend.SendGridBackend"
-        env_type = "Production" if not DEBUG else "Local Testing"
-        print(f"✅ EMAIL: Using SendGrid Backend ({env_type})")
-    else:
-        # Fallback if API key missing
-        EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-        import warnings
-        warnings.warn(
-            "⚠️ SENDGRID_API_KEY not set! Falling back to console backend. "
-            "Set SENDGRID_API_KEY in .env or Render environment variables."
-        )
-else:
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-
-# Email sender configuration
-DEFAULT_FROM_EMAIL = "noreply@webenvironode.com"
-SERVER_EMAIL = "server@webenvironode.com"  # For error emails
-
-# SendGrid settings (only used when using SendGrid backend)
-SENDGRID_SANDBOX_MODE_IN_DEBUG = False
+if not os.getenv('BREVO_SMTP_USER') or not os.getenv('BREVO_SMTP_PASSWORD'):
+    import warnings
+    warnings.warn("⚠️ BREVO_SMTP_USER and BREVO_SMTP_PASSWORD not set! Email sending will fail.")
 
 # Frontend base URL for email links (activation, password reset)
 # Use environment variable for flexibility across environments:
