@@ -51,7 +51,7 @@ class EmailService:
             
             # Debug info
             backend = settings.EMAIL_BACKEND
-            api_key_status = "SET" if settings.SENDGRID_API_KEY else "NOT SET"
+
             log_msg = f"📧 Sending invitation to {user.email} via {backend} (API Key: {api_key_status})"
             logger.info(log_msg)
             print(f"✅ {log_msg}", file=sys.stdout)
