@@ -34,6 +34,12 @@ class EmailService:
             dict: {'success': bool, 'message': str, 'error': str or None}
         """
         try:
+            # Validate email config before attempting to send
+            smtp_user = getattr(settings, 'EMAIL_HOST_USER', '')
+            smtp_pass = getattr(settings, 'EMAIL_HOST_PASSWORD', '')
+            if not smtp_user or not smtp_pass:
+                raise ValueError('Brevo SMTP credentials not configured (EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)')
+            
             subject = 'EnviroNode - Activate Your Account'
             
             context = {
@@ -45,22 +51,28 @@ class EmailService:
                 'expiration_days': 7,
             }
             
-            # Render HTML email
-            html_message = render_to_string('AppEnviroNode/email/invite.html', context)
+            # Render HTML email with exception handling
+            try:
+                html_message = render_to_string('AppEnviroNode/email/invite.html', context)
+            except Exception as template_err:
+                raise ValueError(f'Failed to render invite template: {str(template_err)}')
+            
             plain_message = strip_tags(html_message)
             
-            # Debug info
             logger.info(f"📧 Sending invitation email to {user.email}")
 
-            # Send email
-            send_mail(
-                subject=subject,
-                message=plain_message,
-                from_email=EmailService.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                html_message=html_message,
-                fail_silently=False,
-            )
+            # Send email with improved error handling
+            try:
+                send_mail(
+                    subject=subject,
+                    message=plain_message,
+                    from_email=EmailService.DEFAULT_FROM_EMAIL,
+                    recipient_list=[user.email],
+                    html_message=html_message,
+                    fail_silently=False,
+                )
+            except Exception as smtp_err:
+                raise ValueError(f'Brevo SMTP error: {str(smtp_err)}')
             
             logger.info(f"✅ Invitation email sent to {user.email} (user_id: {user.id})")
             
@@ -72,15 +84,13 @@ class EmailService:
             
         except Exception as e:
             error_msg = f"❌ Failed to send invitation email to {user.email}: {str(e)}"
-            logger.error(error_msg)
+            logger.error(error_msg, exc_info=True)
             print(f"ERROR: {error_msg}", file=sys.stderr)
-            
-            debug_hint = str(e)
             
             return {
                 'success': False,
                 'message': None,
-                'error': f"{error_msg}\n💡 Debug: {debug_hint}"
+                'error': error_msg
             }
     
     @staticmethod
@@ -96,6 +106,12 @@ class EmailService:
             dict: {'success': bool, 'message': str, 'error': str or None}
         """
         try:
+            # Validate email config
+            smtp_user = getattr(settings, 'EMAIL_HOST_USER', '')
+            smtp_pass = getattr(settings, 'EMAIL_HOST_PASSWORD', '')
+            if not smtp_user or not smtp_pass:
+                raise ValueError('Brevo SMTP credentials not configured (EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)')
+            
             subject = 'EnviroNode - Reset Your Password'
             
             context = {
@@ -106,19 +122,26 @@ class EmailService:
                 'expiration_days': 7,
             }
             
-            # Render HTML email
-            html_message = render_to_string('AppEnviroNode/email/password_reset.html', context)
+            # Render HTML email with exception handling
+            try:
+                html_message = render_to_string('AppEnviroNode/email/password_reset.html', context)
+            except Exception as template_err:
+                raise ValueError(f'Failed to render password reset template: {str(template_err)}')
+            
             plain_message = strip_tags(html_message)
             
-            # Send email
-            send_mail(
-                subject=subject,
-                message=plain_message,
-                from_email=EmailService.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                html_message=html_message,
-                fail_silently=False,
-            )
+            # Send email with improved error handling
+            try:
+                send_mail(
+                    subject=subject,
+                    message=plain_message,
+                    from_email=EmailService.DEFAULT_FROM_EMAIL,
+                    recipient_list=[user.email],
+                    html_message=html_message,
+                    fail_silently=False,
+                )
+            except Exception as smtp_err:
+                raise ValueError(f'Brevo SMTP error: {str(smtp_err)}')
             
             logger.info(f"Password reset email sent to {user.email} (user_id: {user.id})")
             
@@ -130,7 +153,7 @@ class EmailService:
             
         except Exception as e:
             error_msg = f"Failed to send password reset email to {user.email}: {str(e)}"
-            logger.error(error_msg)
+            logger.error(error_msg, exc_info=True)
             return {
                 'success': False,
                 'message': None,
@@ -150,6 +173,12 @@ class EmailService:
             dict: {'success': bool, 'message': str, 'error': str or None}
         """
         try:
+            # Validate email config
+            smtp_user = getattr(settings, 'EMAIL_HOST_USER', '')
+            smtp_pass = getattr(settings, 'EMAIL_HOST_PASSWORD', '')
+            if not smtp_user or not smtp_pass:
+                raise ValueError('Brevo SMTP credentials not configured (EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)')
+            
             subject = 'EnviroNode - Password Reset Approved'
             
             context = {
@@ -161,19 +190,26 @@ class EmailService:
                 'status': 'approved',
             }
             
-            # Render HTML email
-            html_message = render_to_string('AppEnviroNode/email/password_reset.html', context)
+            # Render HTML email with exception handling
+            try:
+                html_message = render_to_string('AppEnviroNode/email/password_reset.html', context)
+            except Exception as template_err:
+                raise ValueError(f'Failed to render password reset template: {str(template_err)}')
+            
             plain_message = strip_tags(html_message)
             
-            # Send email
-            send_mail(
-                subject=subject,
-                message=plain_message,
-                from_email=EmailService.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                html_message=html_message,
-                fail_silently=False,
-            )
+            # Send email with improved error handling
+            try:
+                send_mail(
+                    subject=subject,
+                    message=plain_message,
+                    from_email=EmailService.DEFAULT_FROM_EMAIL,
+                    recipient_list=[user.email],
+                    html_message=html_message,
+                    fail_silently=False,
+                )
+            except Exception as smtp_err:
+                raise ValueError(f'Brevo SMTP error: {str(smtp_err)}')
             
             logger.info(f"Password reset approved email sent to {user.email} (user_id: {user.id})")
             
@@ -185,7 +221,7 @@ class EmailService:
             
         except Exception as e:
             error_msg = f"Failed to send password reset approval email to {user.email}: {str(e)}"
-            logger.error(error_msg)
+            logger.error(error_msg, exc_info=True)
             return {
                 'success': False,
                 'message': None,
@@ -205,6 +241,12 @@ class EmailService:
             dict: {'success': bool, 'message': str, 'error': str or None}
         """
         try:
+            # Validate email config
+            smtp_user = getattr(settings, 'EMAIL_HOST_USER', '')
+            smtp_pass = getattr(settings, 'EMAIL_HOST_PASSWORD', '')
+            if not smtp_user or not smtp_pass:
+                raise ValueError('Brevo SMTP credentials not configured (EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)')
+            
             subject = 'EnviroNode - Password Reset Request Denied'
             
             context = {
@@ -228,14 +270,17 @@ Best regards,
 EnviroNode Team
             """
             
-            # Send email
-            send_mail(
-                subject=subject,
-                message=message,
-                from_email=EmailService.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                fail_silently=False,
-            )
+            # Send email with improved error handling
+            try:
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=EmailService.DEFAULT_FROM_EMAIL,
+                    recipient_list=[user.email],
+                    fail_silently=False,
+                )
+            except Exception as smtp_err:
+                raise ValueError(f'Brevo SMTP error: {str(smtp_err)}')
             
             logger.info(f"Password reset denial email sent to {user.email} (user_id: {user.id})")
             
@@ -247,7 +292,7 @@ EnviroNode Team
             
         except Exception as e:
             error_msg = f"Failed to send password reset denial email to {user.email}: {str(e)}"
-            logger.error(error_msg)
+            logger.error(error_msg, exc_info=True)
             return {
                 'success': False,
                 'message': None,

@@ -454,15 +454,13 @@ const Charts = {
     }
     AnalyticsState.lastTrendMetric = AnalyticsState.selectedMetric;
 
-    // Get metric-specific color (use representative value for color mapping)
-    let representativeValue = 50; // Default moderate value
-    if (smoothedData && smoothedData.length > 0) {
-      const firstPoint = smoothedData[0];
-      if (firstPoint && typeof firstPoint.value === 'number') {
-        representativeValue = firstPoint.value;
+    // ⚡ DYNAMIC COLOR MAPPING: Map each data point to its threshold-based color
+    const pointColors = dataPoints.map((value, idx) => {
+      if (value === null || typeof value !== 'number') {
+        return Utils.getColorByMetric(AnalyticsState.selectedMetric, 0);
       }
-    }
-    const lineColor = Utils.getColorByMetric(AnalyticsState.selectedMetric, representativeValue);
+      return Utils.getColorByMetric(AnalyticsState.selectedMetric, value);
+    });
 
     AnalyticsState.charts.trendLine = new Chart(ctx, {
       type: 'line',
@@ -472,15 +470,29 @@ const Charts = {
           {
             label: Utils.getMetricLabel(AnalyticsState.selectedMetric),
             data: dataPoints,
-            borderColor: lineColor,
-            backgroundColor: Utils.hexToRgba(lineColor, 0.1),
-            borderWidth: 2,
+            borderColor: pointColors,
+            backgroundColor: (context) => {
+              const value = context.raw;
+              if (value === null || typeof value !== 'number') return Utils.hexToRgba('#64748b', 0.1);
+              const color = Utils.getColorByMetric(AnalyticsState.selectedMetric, value);
+              return Utils.hexToRgba(color, 0.1);
+            },
+            borderWidth: 2.5,
             fill: true,
             tension: 0.4,
             pointRadius: 2,
-            pointBackgroundColor: lineColor,
+            pointBackgroundColor: pointColors,
             pointBorderColor: '#fff',
             pointBorderWidth: 1,
+            segment: {
+              borderColor: (ctx) => {
+                const value = ctx.p1DataIndex !== undefined ? dataPoints[ctx.p1DataIndex] : null;
+                if (value === null || typeof value !== 'number') {
+                  return Utils.getColorByMetric(AnalyticsState.selectedMetric, 0);
+                }
+                return Utils.getColorByMetric(AnalyticsState.selectedMetric, value);
+              }
+            }
           }
         ]
       },
@@ -660,10 +672,19 @@ const Charts = {
 
     const aqiColor = Utils.getAQIColor(nodeData.aqi_current || 0);
 
-    // Create gradient for AQI (primary)
+    // ⚡ DYNAMIC COLOR MAPPING for AQI: Map each point to its threshold-based color
+    const aqiPointColors = aqiPoints.map((value, idx) => {
+      if (value === null || typeof value !== 'number') {
+        return Utils.getAQIColor(0);
+      }
+      return Utils.getAQIColor(value);
+    });
+
+    // Create gradient for AQI (primary) - now responsive to point colors
     const gradient = ctx.createLinearGradient(0, 0, 0, 100);
-    gradient.addColorStop(0, Utils.hexToRgba(aqiColor, 0.4));
-    gradient.addColorStop(1, Utils.hexToRgba(aqiColor, 0.0));
+    const midColor = aqiPointColors.length > 0 ? aqiPointColors[Math.floor(aqiPointColors.length / 2)] : aqiColor;
+    gradient.addColorStop(0, Utils.hexToRgba(midColor, 0.4));
+    gradient.addColorStop(1, Utils.hexToRgba(midColor, 0.0));
 
     if (AnalyticsState.charts.sparkline) {
       AnalyticsState.charts.sparkline.destroy();
@@ -672,19 +693,36 @@ const Charts = {
     // Build multi-metric dataset array (filtered by sparklineMetrics state)
     const datasets = [];
     
-    // Add AQI if enabled
+    // Add AQI if enabled - with DYNAMIC per-point colors
     if (AnalyticsState.sparklineMetrics.aqi) {
       datasets.push({
         label: 'AQI',
         data: aqiPoints,
-        borderColor: aqiColor,
-        backgroundColor: gradient,
+        borderColor: aqiPointColors,
+        backgroundColor: (context) => {
+          const value = context.raw;
+          if (value === null || typeof value !== 'number') return Utils.hexToRgba('#64748b', 0.1);
+          const color = Utils.getAQIColor(value);
+          return Utils.hexToRgba(color, 0.1);
+        },
         borderWidth: 2.5,
         pointRadius: 1,
         pointHoverRadius: 3,
+        pointBackgroundColor: aqiPointColors,
+        pointBorderColor: '#fff',
+        pointBorderWidth: 1,
         fill: true,
         tension: 0.3,
-        yAxisID: 'y'
+        yAxisID: 'y',
+        segment: {
+          borderColor: (ctx) => {
+            const value = ctx.p1DataIndex !== undefined ? aqiPoints[ctx.p1DataIndex] : null;
+            if (value === null || typeof value !== 'number') {
+              return Utils.getAQIColor(0);
+            }
+            return Utils.getAQIColor(value);
+          }
+        }
       });
     }
 
@@ -879,9 +917,18 @@ const Charts = {
     const spike = highlightedData[highlightIdx];
     const aqiColor = spike && spike.aqi ? '#ef4444' : '#3b82f6';
 
+    // ⚡ DYNAMIC COLOR MAPPING for highlight sparkline: Map each point to its AQI-based color
+    const aqiPointColors = aqiPoints.map((value, idx) => {
+      if (value === null || typeof value !== 'number') {
+        return Utils.getAQIColor(0);
+      }
+      return Utils.getAQIColor(value);
+    });
+
     const gradient = ctx.createLinearGradient(0, 0, 0, 100);
-    gradient.addColorStop(0, Utils.hexToRgba(aqiColor, 0.4));
-    gradient.addColorStop(1, Utils.hexToRgba(aqiColor, 0.0));
+    const midColor = aqiPointColors.length > 0 ? aqiPointColors[Math.floor(aqiPointColors.length / 2)] : aqiColor;
+    gradient.addColorStop(0, Utils.hexToRgba(midColor, 0.4));
+    gradient.addColorStop(1, Utils.hexToRgba(midColor, 0.0));
 
     if (AnalyticsState.charts.sparkline) {
       AnalyticsState.charts.sparkline.destroy();
@@ -891,17 +938,40 @@ const Charts = {
       {
         label: 'AQI',
         data: aqiPoints,
-        borderColor: aqiColor,
-        backgroundColor: gradient,
+        borderColor: (ctx) => {
+          const value = aqiPoints[ctx.dataIndex];
+          if (ctx.dataIndex === highlightIdx) {
+            return '#ef4444'; // Highlight spike point
+          }
+          if (value === null || typeof value !== 'number') {
+            return Utils.getAQIColor(0);
+          }
+          return Utils.getAQIColor(value);
+        },
+        backgroundColor: (context) => {
+          const value = context.raw;
+          if (value === null || typeof value !== 'number') return Utils.hexToRgba('#64748b', 0.1);
+          const color = Utils.getAQIColor(value);
+          return Utils.hexToRgba(color, 0.1);
+        },
         borderWidth: 2.5,
         pointRadius: (idx) => idx === highlightIdx ? 5 : 2,
-        pointBackgroundColor: (ctx) => ctx.dataIndex === highlightIdx ? '#ef4444' : aqiColor,
-        pointBorderColor: (ctx) => ctx.dataIndex === highlightIdx ? '#fff' : aqiColor,
+        pointBackgroundColor: (ctx) => ctx.dataIndex === highlightIdx ? '#ef4444' : aqiPointColors[ctx.dataIndex],
+        pointBorderColor: (ctx) => ctx.dataIndex === highlightIdx ? '#fff' : aqiPointColors[ctx.dataIndex],
         pointBorderWidth: (ctx) => ctx.dataIndex === highlightIdx ? 2 : 0,
         pointHoverRadius: 5,
         fill: true,
         tension: 0.3,
-        yAxisID: 'y'
+        yAxisID: 'y',
+        segment: {
+          borderColor: (ctx) => {
+            const value = ctx.p1DataIndex !== undefined ? aqiPoints[ctx.p1DataIndex] : null;
+            if (value === null || typeof value !== 'number') {
+              return Utils.getAQIColor(0);
+            }
+            return Utils.getAQIColor(value);
+          }
+        }
       }
     ];
 

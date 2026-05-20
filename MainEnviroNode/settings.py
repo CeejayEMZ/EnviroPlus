@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import dj_database_url
+import sys
 
 load_dotenv()
 
@@ -174,9 +175,19 @@ EMAIL_HOST_PASSWORD = os.getenv('BREVO_SMTP_PASSWORD', '')
 DEFAULT_FROM_EMAIL = 'EnviroNode <environodeembo@gmail.com>'
 SERVER_EMAIL = 'EnviroNode <environodeembo@gmail.com>'
 
-if not os.getenv('BREVO_SMTP_USER') or not os.getenv('BREVO_SMTP_PASSWORD'):
+# Email configuration validation
+_email_warnings = []
+if not os.getenv('BREVO_SMTP_USER'):
+    _email_warnings.append("⚠️ BREVO_SMTP_USER not set - email sending will fail")
+if not os.getenv('BREVO_SMTP_PASSWORD'):
+    _email_warnings.append("⚠️ BREVO_SMTP_PASSWORD not set - email sending will fail")
+
+if _email_warnings:
     import warnings
-    warnings.warn("⚠️ BREVO_SMTP_USER and BREVO_SMTP_PASSWORD not set! Email sending will fail.")
+    for warning in _email_warnings:
+        warnings.warn(warning)
+    # Log to stdout for server visibility
+    print(f"[ENVIRON_CONFIG] {' | '.join(_email_warnings)}", file=sys.stderr)
 
 # Frontend base URL for email links (activation, password reset)
 # Use environment variable for flexibility across environments:
