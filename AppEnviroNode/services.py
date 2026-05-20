@@ -50,12 +50,8 @@ class EmailService:
             plain_message = strip_tags(html_message)
             
             # Debug info
-            backend = settings.EMAIL_BACKEND
+            logger.info(f"📧 Sending invitation email to {user.email}")
 
-            log_msg = f"📧 Sending invitation to {user.email} via {backend} (API Key: {api_key_status})"
-            logger.info(log_msg)
-            print(f"✅ {log_msg}", file=sys.stdout)
-            
             # Send email
             send_mail(
                 subject=subject,
