@@ -8,6 +8,32 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
+    /* ANIMATIONS */
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-15px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(15px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes slideInLeft {
+      from { opacity: 0; transform: translateX(-15px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes slideInRight {
+      from { opacity: 0; transform: translateX(15px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes scaleIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.8; }
+    }
+
     :root {
       --aipub-aqi-good: #68c046;
       --aipub-aqi-moderate: #ffef64;
@@ -60,29 +86,43 @@
 
     /* Card Component - Adjusted padding */
     .aipub-card {
-      background-color: #ffffff;
+      background-color: rgba(255, 255, 255, 0.05);
       border-radius: 0.75rem;
       padding: 1rem;
-      border: 1px solid #f1f5f9;
-      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      border: 2px solid rgba(45, 91, 190, 0.25);
+      box-shadow: 0 8px 24px rgba(45, 91, 190, 0.15);
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      animation: fadeInUp 0.6s ease-out;
+    }
+    .aipub-card:hover {
+      border-color: rgba(45, 91, 190, 0.5);
+      box-shadow: 0 12px 32px rgba(45, 91, 190, 0.25);
+      transform: translateY(-4px);
     }
     .aipub-card.dark {
-      background-color: #1e293b;
+      background: linear-gradient(135deg, rgba(30, 41, 82, 0.3) 0%, rgba(45, 91, 190, 0.1) 100%);
       color: #ffffff;
-      border-color: transparent;
+      border-color: rgba(45, 91, 190, 0.3);
     }
 
     /* Info Banner - Navy Blue to match system branding */
     .info-banner {
       width: 100%;
-      background: #e6edf6;
-      border: 1px solid #000e1f;
+      background: linear-gradient(135deg, rgba(45, 91, 190, 0.15) 0%, rgba(59, 130, 246, 0.1) 100%);
+      border: 2px solid rgba(45, 91, 190, 0.3);
       border-radius: 12px;
       padding: 0.85rem 2rem;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.03);
-      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(45, 91, 190, 0.15);
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
       overflow-x: auto;
       white-space: nowrap;
+      animation: fadeInDown 0.6s ease-out;
+    }
+
+    .info-banner:hover {
+      box-shadow: 0 8px 24px rgba(45, 91, 190, 0.25);
+      border-color: rgba(45, 91, 190, 0.5);
+      transform: translateY(-2px);
     }
 
     .banner-content {
@@ -105,7 +145,7 @@
     .banner-icon svg {
       width: 22px;
       height: 22px;
-      stroke: #000e1f;
+      stroke: #60a5fa;
       stroke-width: 1.8;
       fill: none;
       stroke-linecap: round;
@@ -117,15 +157,14 @@
       font-size: 0.95rem;
       font-weight: 400;
       line-height: 1.4;
-      color: #000e1f;
+      color: #e2e8f0;
       letter-spacing: -0.2px;
       white-space: nowrap;
     }
 
     .info-banner:hover {
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.05);
-      border-color:#000e1f;
-      background: #e6edf6;
+      box-shadow: 0 8px 24px rgba(45, 91, 190, 0.25);
+      border-color: rgba(45, 91, 190, 0.5);
     }
 
     @media (max-width: 860px) {
@@ -187,6 +226,7 @@
       align-items: center;
       gap: 0.5rem;
       margin-bottom: 0.75rem;
+      animation: slideInLeft 0.6s ease-out 0.1s both;
     }
     .aipub-card-header i {
       width: 1rem;
@@ -195,11 +235,12 @@
     .aipub-card-title {
       font-size: 0.85rem;
       font-weight: 700;
-      color: #1e293b;
+      color: #e2e8f0;
       margin: 0;
     }
     .aipub-card-title.large {
       font-size: 1rem;
+      color: #ffffff;
     }
     .aipub-card.dark .aipub-card-title {
       color: #ffffff;
@@ -235,7 +276,13 @@
       align-items: center;
       justify-content: center;
       color: #ffffff;
-      box-shadow: 0 2px 4px -1px rgb(0 0 0 / 0.1);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+      animation: scaleIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .aipub-advisory-layout:hover .aipub-aqi-box {
+      transform: scale(1.1);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
     }
     .aipub-aqi-val { 
       font-size: 1.75rem; 
@@ -274,23 +321,25 @@
     }
     .aipub-advisory-desc { 
       font-size: 0.8rem; 
-      color: #475569; 
+      color: #cbd5e1; 
       line-height: 1.4; 
       margin-bottom: 0.75rem; 
-      margin-top: 0; 
+      margin-top: 0;
+      animation: fadeInUp 0.6s ease-out 0.2s both;
     }
     
     .aipub-actions-box {
-      background-color: #f8fafc;
+      background-color: rgba(45, 91, 190, 0.1);
       border-radius: 0.5rem;
       padding: 0.75rem;
-      border: 1px solid #f1f5f9;
+      border: 1px solid rgba(45, 91, 190, 0.25);
       width: 100%;
+      animation: slideInRight 0.6s ease-out 0.3s both;
     }
     .aipub-actions-title { 
       font-size: 0.7rem; 
       font-weight: 700; 
-      color: #1e293b; 
+      color: #e2e8f0; 
       margin-bottom: 0.375rem; 
       margin-top: 0; 
       display: flex; 
@@ -300,7 +349,7 @@
     .aipub-actions-list { 
       margin: 0; 
       padding-left: 1rem; 
-      color: #475569; 
+      color: #cbd5e1; 
       font-size: 0.7rem; 
       line-height: 1.5; 
     }
@@ -321,9 +370,19 @@
       gap: 0.75rem; 
       padding: 0.375rem; 
       border-radius: 0.375rem; 
-      transition: background-color 0.2s; 
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      animation: slideInLeft 0.6s ease-out;
     }
-    .aipub-guide-item:hover { background-color: #f8fafc; }
+    .aipub-guide-item:nth-child(1) { animation-delay: 0.1s; }
+    .aipub-guide-item:nth-child(2) { animation-delay: 0.15s; }
+    .aipub-guide-item:nth-child(3) { animation-delay: 0.2s; }
+    .aipub-guide-item:nth-child(4) { animation-delay: 0.25s; }
+    .aipub-guide-item:nth-child(5) { animation-delay: 0.3s; }
+    .aipub-guide-item:nth-child(6) { animation-delay: 0.35s; }
+    .aipub-guide-item:hover { 
+      background-color: rgba(45, 91, 190, 0.15);
+      transform: translateX(4px);
+    }
     .aipub-guide-badge { 
       width: 3rem; 
       height: 1.5rem; 
@@ -333,12 +392,17 @@
       justify-content: center; 
       font-size: 0.6rem; 
       font-weight: 700; 
-      flex-shrink: 0; 
+      flex-shrink: 0;
+      transition: all 0.3s ease;
+    }
+    .aipub-guide-item:hover .aipub-guide-badge {
+      transform: scale(1.08);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
     .aipub-guide-label { 
       font-size: 0.75rem; 
       font-weight: 500; 
-      color: #334155; 
+      color: #e2e8f0; 
     }
 
     /* Risk Grid - Compact */
@@ -346,20 +410,31 @@
     @media (min-width: 640px) { .aipub-risk-grid { grid-template-columns: repeat(2, 1fr); } }
     .aipub-risk-box { 
       padding: 0.75rem; 
-      background-color: #f8fafc; 
+      background-color: rgba(45, 91, 190, 0.1);
       border-radius: 0.5rem; 
-      border: 1px solid #f1f5f9; 
+      border: 1px solid rgba(45, 91, 190, 0.25);
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      animation: fadeInUp 0.6s ease-out;
+    }
+    .aipub-risk-box:nth-child(1) { animation-delay: 0.1s; }
+    .aipub-risk-box:nth-child(2) { animation-delay: 0.2s; }
+    .aipub-risk-box:nth-child(3) { animation-delay: 0.3s; }
+    .aipub-risk-box:nth-child(4) { animation-delay: 0.4s; }
+    .aipub-risk-box:hover {
+      transform: translateY(-2px);
+      border-color: rgba(45, 91, 190, 0.5);
+      box-shadow: 0 8px 16px rgba(45, 91, 190, 0.2);
     }
     .aipub-risk-title { 
       font-weight: 700; 
-      color: #1e293b; 
+      color: #60a5fa; 
       font-size: 0.75rem; 
       margin-bottom: 0.25rem; 
       margin-top: 0; 
     }
     .aipub-risk-desc { 
       font-size: 0.65rem; 
-      color: #475569; 
+      color: #cbd5e1; 
       line-height: 1.4; 
       margin: 0; 
     }
@@ -373,13 +448,19 @@
       flex-direction: column; 
       gap: 0.5rem; 
       font-size: 0.75rem; 
-      color: #475569; 
+      color: #cbd5e1;
+      animation: slideInLeft 0.6s ease-out 0.1s both;
     }
     .aipub-custom-list li { 
       display: flex; 
       align-items: flex-start; 
       gap: 0.5rem; 
       line-height: 1.4;
+      transition: all 0.3s ease;
+    }
+    .aipub-custom-list li:hover {
+      transform: translateX(4px);
+      color: #ffffff;
     }
     .aipub-bullet { 
       margin-top: 0.2rem; 
@@ -397,18 +478,21 @@
       color: #cbd5e1; 
       margin-bottom: 0.75rem; 
       margin-top: 0; 
-      line-height: 1.4; 
+      line-height: 1.4;
+      animation: fadeInUp 0.6s ease-out 0.1s both; 
     }
     .aipub-emerg-box { 
-      background-color: rgba(51, 65, 85, 0.5); 
+      background-color: rgba(220, 38, 38, 0.1);
+      border: 1px solid rgba(220, 38, 38, 0.3);
       border-radius: 0.5rem; 
       padding: 0.75rem; 
       font-size: 0.7rem; 
-      color: #e2e8f0; 
+      color: #e2e8f0;
+      animation: slideInRight 0.6s ease-out 0.2s both;
     }
     .aipub-emerg-title { 
       font-weight: 700; 
-      color: #fda4af; 
+      color: #fca5a5; 
       margin-bottom: 0.375rem; 
       margin-top: 0; 
       font-size: 0.75rem;
@@ -423,12 +507,12 @@
     }
 
     /* Utility Icon Colors */
-    .icon-rose { color: #f43f5e; }
-    .icon-blue { color: #3b82f6; }
-    .icon-purple { color: #a855f7; }
-    .icon-emerald { color: #059669; }
-    .icon-amber { color: #f59e0b; }
-    .icon-light-rose { color: #fb7185; }
+    .icon-rose { color: #fca5a5; }
+    .icon-blue { color: #60a5fa; }
+    .icon-purple { color: #d8b4fe; }
+    .icon-emerald { color: #6ee7b7; }
+    .icon-amber { color: #fbbf24; }
+    .icon-light-rose { color: #fca5a5; }
   </style>
 {% endblock %}
 
