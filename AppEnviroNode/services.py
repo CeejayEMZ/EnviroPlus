@@ -9,6 +9,7 @@ from django.utils.html import strip_tags
 from django.conf import settings
 import logging
 import sys
+import socket
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +36,15 @@ class EmailService:
         """
         try:
             # Validate email config before attempting to send
-            smtp_user = getattr(settings, 'EMAIL_HOST_USER', '')
-            smtp_pass = getattr(settings, 'EMAIL_HOST_PASSWORD', '')
+            smtp_user = getattr(settings, 'EMAIL_HOST_USER', '').strip()
+            smtp_pass = getattr(settings, 'EMAIL_HOST_PASSWORD', '').strip()
+            email_host = getattr(settings, 'EMAIL_HOST', '')
+            email_port = getattr(settings, 'EMAIL_PORT', 587)
+            
             if not smtp_user or not smtp_pass:
-                raise ValueError('Brevo SMTP credentials not configured (EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)')
+                error_msg = 'Brevo SMTP credentials not configured in environment (BREVO_SMTP_USER, BREVO_SMTP_PASSWORD)'
+                logger.error(f"Email config invalid: {error_msg}")
+                raise ValueError(error_msg)
             
             subject = 'EnviroNode - Activate Your Account'
             
@@ -59,7 +65,7 @@ class EmailService:
             
             plain_message = strip_tags(html_message)
             
-            logger.info(f"📧 Sending invitation email to {user.email}")
+            logger.info(f"📧 Sending invitation email to {user.email} via {email_host}:{email_port}")
 
             # Send email with improved error handling
             try:
@@ -71,8 +77,14 @@ class EmailService:
                     html_message=html_message,
                     fail_silently=False,
                 )
+            except (socket.timeout, socket.gaierror) as net_err:
+                error_msg = f'Network error connecting to Brevo SMTP ({email_host}): {str(net_err)}'
+                logger.error(error_msg, exc_info=True)
+                raise ValueError(error_msg)
             except Exception as smtp_err:
-                raise ValueError(f'Brevo SMTP error: {str(smtp_err)}')
+                error_msg = f'Brevo SMTP error: {str(smtp_err)}'
+                logger.error(error_msg, exc_info=True)
+                raise ValueError(error_msg)
             
             logger.info(f"✅ Invitation email sent to {user.email} (user_id: {user.id})")
             
@@ -107,10 +119,15 @@ class EmailService:
         """
         try:
             # Validate email config
-            smtp_user = getattr(settings, 'EMAIL_HOST_USER', '')
-            smtp_pass = getattr(settings, 'EMAIL_HOST_PASSWORD', '')
+            smtp_user = getattr(settings, 'EMAIL_HOST_USER', '').strip()
+            smtp_pass = getattr(settings, 'EMAIL_HOST_PASSWORD', '').strip()
+            email_host = getattr(settings, 'EMAIL_HOST', '')
+            email_port = getattr(settings, 'EMAIL_PORT', 587)
+            
             if not smtp_user or not smtp_pass:
-                raise ValueError('Brevo SMTP credentials not configured (EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)')
+                error_msg = 'Brevo SMTP credentials not configured in environment (BREVO_SMTP_USER, BREVO_SMTP_PASSWORD)'
+                logger.error(f"Email config invalid: {error_msg}")
+                raise ValueError(error_msg)
             
             subject = 'EnviroNode - Reset Your Password'
             
@@ -130,6 +147,8 @@ class EmailService:
             
             plain_message = strip_tags(html_message)
             
+            logger.info(f"📧 Sending password reset email to {user.email} via {email_host}:{email_port}")
+            
             # Send email with improved error handling
             try:
                 send_mail(
@@ -140,8 +159,14 @@ class EmailService:
                     html_message=html_message,
                     fail_silently=False,
                 )
+            except (socket.timeout, socket.gaierror) as net_err:
+                error_msg = f'Network error connecting to Brevo SMTP ({email_host}): {str(net_err)}'
+                logger.error(error_msg, exc_info=True)
+                raise ValueError(error_msg)
             except Exception as smtp_err:
-                raise ValueError(f'Brevo SMTP error: {str(smtp_err)}')
+                error_msg = f'Brevo SMTP error: {str(smtp_err)}'
+                logger.error(error_msg, exc_info=True)
+                raise ValueError(error_msg)
             
             logger.info(f"Password reset email sent to {user.email} (user_id: {user.id})")
             

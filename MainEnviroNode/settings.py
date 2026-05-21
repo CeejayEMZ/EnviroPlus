@@ -16,11 +16,16 @@ from dotenv import load_dotenv
 import dj_database_url
 import sys
 
-load_dotenv()
+# Load .env file only if it exists (for local development)
+# On production (Render), environment variables are set in the dashboard
+env_file = Path(__file__).resolve().parent.parent / '.env'
+if env_file.exists():
+    load_dotenv(env_file)
+else:
+    load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / '.env')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/

@@ -4184,40 +4184,53 @@ def api_users_create(request):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 
+@csrf_exempt
 @login_required(login_url='app:login')
 @require_http_methods(["POST"])
 def api_users_invite(request):
     """Send invitation to new user (creates pending account)."""
-    # ✅ ROLE-BASED ACCESS CONTROL
-    if not request.user.is_admin_user():
-        return JsonResponse({'status': 'error', 'message': 'Admin access required'}, status=403)
-    
     try:
-        import json
-        data = json.loads(request.body)
-    except:
-        return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
-    
-    # ✅ NEW: Extract explicit fields instead of just 'name'
-    email = data.get('email', '').strip()
-    username = data.get('username', '').strip()
-    first_name = data.get('first_name', 'Placeholder').strip()
-    last_name = data.get('last_name', 'Placeholder').strip()
-    role = data.get('role', 'official')
-    
-    # ✅ FIX: Require username instead of name
-    if not all([email, username]):
-        return JsonResponse({'status': 'error', 'message': 'Missing required fields'}, status=400)
-    
-    # ✅ FRONTEND VALIDATION: Check if email exists
-    if User.objects.filter(email=email).exists():
-        return JsonResponse({'status': 'error', 'message': 'Email already registered'}, status=400)
+        # ✅ ROLE-BASED ACCESS CONTROL
+        if not request.user.is_admin_user():
+            return JsonResponse({'status': 'error', 'message': 'Admin access required'}, status=403)
         
-    # ✅ NEW VALIDATION: Check if username exists
-    if User.objects.filter(username=username).exists():
-        return JsonResponse({'status': 'error', 'message': 'Username is already taken'}, status=400)
-    
-    try:
+        try:
+            import json
+            data = json.loads(request.body)
+        except:
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+        
+        # ✅ NEW: Extract explicit fields instead of just 'name'
+        email = data.get('email', '').strip()
+        username = data.get('username', '').strip()
+        first_name = data.get('first_name', 'Placeholder').strip()
+        last_name = data.get('last_name', 'Placeholder').strip()
+        role = data.get('role', 'official')
+        
+        # ✅ FIX: Require username instead of name
+        if not all([email, username]):
+            return JsonResponse({'status': 'error', 'message': 'Missing required fields'}, status=400)
+        
+        # ✅ FRONTEND VALIDATION: Check if email exists
+        if User.objects.filter(email=email).exists():
+            return JsonResponse({'status': 'error', 'message': 'Email already registered'}, status=400)
+            
+        # ✅ NEW VALIDATION: Check if username exists
+        if User.objects.filter(username=username).exists():
+            return JsonResponse({'status': 'error', 'message': 'Username is already taken'}, status=400)
+        
+        # Validate email configuration before creating user
+        smtp_user = getattr(settings, 'EMAIL_HOST_USER', '').strip()
+        smtp_pass = getattr(settings, 'EMAIL_HOST_PASSWORD', '').strip()
+        
+        if not smtp_user or not smtp_pass:
+            error_msg = "⚠️ Email service not configured: Missing BREVO SMTP credentials in environment"
+            logger.error(error_msg)
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Email service temporarily unavailable. Contact administrator.'
+            }, status=503)
+        
         # Create pending user with secure temporary password
         temp_password = get_random_string(12)  # Secure random password
         
@@ -4245,6 +4258,7 @@ def api_users_invite(request):
         
         if not email_result['success']:
             # Email failed, but user was created. Log this and return error.
+            logger.error(f"Email send failed for new user {user.id}: {email_result.get('error', 'Unknown error')}")
             user.delete()
             return JsonResponse({
                 'status': 'error',
@@ -4278,6 +4292,14 @@ def api_users_invite(request):
                 'status': 'pending',
             }
         })
+    except Exception as e:
+        error_msg = f"Unexpected error in user_invite: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        print(f"ERROR: {error_msg}", file=sys.stderr)
+        return JsonResponse({
+            'status': 'error',
+            'message': 'An unexpected error occurred. Please try again.'
+        }, status=500)
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
@@ -4431,20 +4453,33 @@ def api_users_delete(request, user_id):
     })
 
 
+@csrf_exempt
 @login_required(login_url='app:login')
 @require_http_methods(["POST"])
 def api_users_resend_invite(request, user_id):
     """Resend invitation email to pending user."""
-    # ✅ ROLE-BASED ACCESS CONTROL
-    if not request.user.is_admin_user():
-        return JsonResponse({'status': 'error', 'message': 'Admin access required'}, status=403)
-    
-    user = get_object_or_404(User, id=user_id)
-    
-    if user.is_approved:
-        return JsonResponse({'status': 'error', 'message': 'User is already approved'}, status=400)
-    
     try:
+        # ✅ ROLE-BASED ACCESS CONTROL
+        if not request.user.is_admin_user():
+            return JsonResponse({'status': 'error', 'message': 'Admin access required'}, status=403)
+        
+        user = get_object_or_404(User, id=user_id)
+        
+        if user.is_approved:
+            return JsonResponse({'status': 'error', 'message': 'User is already approved'}, status=400)
+        
+        # Validate email configuration before attempting to send
+        smtp_user = getattr(settings, 'EMAIL_HOST_USER', '').strip()
+        smtp_pass = getattr(settings, 'EMAIL_HOST_PASSWORD', '').strip()
+        
+        if not smtp_user or not smtp_pass:
+            error_msg = "⚠️ Email service not configured: Missing BREVO SMTP credentials in environment"
+            logger.error(f"{error_msg} (EMAIL_HOST_USER: {bool(smtp_user)}, EMAIL_HOST_PASSWORD: {bool(smtp_pass)})")
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Email service temporarily unavailable. Contact administrator.'
+            }, status=503)
+        
         # Generate new activation token and link
         token = default_token_generator.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(user.pk))
@@ -4455,6 +4490,7 @@ def api_users_resend_invite(request, user_id):
         email_result = EmailService.send_user_invite_email(user, activation_link)
         
         if not email_result['success']:
+            logger.error(f"Email send failed for user {user.id}: {email_result.get('error', 'Unknown error')}")
             return JsonResponse({
                 'status': 'error',
                 'message': f'Failed to send invitation email: {email_result.get("error", "Unknown error")}'
@@ -4483,7 +4519,13 @@ def api_users_resend_invite(request, user_id):
             'message': 'Invitation resent successfully'
         })
     except Exception as e:
-        return JsonResponse({'status': 'error', 'message': f'Failed to resend invitation: {str(e)}'}, status=500)
+        error_msg = f"Unexpected error in resend_invite: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        print(f"ERROR: {error_msg}", file=sys.stderr)
+        return JsonResponse({
+            'status': 'error',
+            'message': 'An unexpected error occurred. Please try again.'
+        }, status=500)
 
 
 @login_required(login_url='app:login')
