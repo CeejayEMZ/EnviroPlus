@@ -1,7 +1,7 @@
 {% extends 'AppEnviroNode/index.html' %}
 {% load static %}
 
-{% block title %}Admin - Dashboard - Environode{% endblock %}
+{% block title %}Admin - Dashboard - EnviroPlus{% endblock %}
 
 {% block extra_head %}
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />

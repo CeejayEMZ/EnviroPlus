@@ -1,5 +1,5 @@
 """
-Email service module for EnviroNode.
+Email service module for EnviroPlus.
 Centralizes all email sending logic for user invitations, password resets, and notifications.
 """
 
@@ -16,11 +16,11 @@ logger = logging.getLogger(__name__)
 
 class EmailService:
     """
-    Centralized email service for EnviroNode.
+    Centralized email service for EnviroPlus.
     Handles user invitations, password resets, and notifications.
     """
     
-    DEFAULT_FROM_EMAIL = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@environode.com')
+    DEFAULT_FROM_EMAIL = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@enviroplus.com')
     
     @staticmethod
     def send_user_invite_email(user, activation_link):
@@ -46,14 +46,14 @@ class EmailService:
                 logger.error(f"Email config invalid: {error_msg}")
                 raise ValueError(error_msg)
             
-            subject = 'EnviroNode - Activate Your Account'
+            subject = 'EnviroPlus - Activate Your Account'
             
             context = {
                 'first_name': user.first_name or user.username,
                 'email': user.email,
                 'role': user.get_role_display(),
                 'activation_link': activation_link,
-                'organization': user.organization or 'EnviroNode',
+                'organization': user.organization or 'EnviroPlus',
                 'expiration_days': 7,
             }
             
@@ -129,13 +129,13 @@ class EmailService:
                 logger.error(f"Email config invalid: {error_msg}")
                 raise ValueError(error_msg)
             
-            subject = 'EnviroNode - Reset Your Password'
+            subject = 'EnviroPlus - Reset Your Password'
             
             context = {
                 'first_name': user.first_name or user.username,
                 'email': user.email,
                 'reset_link': reset_link,
-                'organization': user.organization or 'EnviroNode',
+                'organization': user.organization or 'EnviroPlus',
                 'expiration_days': 7,
             }
             
@@ -204,13 +204,13 @@ class EmailService:
             if not smtp_user or not smtp_pass:
                 raise ValueError('Brevo SMTP credentials not configured (EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)')
             
-            subject = 'EnviroNode - Password Reset Approved'
+            subject = 'EnviroPlus - Password Reset Approved'
             
             context = {
                 'first_name': user.first_name or user.username,
                 'email': user.email,
                 'reset_link': reset_link,
-                'organization': user.organization or 'EnviroNode',
+                'organization': user.organization or 'EnviroPlus',
                 'expiration_days': 7,
                 'status': 'approved',
             }
@@ -272,13 +272,13 @@ class EmailService:
             if not smtp_user or not smtp_pass:
                 raise ValueError('Brevo SMTP credentials not configured (EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)')
             
-            subject = 'EnviroNode - Password Reset Request Denied'
+            subject = 'EnviroPlus - Password Reset Request Denied'
             
             context = {
                 'first_name': user.first_name or user.username,
                 'email': user.email,
                 'reason': reason,
-                'organization': user.organization or 'EnviroNode',
+                'organization': user.organization or 'EnviroPlus',
             }
             
             # Simple text message for denial
@@ -292,7 +292,7 @@ Your password reset request has been denied.
 If you believe this is a mistake, please contact your system administrator.
 
 Best regards,
-EnviroNode Team
+EnviroPlus Team
             """
             
             # Send email with improved error handling

@@ -1,7 +1,7 @@
 /**
  * Global Alerts System
  * 
- * Modular, reusable alert system for EnviroNode dashboard.
+ * Modular, reusable alert system for EnviroPlus dashboard.
  * Provides:
  * - Alert drawer toggle functionality
  * - AI modal management
@@ -642,7 +642,7 @@ async function loadAlertNotifications(forceRefresh = false) {
     const fallbackNotifications = [
       {
         id: 'fallback-1',
-        title: 'New alert from EnviroNode',
+        title: 'New alert from EnviroPlus',
         description: 'A sensor reading requires your attention. Open the alert center to review details.',
         time: 'Just now',
         node: 'System',
@@ -840,7 +840,7 @@ function appendChatMessage(text, sender = 'ai') {
   label.className = 'chat-label';
   label.innerHTML = sender === 'user'
     ? '<i class="fa-solid fa-user"></i> You'
-    : '<i class="fa-solid fa-brain"></i> EnviroNode AI';
+    : '<i class="fa-solid fa-brain"></i> EnviroPlus AI';
 
   const bubble = document.createElement('p');
   bubble.textContent = text;

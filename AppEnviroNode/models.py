@@ -11,11 +11,15 @@ class CustomUser(AbstractUser):
         ('admin', 'Administrator'),
         ('official', 'Official'),
     )
+    MAX_FAILED_LOGIN_ATTEMPTS = 5
+    LOCKOUT_DURATION_MINUTES = 5
     
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='official')
     organization = models.CharField(max_length=255, blank=True, null=True, help_text="Barangay or organization name")
     is_approved = models.BooleanField(default=False, help_text="Admin approval status")
     must_change_password = models.BooleanField(default=True, help_text="User must change password on first login")
+    failed_login_attempts = models.PositiveIntegerField(default=0)
+    locked_until = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
     
     class Meta:
@@ -27,6 +31,34 @@ class CustomUser(AbstractUser):
     
     def is_admin_user(self):
         return self.role == 'admin'
+
+    def is_locked_out(self):
+        if self.locked_until and timezone.now() < self.locked_until:
+            return True
+        if self.locked_until and timezone.now() >= self.locked_until:
+            self.locked_until = None
+            self.failed_login_attempts = 0
+            self.save(update_fields=['locked_until', 'failed_login_attempts'])
+        return False
+
+    def record_failed_login(self):
+        if self.is_locked_out():
+            return True
+
+        self.failed_login_attempts += 1
+        if self.failed_login_attempts >= self.MAX_FAILED_LOGIN_ATTEMPTS:
+            self.locked_until = timezone.now() + timedelta(minutes=self.LOCKOUT_DURATION_MINUTES)
+            self.failed_login_attempts = 0
+            self.save(update_fields=['failed_login_attempts', 'locked_until'])
+            return True
+
+        self.save(update_fields=['failed_login_attempts'])
+        return False
+
+    def reset_failed_logins(self):
+        self.failed_login_attempts = 0
+        self.locked_until = None
+        self.save(update_fields=['failed_login_attempts', 'locked_until'])
 
 
 class SensorNode(models.Model):

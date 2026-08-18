@@ -118,7 +118,7 @@ def calculate_gas_quality(mq135_raw=None, gas_resistance=None):
             - gas_alert: True if critical, False otherwise
     """
     import logging
-    logger = logging.getLogger('environode')
+    logger = logging.getLogger('enviroplus')
     
     # Defensive fallback: treat None/0 as "no reading available"
     if mq135_raw is None:
@@ -221,7 +221,7 @@ def infer_pollution_source(aqi_level, gas_quality, pm2_5=None, pm10=None, temper
         str: Inferred pollution source ('traffic', 'industrial', 'biomass', 'unknown')
     """
     import logging
-    logger = logging.getLogger('environode')
+    logger = logging.getLogger('enviroplus')
     
     # If gas measurement is poor/critical, likely to be industrial or traffic
     if gas_quality in ['critical', 'poor']:

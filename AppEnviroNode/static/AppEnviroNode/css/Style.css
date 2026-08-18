@@ -47,9 +47,9 @@ h1, h2, h3, h4, h5, h6,
   font-family: "Poppins", "Inter", sans-serif;
 }
 
-/* PEMBO Background with Dark Overlay & Blur */
+/* Background with Dark Overlay & Blur */
 body {
-  background: linear-gradient(rgba(11, 17, 32, 0.6), rgba(11, 17, 32, 0.6)), url("../images/pembo.jpg");
+  background: linear-gradient(rgba(11, 17, 32, 0.6), rgba(11, 17, 32, 0.6)), url("../images/pixelcity.gif");
   background-attachment: fixed;
   background-size: cover;
   background-position: center;

@@ -1,7 +1,7 @@
 // ============================================================
 //  clientAI_admin.js — Admin EnviroAI Chat + Insights (Gemini)
 //  Place this file inside:
-//  appenvironode/static/AppEnviroNode/js/clientAI_admin.js
+//  appenviroplus/static/AppEnviroNode/js/clientAI_admin.js
 //
 //  Replaces the hardcoded random responses in clientai.html
 //  and loads real AI insights on page load.
@@ -23,7 +23,7 @@ function cAI_fillChat(text) {
 function cAI_clearChat() {
     if (cAI_chatContainer) {
         cAI_chatContainer.innerHTML = '';
-        cAI_addAIMessage("Chat cleared. How can I assist you with EnviroNode today?");
+        cAI_addAIMessage("Chat cleared. How can I assist you with EnviroPlus today?");
     }
 }
 

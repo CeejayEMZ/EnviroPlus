@@ -771,48 +771,113 @@ def login_view(request):
     
     if request.method == 'POST':
         form = CustomAuthenticationForm(request, data=request.POST)
+        username = request.POST.get('username', '').strip()
+
+        if username:
+            candidate = None
+            try:
+                candidate = User.objects.get(username=username)
+            except User.DoesNotExist:
+                if '@' in username:
+                    try:
+                        candidate = User.objects.get(email=username)
+                    except User.DoesNotExist:
+                        candidate = None
+
+            if candidate and candidate.is_locked_out():
+                messages.error(
+                    request,
+                    f'Too many failed attempts. Please try again later. Your account is locked until {candidate.locked_until.strftime("%Y-%m-%d %H:%M %p")}.',
+                )
+                return render(request, 'AppEnviroNode/auth/login.html', {'form': form})
+
         if form.is_valid():
             username = form.cleaned_data.get('username')
             password = form.cleaned_data.get('password')
-            
-            # ✅ FIX: Support both username and email login
+
             user = None
-            
-            # Try username first
             user = authenticate(request, username=username, password=password)
-            
-            # If username fails and input looks like email, try email login
+
             if user is None and '@' in username:
                 try:
                     email_user = User.objects.get(email=username)
                     user = authenticate(request, username=email_user.username, password=password)
                 except User.DoesNotExist:
                     pass
-            
+
             if user is not None:
-                # Check if user is active and approved
+                if user.is_locked_out():
+                    messages.error(request, 'Too many failed login attempts. Please try again later.')
+                    return render(request, 'AppEnviroNode/auth/login.html', {'form': form})
+
                 if not user.is_active:
                     messages.error(request, 'Your account has been deactivated.')
                     return render(request, 'AppEnviroNode/auth/login.html', {'form': form})
-                
+
                 if not user.is_approved:
                     messages.error(request, 'Your account is pending admin approval.')
                     return render(request, 'AppEnviroNode/auth/login.html', {'form': form})
-                
-                # Log user in
+
+                user.reset_failed_logins()
                 login(request, user)
-                
-                # Check if user must change password (first login)
+
                 if user.must_change_password:
                     messages.info(request, 'Please set a new password for security.')
                     return redirect('app:force_password_change')
-                
+
                 messages.success(request, f'Welcome back, {user.first_name or user.username}!')
                 return redirect('app:client_dashboard')
+
+            # if credentials are wrong, but the username exists, count the failed attempt
+            target_user = None
+            try:
+                target_user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                if '@' in username:
+                    try:
+                        target_user = User.objects.get(email=username)
+                    except User.DoesNotExist:
+                        target_user = None
+
+            if target_user is not None:
+                locked = target_user.record_failed_login()
+                if locked:
+                    messages.error(
+                        request,
+                        f'Too many failed login attempts. Please try again later. Account locked until {target_user.locked_until.strftime("%Y-%m-%d %H:%M %p")}.',
+                    )
+                else:
+                    remaining = target_user.MAX_FAILED_LOGIN_ATTEMPTS - target_user.failed_login_attempts
+                    messages.error(request, f'Invalid username/email or password. {remaining} attempt(s) remaining before lockout.')
             else:
                 messages.error(request, 'Invalid username/email or password.')
         else:
-            # Form validation failed - show errors
+            target_user = None
+            try:
+                target_user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                if '@' in username:
+                    try:
+                        target_user = User.objects.get(email=username)
+                    except User.DoesNotExist:
+                        target_user = None
+
+            if target_user is not None:
+                if target_user.is_locked_out():
+                    messages.error(
+                        request,
+                        f'Too many failed attempts. Please try again later. Your account is locked until {target_user.locked_until.strftime("%Y-%m-%d %H:%M %p")}.',
+                    )
+                else:
+                    locked = target_user.record_failed_login()
+                    if locked:
+                        messages.error(
+                            request,
+                            f'Too many failed login attempts. Please try again later. Account locked until {target_user.locked_until.strftime("%Y-%m-%d %H:%M %p")}.',
+                        )
+                    else:
+                        remaining = target_user.MAX_FAILED_LOGIN_ATTEMPTS - target_user.failed_login_attempts
+                        messages.error(request, f'Invalid username/email or password. {remaining} attempt(s) remaining before lockout.')
             for field, errors in form.errors.items():
                 for error in errors:
                     if field == '__all__':
@@ -821,7 +886,7 @@ def login_view(request):
                         messages.error(request, f'{error}')
     else:
         form = CustomAuthenticationForm()
-    
+
     return render(request, 'AppEnviroNode/auth/login.html', {'form': form})
 
 
@@ -2714,13 +2779,13 @@ def api_sensor_data(request):
         data = json.loads(body_str)
         mac_address = data.get('mac_address', '').strip()
         
-        # Validate MAC address format (accepts both standard MAC and custom identifiers like ENVIRONODE_XXX)
+        # Validate MAC address format (accepts both standard MAC and custom identifiers like ENVIROPLUS_XXX)
         import re
-        # Match either: AA:BB:CC:DD:EE:FF or custom identifiers like ENVIRONODE_001
+        # Match either: AA:BB:CC:DD:EE:FF or custom identifiers like ENVIROPLUS_001
         if not re.match(r'^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$|^[A-Za-z0-9_-]+$', mac_address):
             return JsonResponse({
                 'success': False,
-                'message': 'Invalid MAC address format. Expected: AA:BB:CC:DD:EE:FF or custom identifier like ENVIRONODE_001'
+                'message': 'Invalid MAC address format. Expected: AA:BB:CC:DD:EE:FF or custom identifier like ENVIROPLUS_001'
             }, status=400)
         
         # ✅ VERIFY MAC ADDRESS MATCHES REGISTERED NODE (prevents spoofing)
@@ -4611,7 +4676,7 @@ def activate_user(request, uidb64, token):
         # Auto-login user after activation
         login(request, user)
         
-        messages.success(request, 'Account activated successfully! Welcome to EnviroNode.')
+        messages.success(request, 'Account activated successfully! Welcome to EnviroPlus.')
         return redirect('app:client_dashboard')
     
     return render(request, 'AppEnviroNode/auth/activation.html', {
@@ -4870,7 +4935,7 @@ def api_users_reset_password(request, user_id):
         user.save()
         
         # Send password reset email using HTML template
-        subject = 'EnviroNode - Password Reset Request (Admin Initiated)'
+        subject = 'EnviroPlus - Password Reset Request (Admin Initiated)'
         html_message = render_to_string('AppEnviroNode/email/password_reset.html', {
             'user': user,
             'reset_link': reset_link,
@@ -4881,7 +4946,7 @@ def api_users_reset_password(request, user_id):
         send_mail(
             subject,
             f'Click this link to reset your password: {reset_link}',
-            'noreply@environode.local',
+            'noreply@enviroplus.local',
             [user.email],
             html_message=html_message,
             fail_silently=False,
@@ -5133,7 +5198,7 @@ def export_report_csv(request):
     date_from_obj, date_to_obj, selected_node, selected_location = parse_export_params(request)
     readings = get_report_readings(date_from_obj, date_to_obj, selected_node, selected_location)
 
-    filename = f"environode-report-{date_from_obj.isoformat()}_to_{date_to_obj.isoformat()}.csv"
+    filename = f"enviroplus-report-{date_from_obj.isoformat()}_to_{date_to_obj.isoformat()}.csv"
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
@@ -5270,7 +5335,7 @@ def export_report_pdf(request):
     if not pdf.err:
         response = HttpResponse(result.getvalue(), content_type='application/pdf')
         response['Content-Disposition'] = (
-            f'attachment; filename="Environode-report-{date_from_obj.isoformat()}_to_{date_to_obj.isoformat()}.pdf"'
+            f'attachment; filename="EnviroPlus-report-{date_from_obj.isoformat()}_to_{date_to_obj.isoformat()}.pdf"'
         )
         return response
     return HttpResponse('Error generating PDF — check that xhtml2pdf is installed.')
@@ -5519,7 +5584,7 @@ def export_report_excel(request):
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = (
-        f'attachment; filename="Environode-report-{date_from_obj.isoformat()}_to_{date_to_obj.isoformat()}.xlsx"'
+        f'attachment; filename="EnviroPlus-report-{date_from_obj.isoformat()}_to_{date_to_obj.isoformat()}.xlsx"'
     )
     return response
 

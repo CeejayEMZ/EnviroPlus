@@ -1,6 +1,6 @@
 # ============================================================
-#  ai.py — EnviroNode AI Functions (Groq Integration)
-#  Place this file inside: appenvironode/ai.py
+#  ai.py — EnviroPlus AI Functions (Groq Integration)
+#  Place this file inside: appenviroplus/ai.py
 #  (same folder as views.py, models.py)
 # ============================================================
 
@@ -36,7 +36,7 @@ def ask_enviro_ai(user_message: str, aqi, aqi_level) -> str:
     )
 
     system_content = f"""You are EnviroAI, a friendly and helpful health assistant
-for the EnviroNode air quality monitoring system deployed in Barangay Pembo, Taguig City.
+for the EnviroPlus air quality monitoring system deployed in Barangay Pembo, Taguig City.
 
 {aqi_info}
 
@@ -119,7 +119,7 @@ Respond ONLY with a valid JSON object (no markdown, no backticks) with these exa
         "messages": [
             {
                 "role": "system",
-                "content": "You are an environmental data analyst AI for EnviroNode, an IoT air quality monitoring system in Barangay Pembo, Taguig City, Philippines. Always respond with valid JSON only."
+                "content": "You are an environmental data analyst AI for EnviroPlus, an IoT air quality monitoring system in Barangay Pembo, Taguig City, Philippines. Always respond with valid JSON only."
             },
             {"role": "user", "content": user_content},
         ],
