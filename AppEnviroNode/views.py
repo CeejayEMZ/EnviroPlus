@@ -878,15 +878,16 @@ def login_view(request):
                     else:
                         remaining = target_user.MAX_FAILED_LOGIN_ATTEMPTS - target_user.failed_login_attempts
                         messages.error(request, f'Invalid username/email or password. {remaining} attempt(s) remaining before lockout.')
-            for field, errors in form.errors.items():
-                for error in errors:
-                    if field == '__all__':
-                        messages.error(request, str(error))
-                    else:
-                        messages.error(request, f'{error}')
+            else:
+                # Add this fallback for accounts that don't exist
+                messages.error(request, 'Invalid username/email or password.')
+                
+    # === MAKE SURE THESE FINAL LINES ARE INDENTED EXACTLY LIKE THIS ===
     else:
+        # This handles the initial GET request to load the empty form
         form = CustomAuthenticationForm()
 
+    # This MUST be the last line of the function, aligned with the 'if request.method'
     return render(request, 'AppEnviroNode/auth/login.html', {'form': form})
 
 
@@ -4795,60 +4796,66 @@ def change_password(request):
 @require_http_methods(["GET", "POST"])
 def forgot_password_request(request):
     """
-    User requests password reset.
-    Creates Alert object for admin moderation.
-    Auto-approves after 5 minutes if not manually reviewed.
+    Handles self-service password reset requests by immediately
+    dispatching a secure reset link to the user's email.
     """
+    if request.user.is_authenticated:
+        return redirect('app:client_dashboard')
+
     if request.method == 'POST':
         form = PasswordResetRequestForm(request.POST)
         
         if form.is_valid():
-            email = form.cleaned_data['email']
+            email = form.cleaned_data['email'].strip().lower()
             
             try:
-                user = User.objects.get(email=email)
+                user = User.objects.get(email__iexact=email)
                 
-                # Generate password reset token and uid
+                # 1. Generate one-time secure reset token & UID
                 token = default_token_generator.make_token(user)
                 uid = urlsafe_base64_encode(force_bytes(user.pk))
                 
-                # Build reset link
-                reset_link = request.build_absolute_uri(f'/reset-password/{uid}/{token}/')
+                # 2. Build the full reset URL
+                base_url = getattr(settings, 'FRONTEND_BASE_URL', request.build_absolute_uri('/')[:-1])
+                reset_link = f"{base_url}/reset-password/{uid}/{token}/"
                 
-                # Create Alert for admin moderation
-                alert = Alert.objects.create(
+                # 3. Immediately send the email via EmailService
+                email_result = EmailService.send_password_reset_email(user, reset_link)
+                
+                if not email_result.get('success', False):
+                    logger.error(f"Failed to send password reset to {user.email}: {email_result.get('error')}")
+                
+                # 4. Log alert for audit trail
+                Alert.objects.create(
                     user=user,
                     alert_type='password_reset_request',
-                    status='pending',
+                    status='approved',
                     severity='info',
-                    title=f'Password Reset Request - {user.email}',
-                    description=f'User {user.email} requested password reset at {timezone.now().strftime("%Y-%m-%d %H:%M:%S")}',
+                    title=f'Password Reset - {user.email}',
+                    description=f'Password reset email dispatched to {user.email}',
                     password_reset_token=token,
                     password_reset_uid=uid,
-                    auto_approval_time=timezone.now() + timedelta(minutes=5),
+                    is_active=False
                 )
                 
-                # Log the action
                 SystemLog.objects.create(
                     event_type='admin',
-                    message=f'Password reset requested by user: {user.email}',
+                    message=f'Password reset email sent to user: {user.email}',
                     created_at=timezone.now(),
                 )
                 
-                messages.success(request, 'Password reset request submitted. Check your email for instructions.')
-                logger.info(f"Password reset request created for {user.email} (Alert ID: {alert.id})")
-                
             except User.DoesNotExist:
-                # Don't reveal if email exists (security)
-                logger.info(f"Password reset request for non-existent email: {email}")
+                # Silently fail to prevent email enumeration
+                logger.info(f"Password reset attempted for non-existent email: {email}")
             except Exception as e:
-                messages.error(request, f'Error processing request: {str(e)}')
-                logger.error(f"[ERROR] Password reset request failed for {email}: {str(e)}")
-        
-        return render(request, 'AppEnviroNode/auth/forgot_password.html', {'form': form})
+                logger.error(f"Unexpected error in forgot_password_request: {str(e)}", exc_info=True)
+            
+            # Always show the generic success message to prevent user enumeration
+            messages.success(request, 'If an account exists with that email address, password reset instructions have been sent.')
+            return redirect('app:login')
+    else:
+        form = PasswordResetRequestForm()
     
-    # GET request - show form
-    form = PasswordResetRequestForm()
     return render(request, 'AppEnviroNode/auth/forgot_password.html', {'form': form})
 
 
