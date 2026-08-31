@@ -177,8 +177,8 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('BREVO_SMTP_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('BREVO_SMTP_PASSWORD', '')
-DEFAULT_FROM_EMAIL = 'EnviroNode <environodeembo@gmail.com>'
-SERVER_EMAIL = 'EnviroNode <environodeembo@gmail.com>'
+DEFAULT_FROM_EMAIL = 'EnviroPlus <enviroplusnode@gmail.com>'
+SERVER_EMAIL = 'EnviroPlus <enviroplusnode@gmail.com>'
 
 # Email configuration validation
 _email_warnings = []

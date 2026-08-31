@@ -4946,7 +4946,7 @@ def api_users_reset_password(request, user_id):
         send_mail(
             subject,
             f'Click this link to reset your password: {reset_link}',
-            'noreply@enviroplus.local',
+            'EnviroPLUS Admin <noreply@enviroplus.local>', 
             [user.email],
             html_message=html_message,
             fail_silently=False,
