@@ -43,6 +43,26 @@ from .forms import CustomAuthenticationForm, CustomUserCreationForm, PasswordRes
 from .models import SensorNode, SensorReading, Alert, SystemLog, AdminActionLog
 from .services import EmailService
 from django.contrib.auth import get_user_model
+import re
+
+def validate_password_strength(password):
+    """
+    Checks if a password meets strict security requirements:
+    - Minimum 12 characters
+    - At least 1 uppercase letter
+    - At least 1 number
+    - At least 1 special character
+    """
+    if not password or len(password) < 12:
+        return False, 'Password must be at least 12 characters long.'
+    if not re.search(r'[A-Z]', password):
+        return False, 'Password must contain at least one uppercase letter.'
+    if not re.search(r'\d', password):
+        return False, 'Password must contain at least one number.'
+    if not re.search(r'[^a-zA-Z0-9]', password):
+        return False, 'Password must contain at least one special character.'
+    
+    return True, ''
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
