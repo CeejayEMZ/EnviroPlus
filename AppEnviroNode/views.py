@@ -4671,8 +4671,10 @@ def activate_user(request, uidb64, token):
         password = request.POST.get('password')
         password_confirm = request.POST.get('password_confirm')
         
-        if not password or len(password) < 8:
-            messages.error(request, 'Password must be at least 8 characters')
+        # 1. NEW STRICT VALIDATION
+        is_valid, error_msg = validate_password_strength(password)
+        if not is_valid:
+            messages.error(request, error_msg)
             return render(request, 'AppEnviroNode/auth/activation.html', {
                 'uidb64': uidb64,
                 'token': token,
@@ -4883,15 +4885,25 @@ def forgot_password_request(request):
 def reset_password(request, uidb64, token):
     """Reset user password using token from email."""
     try:
+        # Decode the user ID from the URL
         uid = force_str(urlsafe_base64_decode(uidb64))
+        print(f"[DEBUG] Decoded UID from URL: {uid}")
+        
+        # Fetch the user
         user = User.objects.get(pk=uid)
-    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        print(f"[DEBUG] Successfully found user: {user.email}")
+        
+    except Exception as e:
+        # If it fails here, the URL was mangled or the user was deleted
+        print(f"[DEBUG] CRITICAL FAILURE: Could not decode UID or find user. Error: {e}")
         return render(request, 'AppEnviroNode/auth/activation_invalid.html', {
             'message': 'Invalid password reset link'
         })
     
     # Check token validity
     if not default_token_generator.check_token(user, token):
+        # If it fails here, the token expired or was invalidated
+        print(f"[DEBUG] CRITICAL FAILURE: Token check failed for {user.email}. Token might be expired or already used.")
         return render(request, 'AppEnviroNode/auth/activation_invalid.html', {
             'message': 'Password reset link has expired. Please request a new one.'
         })
@@ -4900,8 +4912,10 @@ def reset_password(request, uidb64, token):
         password = request.POST.get('password')
         password_confirm = request.POST.get('password_confirm')
         
-        if not password or len(password) < 8:
-            messages.error(request, 'Password must be at least 8 characters')
+        # 1. NEW STRICT VALIDATION
+        is_valid, error_msg = validate_password_strength(password)
+        if not is_valid:
+            messages.error(request, error_msg)
             return render(request, 'AppEnviroNode/auth/reset_password.html', {
                 'uidb64': uidb64,
                 'token': token,
@@ -4918,14 +4932,28 @@ def reset_password(request, uidb64, token):
         
         # Set new password
         user.set_password(password)
+        user.must_change_password = False
+        
+        # Reset failed attempts & unlock account
+        if hasattr(user, 'reset_failed_logins'):
+            user.reset_failed_logins()
+        else:
+            user.failed_login_attempts = 0
+            user.locked_until = None
         user.save()
+        
+        # Resolve pending alerts for this user's password reset
+        Alert.objects.filter(
+            user=user,
+            alert_type='password_reset_request',
+            status='pending'
+        ).update(status='resolved', is_active=False, resolved_at=timezone.now())
         
         # Log the action
         SystemLog.objects.create(
             event_type='auth',
             message=f'Password reset completed for user: {user.email}',
-            node=None,
-            reading=None,
+            created_at=timezone.now(),
         )
         
         messages.success(request, 'Password reset successfully! You can now log in with your new password.')

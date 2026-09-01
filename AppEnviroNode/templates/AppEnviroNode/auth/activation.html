@@ -203,6 +203,42 @@
       border: 1px solid #90cdf4;
     }
 
+    /* New Password Requirements Box Styles */
+    .password-req-box {
+      font-size: 0.85rem;
+      color: #546a86;
+      margin-bottom: 1.2rem;
+      text-align: left;
+    }
+
+    .password-req-box summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: #2d5bbe;
+      outline: none;
+      user-select: none;
+      transition: color 0.3s;
+    }
+
+    .password-req-box summary:hover {
+      color: #1f3f89;
+      text-decoration: underline;
+    }
+
+    .password-req-box ul {
+      margin-top: 0.5rem;
+      padding-left: 1.5rem;
+      background-color: #f8fafc;
+      padding-top: 0.5rem;
+      padding-bottom: 0.5rem;
+      border-radius: 6px;
+      border: 1px solid #e0e7ff;
+    }
+
+    .password-req-box li {
+      margin-bottom: 0.25rem;
+    }
+
     @media (max-width: 600px) {
       .auth-card {
         padding: 30px 20px;
@@ -244,8 +280,8 @@
                 id="password" 
                 name="password" 
                 required 
-                minlength="8"
-                placeholder="Min. 8 characters"
+                minlength="12"
+                placeholder="Min. 12 characters"
             />
             <button 
               type="button" 
@@ -267,7 +303,7 @@
                 id="password_confirm" 
                 name="password_confirm" 
                 required 
-                minlength="8"
+                minlength="12"
                 placeholder="Confirm your password"
             />
             <button 
@@ -281,6 +317,17 @@
             </button>
           </div>
         </div>
+
+        <!-- Password Requirements Dropdown -->
+        <details class="password-req-box">
+          <summary>View Password Requirements</summary>
+          <ul>
+              <li>Minimum of <strong>12 characters</strong></li>
+              <li>At least <strong>1 uppercase letter</strong> (A-Z)</li>
+              <li>At least <strong>1 number</strong> (0-9)</li>
+              <li>At least <strong>1 special character</strong> (e.g., !@#$%^&*)</li>
+          </ul>
+        </details>
 
         <button type="submit" class="submit-btn">Confirm & Activate Account</button>
       </form>
