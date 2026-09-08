@@ -12,6 +12,8 @@ urlpatterns = [
     path('alerts/', views.alerts, name='alerts'),
     path('health/', views.health, name='health'),
     path('about/', views.about, name='about'),
+    path('shop/', views.shop_view, name='shop'),
+    path('shop/checkout/<int:product_id>/', views.dummy_checkout, name='checkout'),
     
     # AUTH ROUTES
     path('login/', views.login_view, name='login'),

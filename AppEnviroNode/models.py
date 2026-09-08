@@ -4,6 +4,7 @@ from django.utils import timezone
 from datetime import timedelta
 import json
 import secrets
+from django.conf import settings
 
 class CustomUser(AbstractUser):
     """Extended User model with role and organization fields."""
@@ -452,3 +453,34 @@ class SensorNodeAPIKey(models.Model):
     
     def __str__(self):
         return f"API Key for {self.node.name}"
+    
+class Product(models.Model):
+    name = models.CharField(max_length=255)  # <-- Changed to max_length
+    description = models.TextField()
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    stock = models.IntegerField(default=0)
+    image = models.ImageField(upload_to='products/', null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.name
+
+class Order(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('paid', 'Sample Paid'),
+        ('shipped', 'Shipped'),
+    )
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)
+    quantity = models.IntegerField(default=1)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2)
+    shipping_address = models.TextField()
+    
+    # 👇 Changed max_width to max_length right here 👇
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Order #{self.id} - {self.user.email}"

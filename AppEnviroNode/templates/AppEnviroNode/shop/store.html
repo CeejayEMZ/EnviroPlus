@@ -1,0 +1,280 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Store - EnviroPlus</title>
+  <link rel="icon" type="image/png" href="{% static 'AppEnviroNode/images/logo.png' %}">
+  
+  <!-- Inherits your global navbar and font styles -->
+  <link rel="stylesheet" href="{% static 'AppEnviroNode/css/Style.css' %}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    body {
+      background-color: #f8fafc;
+      font-family: inherit;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Store Container Layout */
+    .store-container {
+      max-width: 1200px;
+      margin: 100px auto 60px; /* Pushed down to avoid hiding behind navbar */
+      padding: 0 20px;
+    }
+
+    .store-header {
+      text-align: center;
+      margin-bottom: 50px;
+    }
+
+    .store-header h1 {
+      font-size: 2.5rem;
+      color: #ffffff;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .store-header p {
+      color: #e0edff;
+      font-size: 1.1rem;
+      margin: 0;
+    }
+
+    /* The Product Grid */
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 30px;
+    }
+
+    /* Product Cards (Matching your auth-card design) */
+    .product-card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(11, 17, 32, 0.05);
+      border: 2px solid rgba(45, 91, 190, 0.1);
+      overflow: hidden;
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .product-card:hover {
+      box-shadow: 0 25px 50px rgba(45, 91, 190, 0.15);
+      transform: translateY(-6px);
+      border-color: #2d5bbe;
+    }
+
+    .product-image-container {
+      height: 240px;
+      background: #eef2ff; /* Soft blue fallback background */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-bottom: 1px solid #e0e7ff;
+      position: relative;
+    }
+
+    .product-image-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .product-icon-placeholder {
+      font-size: 5rem;
+      color: #a5b4fc;
+    }
+
+    .product-info {
+      padding: 25px;
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+    }
+
+    .product-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #0B1120;
+      margin: 0 0 10px 0;
+    }
+
+    .product-desc {
+      color: #546a86;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin-bottom: 20px;
+      flex-grow: 1;
+    }
+
+    .product-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-top: 15px;
+      border-top: 1px solid #e0e7ff;
+    }
+
+    .product-price {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #2d5bbe;
+    }
+
+    .stock-badge {
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 20px;
+    }
+
+    /* Colors pulled straight from your Django messages CSS */
+    .stock-in {
+      background: #c6f6d5;
+      color: #22543d;
+      border: 1px solid #9ae6b4;
+    }
+
+    .stock-out {
+      background: #fed7d7;
+      color: #742a2a;
+      border: 1px solid #fc8181;
+    }
+
+    /* Checkout Button (Matching your submit-btn) */
+    .buy-btn {
+      width: 100%;
+      padding: 12px;
+      background: #2d5bbe;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-align: center;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-sizing: border-box;
+    }
+
+    .buy-btn:hover {
+      background: #1f3f89;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(45, 91, 190, 0.3);
+    }
+
+    .buy-btn.disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    /* Django Message Alerts */
+    .messages {
+      max-width: 800px;
+      margin: 0 auto 30px;
+    }
+    
+    .message {
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      font-size: 0.95rem;
+      text-align: center;
+      font-weight: 500;
+    }
+    .message.success { background: #c6f6d5; color: #22543d; border: 1px solid #9ae6b4; }
+    .message.error { background: #fed7d7; color: #742a2a; border: 1px solid #fc8181; }
+    .message.info { background: #bee3f8; color: #2c5282; border: 1px solid #90cdf4; }
+  </style>
+</head>
+<body>
+  
+  <!-- 👇 Injects your exact global navigation bar and AI chat module 👇 -->
+  {% include 'AppEnviroNode/main/navbar.html' %} 
+
+  <div class="store-container">
+    
+    <div class="store-header">
+      <h1>EnviroPlus Hardware Store</h1>
+      <p>Deploy industrial-grade U-Node air quality monitors for your environment.</p>
+    </div>
+
+    <!-- Alert Messages (e.g., "Not enough stock available!") -->
+    {% if messages %}
+      <div class="messages">
+        {% for message in messages %}
+          <div class="message {{ message.tags|default:'info' }}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="product-grid">
+      {% for product in products %}
+      <div class="product-card">
+        
+        <!-- Product Image or Fallback Icon -->
+        <div class="product-image-container">
+          {% if product.image %}
+            <img src="{{ product.image.url }}" alt="{{ product.name }}">
+          {% else %}
+            <!-- Shows a neat microchip icon if you haven't uploaded an image yet -->
+            <i class="fa-solid fa-microchip product-icon-placeholder"></i>
+          {% endif %}
+        </div>
+        
+        <div class="product-info">
+          <h3 class="product-title">{{ product.name }}</h3>
+          <p class="product-desc">{{ product.description }}</p>
+          
+          <div class="product-meta">
+            <span class="product-price">₱{{ product.price }}</span>
+            
+            {% if product.stock > 0 %}
+              <span class="stock-badge stock-in"><i class="fa-solid fa-check-circle"></i> {{ product.stock }} in stock</span>
+            {% else %}
+              <span class="stock-badge stock-out"><i class="fa-solid fa-times-circle"></i> Out of stock</span>
+            {% endif %}
+          </div>
+          
+          <!-- Dynamic Button Logic -->
+          {% if product.stock > 0 %}
+            <a href="{% url 'app:checkout' product.id %}" class="buy-btn">
+              <i class="fa-solid fa-cart-shopping"></i> Proceed to Checkout
+            </a>
+          {% else %}
+            <button class="buy-btn disabled" disabled>
+              <i class="fa-solid fa-box-open"></i> Sold Out
+            </button>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Fallback if database is empty -->
+      {% empty %}
+      <div style="grid-column: 1 / -1; text-align: center; padding: 60px; color: #546a86; background: white; border-radius: 12px; border: 2px dashed #cbd5e1;">
+        <i class="fa-solid fa-store-slash" style="font-size: 3rem; margin-bottom: 15px; color: #94a3b8;"></i>
+        <h3>No hardware available right now</h3>
+        <p>Check back later for new U-Node product drops.</p>
+      </div>
+      {% endfor %}
+      
+    </div>
+  </div>
+  
+</body>
+</html>

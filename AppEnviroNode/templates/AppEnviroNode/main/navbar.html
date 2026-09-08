@@ -12,6 +12,9 @@
       <a href="{% url 'app:realtime' %}" class="global-nav-link {% if 'realtime' in request.path %}active{% endif %}">Real-Time</a>
       <a href="{% url 'app:map' %}" class="global-nav-link {% if 'map' in request.path %}active{% endif %}">Map</a>
       <a href="{% url 'app:health' %}" class="global-nav-link {% if 'health' in request.path %}active{% endif %}">Health</a>
+      
+      <a href="{% url 'app:shop' %}" class="global-nav-link {% if 'shop' in request.path %}active{% endif %}">Store</a>
+      
       <a href="{% url 'app:about' %}" class="global-nav-link {% if 'about' in request.path %}active{% endif %}">About</a>
     </nav>
 

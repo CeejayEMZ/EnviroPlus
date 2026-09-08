@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
@@ -20,30 +20,36 @@ from django.template.loader import render_to_string
 from django.conf import settings
 from django.views.decorators.cache import cache_page
 from functools import wraps
-from .ai import ask_enviro_ai, generate_ai_insights
+
+# File processing and standard libraries
 import csv
 import io
 import logging
-from datetime import timedelta, datetime
 import base64
 import hashlib
+import json
+import urllib.parse
+import re
+from datetime import timedelta, datetime
+
+# External packages
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from openpyxl import Workbook
+from openpyxl.styles import Alignment
+from openpyxl.utils import get_column_letter
+
 try:
     from xhtml2pdf import pisa
 except ImportError:
     pisa = None
-from openpyxl import Workbook
-from openpyxl.styles import Alignment
-from openpyxl.utils import get_column_letter
-import json
-import urllib.parse
+
+# Local app imports
+from .ai import ask_enviro_ai, generate_ai_insights
 from .forms import CustomAuthenticationForm, CustomUserCreationForm, PasswordResetRequestForm, SensorNodeForm
-from .models import SensorNode, SensorReading, Alert, SystemLog, AdminActionLog
+from .models import SensorNode, SensorReading, Alert, SystemLog, AdminActionLog, Product, Order
 from .services import EmailService
-from django.contrib.auth import get_user_model
-import re
 
 def validate_password_strength(password):
     """
@@ -6008,3 +6014,37 @@ def api_closest_node(request):
 
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
+    
+
+def shop_view(request):
+    products = Product.objects.filter(is_active=True)
+    return render(request, 'AppEnviroNode/shop/store.html', {'products': products})
+
+@login_required
+def dummy_checkout(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+    
+    if request.method == 'POST':
+        quantity = int(request.POST.get('quantity', 1))
+        address = request.POST.get('shipping_address')
+        
+        if product.stock < quantity:
+            messages.error(request, 'Not enough stock available!')
+            return redirect('app:shop')
+        
+        Order.objects.create(
+            user=request.user,
+            product=product,
+            quantity=quantity,
+            total_price=product.price * quantity,
+            shipping_address=address,
+            status='paid' 
+        )
+        
+        product.stock -= quantity
+        product.save()
+        
+        messages.success(request, 'Sample order placed successfully!')
+        return redirect('app:client_dashboard')
+        
+    return render(request, 'AppEnviroNode/shop/checkout.html', {'product': product})
