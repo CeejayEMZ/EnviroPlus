@@ -1,5 +1,9 @@
 from django.urls import path
 from . import views
+from django.conf import settings             # <-- Add this
+from django.conf.urls.static import static   # <-- Add this
+from django.contrib import admin
+from django.urls import include
 
 app_name = 'app'
 
@@ -24,6 +28,7 @@ urlpatterns = [
     path('change-password/', views.change_password, name='change_password'),
     path('force-password-change/', views.force_password_change, name='force_password_change'),
     path('activate/<uidb64>/<token>/', views.activate_user, name='activate_user'),
+    path('dashboard/hardware-inventory/', views.hardware_inventory_view, name='hardware_inventory'),
     
     # PASSWORD RESET ADMIN MODERATION
     path('admin/password-reset-requests/', views.admin_password_reset_requests, name='admin_password_reset_requests'),
@@ -46,6 +51,7 @@ urlpatterns = [
     path('dashboard/settings/', views.client_settings, name='client_settings'),
     path('dashboard/users/', views.client_users, name='client_users'),
     path('dashboard/ai/', views.client_ai, name='client_ai'),
+    path('dashboard/hardware-inventory/<int:product_id>/delete/', views.hardware_delete_view, name='hardware_delete'),
     
     # API ENDPOINTS for ESP8266 Sensor Integration
     path('api/sensor-data/', views.api_sensor_data, name='api_sensor_data'),
@@ -110,3 +116,5 @@ urlpatterns = [
     path('api/closest-node/', views.api_closest_node, name='api_closest_node'),
 
 ]
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -20,6 +20,7 @@ from django.template.loader import render_to_string
 from django.conf import settings
 from django.views.decorators.cache import cache_page
 from functools import wraps
+from .forms import ProductForm
 
 # File processing and standard libraries
 import csv
@@ -6048,3 +6049,32 @@ def dummy_checkout(request, product_id):
         return redirect('app:client_dashboard')
         
     return render(request, 'AppEnviroNode/shop/checkout.html', {'product': product})
+
+@login_required
+def hardware_inventory_view(request):
+    # Retrieve all products, ordered by newest first
+    products = Product.objects.all().order_by('-id')
+    
+    # Handle adding a new product
+    if request.method == 'POST':
+        form = ProductForm(request.POST, request.FILES)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'New U-Node hardware added to the deployment store!')
+            return redirect('app:hardware_inventory')
+    else:
+        form = ProductForm()
+        
+    return render(request, 'AppEnviroNode/admin/hardware_inventory.html', {
+        'products': products,
+        'form': form
+    })
+
+@login_required
+@require_http_methods(["POST"])
+def hardware_delete_view(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+    product_name = product.name
+    product.delete()
+    messages.success(request, f'Hardware "{product_name}" has been removed.')
+    return redirect('app:hardware_inventory')

@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html
 from .models import CustomUser, SensorNode, SensorReading, Alert, SensorNodeAPIKey
-
+from .models import Product, Order
 
 class CustomUserAdmin(BaseUserAdmin):
     """Custom User Admin to manage extended user fields."""
@@ -132,3 +132,15 @@ admin.site.register(SensorNode, SensorNodeAdmin)
 admin.site.register(SensorReading, SensorReadingAdmin)
 admin.site.register(Alert, AlertAdmin)
 admin.site.register(SensorNodeAPIKey, SensorNodeAPIKeyAdmin)
+
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ('name', 'price', 'stock', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('name',)
+
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'product', 'quantity', 'total_price', 'status', 'created_at')
+    list_filter = ('status', 'created_at')
+    search_fields = ('user__email', 'shipping_address')

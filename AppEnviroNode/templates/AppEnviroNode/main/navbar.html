@@ -13,7 +13,8 @@
       <a href="{% url 'app:map' %}" class="global-nav-link {% if 'map' in request.path %}active{% endif %}">Map</a>
       <a href="{% url 'app:health' %}" class="global-nav-link {% if 'health' in request.path %}active{% endif %}">Health</a>
       
-      <a href="{% url 'app:shop' %}" class="global-nav-link {% if 'shop' in request.path %}active{% endif %}">Store</a>
+      <!-- Change "Store" to "U-Nodes" -->
+      <a href="{% url 'app:shop' %}" class="global-nav-link {% if 'shop' in request.path %}active{% endif %}">U-Nodes</a>
       
       <a href="{% url 'app:about' %}" class="global-nav-link {% if 'about' in request.path %}active{% endif %}">About</a>
     </nav>

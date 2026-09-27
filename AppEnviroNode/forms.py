@@ -3,6 +3,8 @@ from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from .models import SensorNode
+from django import forms
+from .models import Product
 
 User = get_user_model()
 
@@ -190,3 +192,14 @@ class SensorNodeForm(forms.ModelForm):
         if longitude is not None and (longitude < -180 or longitude > 180):
             raise ValidationError("Longitude must be between -180 and 180.")
         return longitude
+
+class ProductForm(forms.ModelForm):
+    class Meta:
+        model = Product
+        fields = ['name', 'description', 'price', 'stock', 'image', 'is_active']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'e.g. U-Node V1'}),
+            'description': forms.Textarea(attrs={'class': 'form-input', 'rows': 3}),
+            'price': forms.NumberInput(attrs={'class': 'form-input'}),
+            'stock': forms.NumberInput(attrs={'class': 'form-input'}),
+        }
