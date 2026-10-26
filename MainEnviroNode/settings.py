@@ -101,6 +101,10 @@ DATABASES = {
     }
 }
 
+DATABASES = {
+    'default': dj_database_url.parse('postgresql://ep_db_7whs_user:wJxo3VvabLIbxbKk3MzKBZ2nCCP9Fzhi@dpg-dasbos7pn0mc73fnrq80-a.singapore-postgres.render.com/ep_db_7whs')
+}
+
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
@@ -179,6 +183,7 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('BREVO_SMTP_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('BREVO_SMTP_PASSWORD', '')
+BREVO_API_KEY = os.getenv('BREVO_API_KEY')
 DEFAULT_FROM_EMAIL = 'EnviroPlus <enviroplusnode@gmail.com>'
 SERVER_EMAIL = 'EnviroPlus <enviroplusnode@gmail.com>'
 
@@ -209,3 +214,7 @@ PASSWORD_RESET_TIMEOUT = 3600 * 24 * 7  # 7 days in seconds
 
 # AI Configuration
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
+
+# Paymongo API Configuration test keys
+PAYMONGO_PUBLIC_KEY = 'pk_test_21HL3dop2nVwSBE7c8dJSWfp'
+PAYMONGO_SECRET_KEY = '***REMOVED***'

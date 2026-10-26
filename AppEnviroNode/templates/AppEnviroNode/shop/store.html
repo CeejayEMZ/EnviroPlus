@@ -4,217 +4,66 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>U-Node Architecture - EnviroPlus</title>
+  <title>Deploy U-Node - EnviroPlus</title>
   <link rel="icon" type="image/png" href="{% static 'AppEnviroNode/images/logo.png' %}">
   
   <link rel="stylesheet" href="{% static 'AppEnviroNode/css/Style.css' %}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <style>
-    body {
-      background-color: #f8fafc;
-      font-family: inherit;
-      margin: 0;
-      padding: 0;
-    }
-
-    .node-container {
-      max-width: 1200px;
-      margin: 100px auto 60px;
-      padding: 0 20px;
-    }
-
-    /* Hero Section */
-    .hero-section {
-      text-align: center;
-      margin-bottom: 60px;
-      padding: 40px 20px;
-      background: white;
-      border-radius: 16px;
-      border: 2px solid rgba(45, 91, 190, 0.1);
-      box-shadow: 0 10px 30px rgba(11, 17, 32, 0.05);
-    }
-
-    .hero-section h1 {
-      font-size: 2.8rem;
-      color: #0B1120;
-      font-weight: 700;
-      margin-bottom: 15px;
-    }
-
-    .hero-section p {
-      color: #546a86;
-      font-size: 1.15rem;
-      max-width: 700px;
-      margin: 0 auto;
-      line-height: 1.6;
-    }
-
-    /* Hardware Breakdown Grid */
-    .spec-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 25px;
-      margin-bottom: 80px;
-    }
-
-    .spec-card {
-      background: white;
-      padding: 30px;
-      border-radius: 12px;
-      border-top: 4px solid #2d5bbe;
-      box-shadow: 0 10px 30px rgba(11, 17, 32, 0.04);
-      transition: transform 0.3s ease;
-    }
-
-    .spec-card:hover {
-      transform: translateY(-5px);
-    }
-
-    .spec-icon {
-      font-size: 2.5rem;
-      color: #2d5bbe;
-      margin-bottom: 20px;
-    }
-
-    .spec-card h3 {
-      font-size: 1.3rem;
-      color: #0B1120;
-      margin: 0 0 12px 0;
-    }
-
-    .spec-card p {
-      color: #546a86;
-      font-size: 0.95rem;
-      line-height: 1.6;
-      margin: 0;
-    }
-
-    /* Deployment / Purchase Section */
-    .deployment-section {
-      border-top: 2px dashed #cbd5e1;
-      padding-top: 60px;
-    }
-
-    .deployment-header {
-      text-align: center;
-      margin-bottom: 40px;
-    }
-
-    .deployment-header h2 {
-      font-size: 2rem;
-      color: #ffffff; 
-      margin-bottom: 10px;
-    }
-
-    .product-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      gap: 30px;
-      justify-content: center;
-    }
-
-    .product-card {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 10px 30px rgba(11, 17, 32, 0.05);
-      border: 2px solid rgba(45, 91, 190, 0.1);
-      display: flex;
-      flex-direction: column;
-      position: relative; 
-    }
-
-    /* IMAGE CONTAINER & HOVER EFFECTS */
-    .product-image-container {
-      height: 220px;
-      background: #eef2ff;
-      border-bottom: 1px solid #e0e7ff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 15px;
-      border-radius: 10px 10px 0 0; 
-      position: relative;
-    }
-
-    .product-image-container .main-img {
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain; 
-      cursor: zoom-in;
-      transition: transform 0.3s ease;
-    }
-
-    .product-image-container:hover .main-img {
-      transform: scale(1.05);
-    }
-
-    /* THE POP-UP PREVIEW */
-    .img-hover-popup {
-      position: absolute;
-      top: 50%;       /* Centers vertically relative to the image container */
-      left: 100%;     /* Pushes it to the right side */
-      width: 260px;   /* Significantly smaller */
-      background: white;
-      padding: 10px;
-      border-radius: 12px;
-      box-shadow: 0 15px 40px rgba(0,0,0,0.25);
-      border: 1px solid #e2e8f0;
-      z-index: 1000;
-      
-      /* Hidden by default with smooth transitions */
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-      transform: translate(-10px, -50%) scale(0.95);
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .img-hover-popup img {
-      width: 100%;
-      height: auto;
-      border-radius: 8px;
-      display: block;
-      object-fit: contain;
-    }
-
-    /* Trigger the pop-up on hover */
-    .product-image-container:hover .img-hover-popup {
-      opacity: 1;
-      visibility: visible;
-      transform: translate(15px, -50%) scale(1);
-    }
-
-    /* Product Info Styles */
-    .product-info {
-      padding: 25px;
-      display: flex;
-      flex-direction: column;
-      flex-grow: 1;
-    }
-
-    .product-title { font-size: 1.3rem; font-weight: 700; color: #0B1120; margin: 0 0 10px 0; }
-    .product-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-top: 15px; border-top: 1px solid #e0e7ff; }
-    .product-price { font-size: 1.5rem; font-weight: 700; color: #2d5bbe; }
+    body { background-color: #f8fafc; font-family: inherit; margin: 0; padding: 0; }
+    .node-container { max-width: 1200px; margin: 120px auto 60px; padding: 0 20px; }
     
-    .buy-btn {
-      width: 100%; padding: 12px; background: #2d5bbe; color: white; border: none;
-      border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer;
-      text-align: center; text-decoration: none; display: inline-flex;
-      align-items: center; justify-content: center; gap: 8px; transition: all 0.3s ease;
-    }
-    .buy-btn:hover { background: #1f3f89; transform: translateY(-2px); }
+    .deployment-header { text-align: center; margin-bottom: 40px; }
+    .deployment-header h2 { font-size: 2.5rem; color: #ffffff; margin-bottom: 10px; } 
+    .deployment-header p { color: #e7f1ff; font-size: 1.1rem; font-weight: 600; } 
 
-    /* Media query to handle smaller screens so it doesn't break off the page */
+    .unode-explainer { background: #ffffff; border-radius: 12px; padding: 30px; margin-bottom: 50px; border: 1px solid #e2e8f0; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05); }
+    .unode-explainer h3 { margin-top: 0; color: #0f172a; text-align: center; font-size: 1.4rem; margin-bottom: 25px; }
+
+    .explainer-grid { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+    .explainer-item { background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #e0e7ff; flex: 1; min-width: 250px; }
+    .explainer-item i { font-size: 1.5rem; color: #2d5bbe; margin-bottom: 12px; }
+    .explainer-item h4 { margin: 0 0 8px; color: #0f172a; font-size: 1.05rem; }
+    .explainer-item p { margin: 0; color: #64748b; font-size: 0.9rem; line-height: 1.5; }
+
+    .product-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 40px; margin-bottom: 60px; }
+    .product-card { width: 100%; max-width: 400px; background: white; border-radius: 12px; box-shadow: 0 15px 35px rgba(11, 17, 32, 0.08); border: 2px solid rgba(45, 91, 190, 0.1); display: flex; flex-direction: column; position: relative; }
+    .product-image-container { height: 250px; background: #eef2ff; border-bottom: 1px solid #e0e7ff; display: flex; align-items: center; justify-content: center; padding: 20px; border-radius: 10px 10px 0 0; position: relative; }
+    .product-image-container .main-img { max-width: 100%; max-height: 100%; object-fit: contain; cursor: zoom-in; transition: transform 0.3s ease; }
+    .product-image-container:hover .main-img { transform: scale(1.05); }
+
+    .img-hover-popup { position: absolute; top: 50%; left: 100%; width: 280px; background: white; padding: 10px; border-radius: 12px; box-shadow: 0 15px 40px rgba(0,0,0,0.25); border: 1px solid #e2e8f0; z-index: 1000; opacity: 0; visibility: hidden; pointer-events: none; transform: translate(-10px, -50%) scale(0.95); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    .img-hover-popup img { width: 100%; height: auto; border-radius: 8px; display: block; object-fit: contain; }
+    .product-image-container:hover .img-hover-popup { opacity: 1; visibility: visible; transform: translate(20px, -50%) scale(1); }
+
+    .product-info { padding: 30px; display: flex; flex-direction: column; flex-grow: 1; }
+    .product-title { font-size: 1.4rem; font-weight: 700; color: #0B1120; margin: 0 0 12px 0; }
+    .product-desc { color: #546a86; font-size: 0.95rem; margin-bottom: 20px; }
+    .product-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-top: 15px; border-top: 1px solid #e0e7ff; flex-wrap: wrap; gap: 10px; }
+    .product-price { font-size: 1.6rem; font-weight: 700; color: #2d5bbe; }
+    .stock-badge { font-size: 0.9rem; font-weight: 600; white-space: nowrap; }
+    
+    .buy-btn { width: 100%; padding: 14px; background: #2d5bbe; color: white; border: none; border-radius: 8px; font-size: 1.05rem; font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.3s ease; }
+    .buy-btn:hover { background: #1f3f89; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(45, 91, 190, 0.3); }
+
+    .request-btn { width: 100%; padding: 14px; background: #ea580c; color: white; border: none; border-radius: 8px; font-size: 1.05rem; font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.3s ease; }
+    .request-btn:hover { background: #c2410c; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(234, 88, 12, 0.3); }
+
+    .empty-catalog { padding: 40px; text-align: center; max-width: 600px; margin: 0 auto; }
+    .empty-catalog i { font-size: 3rem; color: #cbd5e1; margin-bottom: 15px; }
+    .empty-catalog h3 { color: #0f172a; margin-top: 0; }
+    .empty-catalog p { color: #64748b; margin: 0 auto 20px; }
+
+    .info-banner { background: #ffffff; border-radius: 12px; padding: 30px; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 20px; box-shadow: 0 10px 30px rgba(11, 17, 32, 0.03); border: 1px solid #e2e8f0; text-align: center; }
+    .info-item { max-width: 250px; }
+    .info-item i { font-size: 2rem; color: #94a3b8; margin-bottom: 10px; }
+    .info-item h4 { margin: 0 0 5px; color: #0f172a; }
+    .info-item p { margin: 0; font-size: 0.9rem; color: #64748b; }
+
     @media (max-width: 900px) {
-      .img-hover-popup {
-        left: 50%;
-        top: 100%;
-        transform: translate(-50%, -10px) scale(0.95);
-      }
-      .product-image-container:hover .img-hover-popup {
-        transform: translate(-50%, 15px) scale(1);
-      }
+      .img-hover-popup { left: 50%; top: 100%; transform: translate(-50%, -10px) scale(0.95); }
+      .product-image-container:hover .img-hover-popup { transform: translate(-50%, 15px) scale(1); }
     }
   </style>
 </head>
@@ -224,84 +73,102 @@
 
   <div class="node-container">
     
-    <div class="hero-section">
-      <h1>The U-Node Architecture</h1>
-      <p>A comprehensive breakdown of our custom-engineered environmental monitoring hardware. Built for precision, scalability, and real-time data transmission.</p>
+    <div class="deployment-header">
+      <h2>Deploy a U-Node</h2>
+      <p>Interested in expanding the network? Order a sample node below.</p>
     </div>
 
-    <div class="spec-grid">
-      <div class="spec-card">
-        <i class="fa-solid fa-microchip spec-icon"></i>
-        <h3>ESP8266 Microcontroller</h3>
-        <p>The core processing unit. Handles I2C bus connections and manages seamless Wi-Fi data transmission to the central EnviroPlus servers.</p>
-      </div>
-
-      <div class="spec-card">
-        <i class="fa-solid fa-temperature-half spec-icon"></i>
-        <h3>BME680 Sensor</h3>
-        <p>A state-of-environment sensor delivering highly accurate readings for ambient temperature, relative humidity, and barometric pressure.</p>
-      </div>
-
-      <div class="spec-card">
-        <i class="fa-solid fa-smog spec-icon"></i>
-        <h3>SGP40 & MQ Series</h3>
-        <p>Advanced gas and VOC (Volatile Organic Compound) sensor arrays designed to detect harmful air pollutants and calculate accurate air quality indexes.</p>
-      </div>
-    </div>
-
-    <div class="deployment-section">
-      <div class="deployment-header">
-        <h2>Deploy a U-Node</h2>
-        <p style="color: #d7d7d7;">Interested in expanding the network? Order a sample node below.</p>
-      </div>
-
-      <div class="product-grid">
-        {% for product in products %}
-        <div class="product-card">
-          
-          <!-- IMAGE CONTAINER WITH HOVER POP-UP -->
-          <div class="product-image-container">
-            {% if product.image %}
-              <img src="{{ product.image.url }}" alt="{{ product.name }}" class="main-img">
-              
-              <!-- The hidden full-size preview -->
-              <div class="img-hover-popup">
-                <img src="{{ product.image.url }}" alt="Full Preview of {{ product.name }}">
-              </div>
-            {% else %}
-              <i class="fa-solid fa-microchip" style="font-size: 4rem; color: #a5b4fc;"></i>
-            {% endif %}
-          </div>
-
-          <div class="product-info">
-            <h3 class="product-title">{{ product.name }}</h3>
-            <p style="color: #546a86; font-size: 0.95rem; margin-bottom: 20px;">{{ product.description }}</p>
-            
-            <div class="product-meta">
-              <span class="product-price">₱{{ product.price }}</span>
-              {% if product.stock > 0 %}
-                <span style="color: #22543d; font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-check"></i> {{ product.stock }} Available</span>
-              {% else %}
-                <span style="color: #742a2a; font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-times"></i> Out of Stock</span>
-              {% endif %}
-            </div>
-            
-            {% if product.stock > 0 %}
-              <a href="{% url 'app:checkout' product.id %}" class="buy-btn">
-                <i class="fa-solid fa-cart-shopping"></i> Request Hardware
-              </a>
-            {% else %}
-              <button class="buy-btn" style="background: #94a3b8; cursor: not-allowed;" disabled>Sold Out</button>
-            {% endif %}
-          </div>
+    <div class="unode-explainer">
+      <h3>What is inside a U-Node?</h3>
+      <div class="explainer-grid">
+        <div class="explainer-item">
+          <i class="fa-solid fa-microchip"></i>
+          <h4>ESP8266 Microcontroller</h4>
+          <p>Provides robust processing power and low-cost Wi-Fi connectivity to transmit real-time data.</p>
         </div>
-        {% empty %}
-        <p style="text-align: center; color: #94a3b8; grid-column: 1 / -1;">No deployment hardware available at this time.</p>
-        {% endfor %}
+        <div class="explainer-item">
+          <i class="fa-solid fa-wind"></i>
+          <h4>PMS5003 Sensor</h4>
+          <p>Precisely tracks fine particulate matter (PM2.5 and PM10) for immediate air quality assessment.</p>
+        </div>
+        <div class="explainer-item">
+          <i class="fa-solid fa-temperature-half"></i>
+          <h4>SGP40 & BME280</h4>
+          <p>Measures Volatile Organic Compounds (VOCs), ambient temperature, humidity, and barometric pressure.</p>
+        </div>
       </div>
     </div>
 
+    <div class="product-grid">
+      {% for product in products %}
+      <div class="product-card">
+        <div class="product-image-container">
+          {% if product.image %}
+            <img src="{{ product.image.url }}" alt="{{ product.name }}" class="main-img">
+            <div class="img-hover-popup">
+              <img src="{{ product.image.url }}" alt="Full Preview of {{ product.name }}">
+            </div>
+          {% else %}
+            <i class="fa-solid fa-microchip" style="font-size: 4rem; color: #a5b4fc;"></i>
+          {% endif %}
+        </div>
+
+        <div class="product-info">
+          <h3 class="product-title">{{ product.name }}</h3>
+          <p class="product-desc">{{ product.description }}</p>
+          
+          <div class="product-meta">
+            <span class="product-price">₱{{ product.price }}</span>
+            {% if product.stock > 0 %}
+              <span class="stock-badge" style="color: #16a34a;"><i class="fa-solid fa-check"></i> {{ product.stock }} Available</span>
+            {% else %}
+              <span class="stock-badge" style="color: #ef4444;"><i class="fa-solid fa-times"></i> Out of Stock</span>
+            {% endif %}
+          </div>
+          
+          {% if product.stock > 0 %}
+            <a href="{% url 'app:checkout' product.id %}" class="buy-btn">
+              <i class="fa-solid fa-cart-shopping"></i> Purchase Hardware
+            </a>
+          {% else %}
+            <!-- This is the updated Request Build button pointing to the new page -->
+            <a href="{% url 'app:request_build' product.id %}" class="request-btn">
+              <i class="fa-solid fa-clipboard-list"></i> Request Hardware Build
+            </a>
+          {% endif %}
+        </div>
+      </div>
+      
+      {% empty %}
+      <div class="product-card empty-catalog">
+        <i class="fa-solid fa-microchip"></i>
+        <h3>No Nodes Currently Available</h3>
+        <p>Our inventory is currently empty. Please contact us directly for custom build requests.</p>
+        <a href="mailto:admin@enviroplus.com" class="request-btn">
+          <i class="fa-solid fa-envelope"></i> Email Us to Request
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="info-banner">
+      <div class="info-item">
+        <i class="fa-solid fa-truck-fast"></i>
+        <h4>Priority Deployment</h4>
+        <p>Orders are processed and prepared for deployment within 48 hours.</p>
+      </div>
+      <div class="info-item">
+        <i class="fa-solid fa-shield-halved"></i>
+        <h4>Hardware Warranty</h4>
+        <p>Includes a 1-year replacement guarantee on all core sensor components.</p>
+      </div>
+      <div class="info-item">
+        <i class="fa-solid fa-headset"></i>
+        <h4>Technical Support</h4>
+        <p>Full onboarding and network integration assistance provided.</p>
+      </div>
+    </div>
   </div>
-  
+
 </body>
 </html>

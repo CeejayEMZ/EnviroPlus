@@ -8,7 +8,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <style>
-    /* Additional styles for dashboard map */
+    /* Force the parent layout to use the full screen width */
+    .main-container, .overlay, .container {
+        width: 96% !important;
+        max-width: 100% !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+
     .cdashboard-map .cdashboard-card-body {
       padding: 6px 12px 12px 12px !important;
     }
@@ -16,11 +23,10 @@
       height: 160px;
       width: 100%;
       border-radius: 8px;
-      background: #f0f4f8;
+      background: #0f172a; 
       border: 1px solid var(--cd-border);
       margin-bottom: 8px;
     }
-    /* Smaller zoom controls for dashboard map */
     .dashboard-map-zoom-control {
       position: absolute;
       top: 10px;
@@ -52,8 +58,8 @@
     }
     .leaflet-control-attribution {
       font-size: 8px;
+      background: rgba(255, 255, 255, 0.7) !important;
     }
-    /* Dashboard marker styles - matching Map View exactly */
     .dashboard-marker {
       position: relative;
       width: 32px;
@@ -75,20 +81,18 @@
       transform: scale(1.2);
       z-index: 1000;
     }
-    /* AQI color classes matching Map View */
     .dashboard-marker-good { background-color: #2ecc71; }
     .dashboard-marker-moderate { background-color: #f1c40f; }
     .dashboard-marker-sensitive { background-color: #e67e22; }
     .dashboard-marker-unhealthy { background-color: #e74c3c; }
     .dashboard-marker-very-unhealthy { background-color: #c0392b; }
     .dashboard-marker-hazardous { background-color: #8b0000; }
-    .dashboard-marker-offline { background-color: #7f8c8d; opacity: 0.7; }
+    .dashboard-marker-offline { background-color: #7f8c8d; opacity: 0.8; }
   </style>
 {% endblock %}
 
 {% block content %}
     <style>
-        /* GLOBAL VARIABLES & LIGHT THEME */
         :root {
             --cd-bg: #f6f8fb;
             --cd-card-bg: #ffffff;
@@ -96,8 +100,6 @@
             --cd-border: #e5e7eb;
             --cd-text-main: #1f2937;
             --cd-text-muted: #6b7280;
-            
-            /* Semantic Identity Colors */
             --cd-green: #10b981;       
             --cd-green-bg: rgba(16, 185, 129, 0.15);
             --cd-yellow: #f59e0b;      
@@ -115,18 +117,18 @@
             --cd-slate: #64748b;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        .cdashboard-wrapper * { box-sizing: border-box; }
 
-        /* GRID LAYOUT */
+        /* Stretches the dashboard across the available space */
         .cdashboard-wrapper {
             display: grid;
             grid-template-columns: repeat(12, 1fr);
-            gap: 10px;
-            max-width: 100%;
-            margin: 0 auto;
+            gap: 16px;
+            width: 100% !important;
+            max-width: 2400px !important;
+            margin: 20px auto 40px auto;
         }
 
-        /* 1. PRIMARY INCIDENT CARD */
         .cd-incident-primary {
             grid-column: span 12;
             background: #fffcfc;
@@ -141,7 +143,6 @@
             animation: pulse-critical-glow 3s infinite alternate;
         }
 
-        /* Clear variant — no red, used when system is healthy */
         .cd-incident-primary.clear {
             background: #f0fdf4;
             border-color: var(--cd-green);
@@ -161,7 +162,6 @@
         .cd-incident-impact { display: flex; gap: 12px; font-size: 12px; font-weight: 500; color: var(--cd-text-muted); }
         .cd-incident-impact span { color: var(--cd-text-main); font-weight: 700; }
         
-        /* TIME CONTEXT BLOCK */
         .cd-time-context-block {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -182,179 +182,76 @@
         .cd-time-context-block span { font-weight: 800; color: var(--cd-red); display: flex; align-items: center; gap: 4px;}
         .cd-time-context-block.clear span { color: var(--cd-green); }
 
-        /* TIME CONTEXT TAGS */
         .cd-time-tag { padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; display: inline-flex; align-items: center; }
         .cd-time-tag.new { background: var(--cd-red); color: white; }
         .cd-time-tag.ongoing { background: var(--cd-yellow); color: white; }
         .cd-time-tag.stable { background: var(--cd-green); color: white; }
 
-        /* SECONDARY ISSUES STRIP */
-        .cd-secondary-issues {
-            grid-column: span 12;
-            display: flex;
-            gap: 8px;
-            margin-bottom: 2px;
-            flex-wrap: wrap;
-        }
-        .cd-secondary-pill {
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            background: var(--cd-card-bg);
-            border: 1px solid var(--cd-border);
-            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
-            cursor: pointer;
-            transition: 0.2s;
-        }
+        .cd-secondary-issues { grid-column: span 12; display: flex; gap: 8px; margin-bottom: 2px; flex-wrap: wrap; }
+        .cd-secondary-pill { padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 6px; background: var(--cd-card-bg); border: 1px solid var(--cd-border); box-shadow: 0 1px 2px rgba(0,0,0,0.02); cursor: pointer; transition: 0.2s; }
         .cd-secondary-pill:hover { transform: translateY(-1px); box-shadow: 0 3px 6px rgba(0,0,0,0.05); }
         .cd-secondary-pill.yellow { border-left: 3px solid var(--cd-yellow); color: var(--cd-text-main); }
         .cd-secondary-pill.orange { border-left: 3px solid var(--cd-orange); color: var(--cd-text-main); }
         .cd-secondary-pill.green { border-left: 3px solid var(--cd-green); color: var(--cd-green); }
         .cd-secondary-pill i { font-size: 14px; }
 
-        /* MODULE CARD BASE */
-        .cdashboard-card {
-            background: var(--cd-card-bg);
-            border: 1px solid var(--cd-border);
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-            transition: border-color 0.2s;
-        }
-
-        .cdashboard-card-header {
-            padding: 8px 12px;
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--cd-text-muted);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border-bottom: 1px solid var(--cd-border);
-            background: var(--cd-card-bg);
-        }
+        .cdashboard-card { background: var(--cd-card-bg); border: 1px solid var(--cd-border); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04); transition: border-color 0.2s; }
+        .cdashboard-card-header { padding: 10px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--cd-text-muted); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--cd-border); background: var(--cd-card-bg); }
         .cd-header-left { display: flex; align-items: center; gap: 6px; }
+        .cdashboard-card-body { padding: 12px 16px; flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 10px; }
 
-        .cdashboard-card-body {
-            padding: 10px 12px;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        /* DATA CONFIDENCE LAYER */
-        .cd-confidence-bar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: var(--cd-bg);
-            padding: 6px 8px;
-            border-radius: 6px;
-            border: 1px dashed var(--cd-border);
-            margin-bottom: 4px;
-        }
-        .cd-confidence-text { font-size: 10px; font-weight: 600; color: var(--cd-text-muted); display: flex; align-items: center; gap: 4px;}
-        .cd-confidence-val { font-size: 11px; font-weight: 800; }
+        .cd-confidence-bar { display: flex; align-items: center; justify-content: space-between; background: var(--cd-bg); padding: 8px 10px; border-radius: 6px; border: 1px dashed var(--cd-border); margin-bottom: 4px; }
+        .cd-confidence-text { font-size: 11px; font-weight: 600; color: var(--cd-text-muted); display: flex; align-items: center; gap: 4px;}
+        .cd-confidence-val { font-size: 12px; font-weight: 800; }
         .cd-confidence-val.degraded { color: var(--cd-yellow-text); }
         .cd-confidence-val.high { color: var(--cd-green); }
 
-        /* MICRO-ANIMATIONS */
-        .shimmer-text {
-            background: linear-gradient(90deg, var(--cd-text-main) 0%, #cbd5e1 50%, var(--cd-text-main) 100%);
-            background-size: 200% auto;
-            color: transparent;
-            -webkit-background-clip: text;
-            background-clip: text;
-            animation: shimmer 2s linear infinite;
-        }
+        .shimmer-text { background: linear-gradient(90deg, var(--cd-text-main) 0%, #cbd5e1 50%, var(--cd-text-main) 100%); background-size: 200% auto; color: transparent; -webkit-background-clip: text; background-clip: text; animation: shimmer 2s linear infinite; }
         @keyframes shimmer { to { background-position: 200% center; } }
         
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-
-        /* HOVER INTELLIGENCE (TOOLTIPS) */
         [data-tooltip] { position: relative; cursor: help; border-bottom: 1px dotted currentColor; }
-        [data-tooltip]::after {
-            content: attr(data-tooltip);
-            position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%) translateY(4px);
-            background: #1f2937; color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 10px; font-weight: 600;
-            white-space: nowrap; opacity: 0; pointer-events: none; transition: 0.2s; z-index: 10; margin-bottom: 6px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 1px solid #374151; letter-spacing: normal; text-transform: none;
-        }
+        [data-tooltip]::after { content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%) translateY(4px); background: #1f2937; color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 10px; font-weight: 600; white-space: nowrap; opacity: 0; pointer-events: none; transition: 0.2s; z-index: 10; margin-bottom: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 1px solid #374151; letter-spacing: normal; text-transform: none; }
         [data-tooltip]:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-        /* QUICK ACCESS (TABS) */
-        .cdashboard-quick-access {
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            padding: 6px 12px;
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--cd-slate);
-            background: transparent;
-            text-decoration: none;
-            transition: all 0.2s;
-            margin-top: -4px;
-        }
+        .cdashboard-quick-access { display: flex; align-items: center; justify-content: flex-end; padding: 8px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--cd-slate); background: transparent; text-decoration: none; transition: all 0.2s; margin-top: auto; }
         .cdashboard-quick-access:hover { color: var(--cd-text-main); }
         .cdashboard-quick-access.urgent { color: var(--cd-red); }
         .cdashboard-quick-access.urgent:hover { color: #b91c1c; }
 
-        /* CROSS-MODULE LINKING HINTS */
-        .cd-link-hint {
-            font-size: 10px;
-            font-weight: 600;
-            color: var(--cd-slate);
-            display: flex;
-            align-items: flex-start;
-            gap: 4px;
-            margin-top: auto;
-            padding-top: 6px;
-            border-top: 1px dashed var(--cd-border);
-        }
-        .cd-link-hint i { font-size: 12px; color: var(--cd-orange); margin-top: 1px; }
+        .cd-link-hint { font-size: 11px; font-weight: 600; color: var(--cd-slate); display: flex; align-items: flex-start; gap: 4px; margin-top: auto; padding-top: 8px; border-top: 1px dashed var(--cd-border); }
+        .cd-link-hint i { font-size: 13px; color: var(--cd-orange); margin-top: 1px; }
 
-        /* MICRO UI ELEMENTS */
         .cd-metric-row { display: flex; justify-content: space-between; align-items: center; }
-        .cd-metric-label { color: var(--cd-text-muted); font-size: 11px; font-weight: 500; }
-        .cd-metric-val { font-weight: 700; display: flex; align-items: center; gap: 6px; font-size: 12px; }
+        .cd-metric-label { color: var(--cd-text-muted); font-size: 12px; font-weight: 500; }
+        .cd-metric-val { font-weight: 700; display: flex; align-items: center; gap: 6px; font-size: 13px; }
         
-        /* ESCALATION INDICATORS */
-        .cd-trend { font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 2px; }
+        .cd-trend { font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 2px; }
         .cd-trend.critical { color: var(--cd-red); background: var(--cd-red-bg); padding: 2px 4px; border-radius: 4px;}
         .cd-trend.moderate { color: var(--cd-yellow-text); }
         .cd-trend.slow { color: var(--cd-slate); }
         .cd-trend.good { color: var(--cd-green); }
 
-        .cd-pill { padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+        .cd-pill { padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
         .cd-pill.green { background: var(--cd-green-bg); color: var(--cd-green); }
         .cd-pill.blue { background: var(--cd-blue-bg); color: var(--cd-blue); }
         .cd-pill.red { background: var(--cd-red-bg); color: var(--cd-red); }
+        .cd-pill.orange { background: rgba(234,88,12,0.15); color: var(--cd-orange); }
 
-        /* CARD IDENTITIES & SIZING */
+        /* WIDE LAYOUT SIZING (8 Cards) */
+        /* TOP ROW */
         .cdashboard-environment { grid-column: span 4; border-top: 3px solid var(--cd-yellow); }
         .cdashboard-system-health { grid-column: span 4; border-top: 3px solid var(--cd-green); }
         .cdashboard-devices { grid-column: span 4; border-top: 3px solid var(--cd-purple); }
         
-        .cdashboard-map { grid-column: span 3; border-top: 3px solid var(--cd-slate); }
-        .cdashboard-network { grid-column: span 3; border-top: 3px solid var(--cd-blue); }
-        .cdashboard-pipeline { grid-column: span 3; border-top: 3px solid var(--cd-orange); }
-        .cdashboard-admin { grid-column: span 3; border-top: 3px solid var(--cd-slate); }
+        /* MIDDLE ROW */
+        .cdashboard-map { grid-column: span 4; border-top: 3px solid var(--cd-slate); }
+        .cdashboard-pipeline { grid-column: span 4; border-top: 3px solid var(--cd-orange); }
+        .cdashboard-orders { grid-column: span 4; border-top: 3px solid var(--cd-green); }
 
-        /* Buttons with Interaction */
+        /* BOTTOM ROW */
+        .cdashboard-network { grid-column: span 6; border-top: 3px solid var(--cd-blue); }
+        .cdashboard-admin { grid-column: span 6; border-top: 3px solid var(--cd-red); }
+
         .btn-solid { background: var(--cd-red); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; transition: 0.2s transform, 0.2s background; text-decoration: none; justify-content: center; }
         .btn-solid:hover { background: #dc2626; }
         .btn-solid:active { transform: scale(0.97); }
@@ -362,11 +259,9 @@
         .btn-outline:hover { background: var(--cd-card-hover); }
         .btn-outline:active { transform: scale(0.97); }
 
-        /* Environment & Progressive Disclosure */
-        .cd-aqi-highlight { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
-        .cd-aqi-score { font-size: 28px; font-weight: 800; line-height: 1; }
+        .cd-aqi-highlight { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+        .cd-aqi-score { font-size: 32px; font-weight: 800; line-height: 1; }
         
-        /* AQI score colour classes */
         .aqi-good     { color: var(--cd-green); }
         .aqi-moderate { color: var(--cd-yellow); }
         .aqi-sensitive { color: var(--cd-orange); }
@@ -374,77 +269,26 @@
         .aqi-very-unhealthy { color: var(--cd-purple); }
         .aqi-hazardous { color: #7f1d1d; }
 
-        /* Progress / Signal Bars */
-        .cd-progress-bar { width: 100%; height: 6px; background: var(--cd-border); border-radius: 4px; overflow: hidden; display: flex; }
+        .cd-progress-bar { width: 100%; height: 8px; background: var(--cd-border); border-radius: 4px; overflow: hidden; display: flex; }
         .cd-progress-fill.good { background: var(--cd-purple); }
         .cd-progress-fill.low { background: var(--cd-yellow); }
         .cd-progress-fill.offline { background: var(--cd-red); }
-        .cd-progress-fill.warning { background: var(--cd-orange); }
-        .cd-progress-fill.info { background: var(--cd-cyan); }
-        .cd-signal-bars { display: flex; align-items: flex-end; gap: 2px; height: 14px; }
-        .cd-signal-bar { width: 3px; background: var(--cd-blue); border-radius: 1px; }
 
-        /* FLOATING ACTION MENU */
-        .cd-floating-overlay {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 12px;
-            z-index: 1000;
-        }
-        .cd-floating-menu {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 8px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            transform-origin: bottom right;
-            opacity: 1;
-            transform: scale(1) translateY(0);
-        }
-        .cd-floating-menu.hidden {
-            opacity: 0;
-            transform: scale(0.8) translateY(20px);
-            pointer-events: none;
-        }
-        .cd-float-btn {
-            background: var(--cd-card-bg);
-            border: 1px solid var(--cd-border);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            border-radius: 50px;
-            padding: 10px 18px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-family: 'Inter', sans-serif;
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--cd-text-main);
-            cursor: pointer;
-            transition: 0.2s ease;
-            white-space: nowrap;
-            text-decoration: none;
-        }
+        .cd-floating-overlay { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; z-index: 1000; }
+        .cd-floating-menu { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); transform-origin: bottom right; opacity: 1; transform: scale(1) translateY(0); }
+        .cd-floating-menu.hidden { opacity: 0; transform: scale(0.8) translateY(20px); pointer-events: none; }
+        .cd-float-btn { background: var(--cd-card-bg); border: 1px solid var(--cd-border); box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-radius: 50px; padding: 10px 18px; display: flex; align-items: center; gap: 8px; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 700; color: var(--cd-text-main); cursor: pointer; transition: 0.2s ease; white-space: nowrap; text-decoration: none; }
         .cd-float-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); border-color: var(--cd-slate); }
         .cd-float-btn i { font-size: 16px; }
         .cd-float-btn.ai-btn { border: 2px solid var(--cd-cyan); background: #f0fdfa; color: #0e7490; margin-bottom: 8px; }
-        .cd-float-btn.danger { color: var(--cd-red); border-color: rgba(239, 68, 68, 0.3); background: #fee2e2; }
-        .cd-float-btn.danger:hover { background: var(--cd-red); color: white; }
-        .cd-float-btn.master-btn {
-            border-radius: 50%; width: 54px; height: 54px; padding: 0; justify-content: center;
-            background: var(--cd-text-main); color: white; border: none;
-            box-shadow: 0 4px 14px rgba(31, 41, 55, 0.4);
-        }
+        .cd-float-btn.master-btn { border-radius: 50%; width: 54px; height: 54px; padding: 0; justify-content: center; background: var(--cd-text-main); color: white; border: none; box-shadow: 0 4px 14px rgba(31, 41, 55, 0.4); }
         .cd-float-btn.master-btn i { font-size: 24px; transition: transform 0.3s; }
         .cd-float-btn.master-btn:hover { background: #111827; }
         .cd-floating-overlay.collapsed .master-btn i { transform: rotate(180deg); }
 
         @media (max-width: 1024px) {
             .cdashboard-environment, .cdashboard-system-health, .cdashboard-devices { grid-column: span 6; }
-            .cdashboard-map, .cdashboard-network, .cdashboard-pipeline, .cdashboard-admin { grid-column: span 6; }
+            .cdashboard-map, .cdashboard-network, .cdashboard-pipeline, .cdashboard-admin, .cdashboard-orders { grid-column: span 6; }
             .cd-incident-primary { flex-direction: column; align-items: flex-start; }
             .cd-incident-primary > div:last-child { width: 100%; display: flex; gap: 8px; }
             .cd-time-context-block { width: 100%; }
@@ -465,7 +309,6 @@
 
         {# ================================================================== #}
         {# PRIMARY INCIDENT CARD                                              #}
-        {# Shows the most recent critical alert, or a "clear" state          #}
         {# ================================================================== #}
         {% with critical_alert=active_alerts.0 %}
         <div class="cd-incident-primary {% if not critical_alert %}clear{% endif %}">
@@ -570,7 +413,6 @@
 
         {# ================================================================== #}
         {# SECONDARY ISSUES STRIP                                             #}
-        {# Live counts of warnings and offline nodes                          #}
         {# ================================================================== #}
         <div class="cd-secondary-issues">
             {% if severity_counts.critical > 0 %}
@@ -610,8 +452,7 @@
         </div>
 
         {# ================================================================== #}
-        {# ENVIRONMENT IMPACT CARD                                            #}
-        {# Driven by: aggregate_data, analytics                               #}
+        {# ENVIRONMENT IMPACT CARD (Row 1)                                    #}
         {# ================================================================== #}
         <div class="cdashboard-card cdashboard-environment">
             <div class="cdashboard-card-header">
@@ -627,7 +468,6 @@
                 {% endif %}
             </div>
             <div class="cdashboard-card-body">
-
                 <div class="cd-confidence-bar">
                     <span class="cd-confidence-text">
                         <i class="ph-bold ph-shield-check"></i> Live Avg AQI
@@ -666,7 +506,7 @@
                             {% else %}No Data
                             {% endif %})
                         </div>
-                        <div style="font-size: 11px; color: var(--cd-text-muted); margin-top: 2px;">
+                        <div style="font-size: 12px; color: var(--cd-text-muted); margin-top: 4px;">
                             PM2.5 avg: {{ aggregate_data.avg_pm2_5|default:"—" }} µg/m³
                         </div>
                     </div>
@@ -701,15 +541,6 @@
                         {% endif %}
                     </span>
                 </div>
-
-                <div class="cd-link-hint">
-                    <i class="ph-fill ph-link"></i>
-                    {% if analytics.avg_pm2_5 %}
-                        7-day avg PM2.5: {{ analytics.avg_pm2_5 }} µg/m³ across {{ analytics.total_readings }} readings.
-                    {% else %}
-                        No readings in the last 7 days. Check node connectivity.
-                    {% endif %}
-                </div>
             </div>
             <a href="{% url 'app:client_analytics' %}" class="cdashboard-quick-access">
                 View Full Analytics &rarr;
@@ -717,8 +548,7 @@
         </div>
 
         {# ================================================================== #}
-        {# SYSTEM HEALTH CARD                                                 #}
-        {# Driven by: system_health                                           #}
+        {# SYSTEM HEALTH CARD (Row 1)                                         #}
         {# ================================================================== #}
         <div class="cdashboard-card cdashboard-system-health">
             <div class="cdashboard-card-header">
@@ -734,7 +564,6 @@
                 {% endif %}
             </div>
             <div class="cdashboard-card-body">
-
                 <div class="cd-confidence-bar"
                     {% if system_health.inactive_nodes == 0 %}
                         style="border-color: var(--cd-green); background: var(--cd-green-bg);"
@@ -815,8 +644,7 @@
         </div>
 
         {# ================================================================== #}
-        {# SENSOR HARDWARE / DEVICES CARD                                     #}
-        {# Driven by: active_count, inactive_count, total_nodes               #}
+        {# SENSOR HARDWARE / DEVICES CARD (Row 1)                             #}
         {# ================================================================== #}
         <div class="cdashboard-card cdashboard-devices">
             <div class="cdashboard-card-header">
@@ -830,8 +658,6 @@
                 {% endif %}
             </div>
             <div class="cdashboard-card-body">
-
-                {# Node status progress bar — widths computed from real counts #}
                 {% if total_nodes > 0 %}
                 <div>
                     <div class="cd-metric-row" style="margin-bottom: 6px;">
@@ -839,25 +665,23 @@
                     </div>
                     <div class="cd-progress-bar"
                         data-tooltip="{{ active_count }} active, {{ inactive_count }} offline out of {{ total_nodes }} total">
-                        {# Active portion #}
                         {% if active_count > 0 %}
                         <div class="cd-progress-fill good" data-width="{% widthratio active_count total_nodes 100 %}">
                         </div>
                         {% endif %}
-                        {# Offline portion #}
                         {% if inactive_count > 0 %}
                         <div class="cd-progress-fill offline" data-width="{% widthratio inactive_count total_nodes 100 %}">
                         </div>
                         {% endif %}
                     </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; margin-top: 6px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; margin-top: 8px;">
                         <span style="color: var(--cd-purple);">{{ active_count }} Active</span>
                         <span style="color: var(--cd-red);">{{ inactive_count }} Offline</span>
                         <span style="color: var(--cd-slate);">{{ total_nodes }} Total</span>
                     </div>
                 </div>
                 {% else %}
-                <div style="text-align: center; color: var(--cd-text-muted); font-size: 12px; padding: 12px 0;">
+                <div style="text-align: center; color: var(--cd-text-muted); font-size: 13px; padding: 12px 0;">
                     No sensor nodes registered yet.
                 </div>
                 {% endif %}
@@ -893,7 +717,7 @@
         </div>
 
         {# ================================================================== #}
-        {# SPATIAL CONTEXT / MAP CARD (FIXED - matches Map View)             #}
+        {# SPATIAL CONTEXT / SATELLITE MAP CARD (Row 2)                       #}
         {# ================================================================== #}
         <div class="cdashboard-card cdashboard-map">
             <div class="cdashboard-card-header">
@@ -902,7 +726,7 @@
                 </div>
             </div>
             <div class="cdashboard-card-body" style="padding: 6px 12px 12px 12px !important;">
-                <div id="dashboard-mini-map" style="width:100%;height:160px;border-radius:8px;background:#f0f4f8;border:1px solid var(--cd-border);"></div>
+                <div id="dashboard-mini-map"></div>
                 <div class="cd-metric-row" style="margin-top: 6px;">
                     <span class="cd-metric-label">Active on Map</span>
                     <span class="cd-metric-val" style="color: var(--cd-green);" id="dashboard-map-active-count">Loading...</span>
@@ -918,8 +742,7 @@
         </div>
 
         {# ================================================================== #}
-        {# DATA PIPELINE CARD                                                 #}
-        {# Driven by: analytics                                               #}
+        {# DATA PIPELINE CARD (Row 2)                                         #}
         {# ================================================================== #}
         <div class="cdashboard-card cdashboard-pipeline">
             <div class="cdashboard-card-header">
@@ -968,8 +791,53 @@
         </div>
 
         {# ================================================================== #}
-        {# USERS / PERSONNEL CARD (SIMPLIFIED)                                #}
-        {# Only shows: Total Users, Admins/Officials, Pending Approval       #}
+        {# TRANSACTIONS SUMMARY CARD (Row 2)                                  #}
+        {# ================================================================== #}
+        <div class="cdashboard-card cdashboard-orders">
+            <div class="cdashboard-card-header">
+                <div class="cd-header-left">
+                    <i class="ph-fill ph-shopping-cart" style="color: var(--cd-green);"></i> Transactions Summary
+                </div>
+                <span class="cd-time-tag stable">LIVE</span>
+            </div>
+            <div class="cdashboard-card-body">
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Total Orders</span>
+                    <span class="cd-metric-val">{{ total_orders_count|default:"0" }}</span>
+                </div>
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Total Revenue</span>
+                    <span class="cd-metric-val" style="color: var(--cd-green);">₱ {{ total_revenue|default:"0.00" }}</span>
+                </div>
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Most Bought Item</span>
+                    <span class="cd-metric-val" style="color: var(--cd-blue);">
+                        {{ most_bought_name }}
+                        {% if most_bought_qty > 0 %}
+                        <span style="font-size: 10px; color: var(--cd-text-muted); font-weight: 600; margin-left: 4px;">({{ most_bought_qty }} Total)</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="cd-metric-row">
+                    <span class="cd-metric-label">Pending Hardware Requests</span>
+                    <span class="cd-metric-val">{{ pending_requests_count|default:"0" }}
+                        {% if pending_requests_count > 0 %}
+                            <span class="cd-pill orange">Awaiting Review</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="cd-link-hint">
+                    <i class="ph-fill ph-link"></i>
+                    Track your storefront checkouts and hardware deployments.
+                </div>
+            </div>
+            <a href="{% url 'app:hardware_orders' %}" class="cdashboard-quick-access">
+                Manage Orders &rarr;
+            </a>
+        </div>
+
+        {# ================================================================== #}
+        {# USERS / PERSONNEL CARD (Row 3)                                     #}
         {# ================================================================== #}
         <div class="cdashboard-card cdashboard-network">
             <div class="cdashboard-card-header">
@@ -1022,8 +890,7 @@
         </div>
 
         {# ================================================================== #}
-        {# ALERTS SUMMARY CARD                                                #}
-        {# Driven by: severity_counts, active_alerts                         #}
+        {# ALERTS SUMMARY CARD (Row 3)                                        #}
         {# ================================================================== #}
         <div class="cdashboard-card cdashboard-admin">
             <div class="cdashboard-card-header">
@@ -1074,7 +941,7 @@
     </div>
 
     {# ================================================================== #}
-    {# FLOATING QUICK-ACTION MENU                                          #}
+    {# FLOATING QUICK-ACTION MENU                                         #}
     {# ================================================================== #}
     <div class="cd-floating-overlay" id="floatingOverlay">
         <div class="cd-floating-menu hidden" id="floatingMenu">
@@ -1099,12 +966,10 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Set progress bar widths from data attributes
         document.querySelectorAll('.cd-progress-fill[data-width]').forEach(function(el) {
             el.style.width = el.dataset.width + '%';
         });
 
-        // ========== FLOATING MENU ==========
         function toggleFloatingMenu() {
             const menu = document.getElementById('floatingMenu');
             const overlay = document.getElementById('floatingOverlay');
@@ -1122,11 +987,9 @@
             }
         }
 
-        // ========== SPATIAL CONTEXT MAP - MATCHING MAP VIEW EXACTLY ==========
         let dashboardMap = null;
         let dashboardMarkers = [];
 
-        // AQI color mapping matching the Map View
         function getAQIColorClass(aqi) {
             if (aqi === null || aqi === undefined) return 'dashboard-marker-offline';
             if (aqi <= 50) return 'dashboard-marker-good';
@@ -1151,7 +1014,7 @@
                 dashboardMap = null;
             }
 
-            // Create map with custom smaller zoom controls
+            // Create map 
             dashboardMap = L.map('dashboard-mini-map', {
                 center: [14.5547, 121.0622],
                 zoom: 13,
@@ -1161,87 +1024,12 @@
                 attributionControl: true
             });
 
-            // Add tile layer
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors',
+            // FIXED: Using Esri Satellite Layer to bypass OpenStreetMap's access block
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
                 maxZoom: 19
             }).addTo(dashboardMap);
 
-            // Fetch nodes data and add markers
-            fetch('/api/nodes/live/')
-                .then(r => r.json())
-                .then(data => {
-                    const nodes = [...(data.active || []), ...(data.inactive || [])];
-
-                    let markersAdded = 0;
-                    nodes.forEach(item => {
-                        const node = item.node || item;
-                        if (node.latitude && node.longitude) {
-                            const color = node.status === 'active' ? '#10b981' : '#9ca3af';
-                            const circle = L.circleMarker([node.latitude, node.longitude], {
-                                radius: 5,
-                                fillColor: color,
-                                color: color,
-                                weight: 2,
-                                opacity: 0.8,
-                                fillOpacity: 0.8
-                            }).addTo(map);
-
-                            // Add popup on hover
-                            circle.bindPopup(`<strong>${node.name}</strong><br>Status: ${node.status}`);
-                            markersAdded++;
-                        }
-                    });
-
-                    // Fit map to show all markers and store original bounds
-                    if (markersAdded > 0) {
-                        const group = L.featureGroup();
-                        nodes.forEach(item => {
-                            const node = item.node || item;
-                            if (node.latitude && node.longitude) {
-                                group.addLayer(L.circleMarker([node.latitude, node.longitude], {
-                                    radius: 5,
-                                    fillColor: node.status === 'active' ? '#10b981' : '#9ca3af',
-                                    color: node.status === 'active' ? '#10b981' : '#9ca3af',
-                                    weight: 2,
-                                    opacity: 0.8,
-                                    fillOpacity: 0.8
-                                }));
-                            }
-                        });
-                        try {
-                            map.fitBounds(group.getBounds(), { padding: [20, 20], maxZoom: 15 });
-                        } catch(e) {
-                            console.warn('Could not fit bounds:', e);
-                        }
-                    }
-
-                    // Re-fit to show all nodes when popup is closed
-                    map.on('popupclose', function() {
-                        if (nodes.length > 0) {
-                            const group = L.featureGroup();
-                            nodes.forEach(item => {
-                                const node = item.node || item;
-                                if (node.latitude && node.longitude) {
-                                    group.addLayer(L.circleMarker([node.latitude, node.longitude], {
-                                        radius: 5,
-                                        fillColor: node.status === 'active' ? '#10b981' : '#9ca3af',
-                                        color: node.status === 'active' ? '#10b981' : '#9ca3af',
-                                        weight: 2,
-                                        opacity: 0.8,
-                                        fillOpacity: 0.8
-                                    }));
-                                }
-                            });
-                            try {
-                                map.fitBounds(group.getBounds(), { padding: [20, 20], maxZoom: 15 });
-                            } catch(e) {}
-                        }
-                    });
-                })
-                .catch(err => console.warn('Failed to fetch nodes for mini map:', err));
-
-            // Custom smaller zoom controls
             const zoomControlDiv = L.DomUtil.create('div', 'dashboard-map-zoom-control');
             const zoomInBtn = L.DomUtil.create('button', 'dashboard-zoom-btn', zoomControlDiv);
             zoomInBtn.innerHTML = '+';
@@ -1258,9 +1046,6 @@
             fetch('/api/nodes/live/')
                 .then(response => response.json())
                 .then(data => {
-                    console.log('Map data:', data);
-                    
-                    // Clear existing markers
                     dashboardMarkers.forEach(marker => dashboardMap.removeLayer(marker));
                     dashboardMarkers = [];
                     
@@ -1268,7 +1053,6 @@
                     let inactiveCount = 0;
                     const boundsPoints = [];
                     
-                    // Process active nodes - these have pollutants with AQI
                     if (data.active && data.active.length) {
                         data.active.forEach(nodeWrapper => {
                             const node = nodeWrapper.node;
@@ -1283,7 +1067,6 @@
                                 
                                 boundsPoints.push([lat, lng]);
                                 
-                                // Create marker with AQI number - matches Map View style
                                 const icon = L.divIcon({
                                     html: `<div class="dashboard-marker ${colorClass}" style="width: 36px; height: 36px; line-height: 36px; font-size: 13px;">${aqiDisplay}</div>`,
                                     iconSize: [36, 36],
@@ -1295,9 +1078,7 @@
                                 marker.bindPopup(`
                                     <strong>${node.name}</strong><br>
                                     Status: ${node.status}<br>
-                                    Location: ${node.location || 'Unknown'}<br>
-                                    AQI: ${aqi}<br>
-                                    Level: ${pollutants?.aqi_level || 'Unknown'}
+                                    AQI: ${aqi}
                                 `);
                                 marker.addTo(dashboardMap);
                                 dashboardMarkers.push(marker);
@@ -1306,7 +1087,6 @@
                         });
                     }
                     
-                    // Process inactive nodes
                     if (data.inactive && data.inactive.length) {
                         data.inactive.forEach(nodeWrapper => {
                             const node = nodeWrapper.node;
@@ -1322,12 +1102,7 @@
                                     popupAnchor: [0, -15]
                                 });
                                 const marker = L.marker([lat, lng], { icon: icon });
-                                marker.bindPopup(`
-                                    <strong>${node.name}</strong><br>
-                                    Status: ${node.status}<br>
-                                    Location: ${node.location || 'Unknown'}<br>
-                                    No recent data
-                                `);
+                                marker.bindPopup(`<strong>${node.name}</strong><br>Offline`);
                                 marker.addTo(dashboardMap);
                                 dashboardMarkers.push(marker);
                                 inactiveCount++;
@@ -1335,17 +1110,13 @@
                         });
                     }
                     
-                    // Update UI counters
                     document.getElementById('dashboard-map-active-count').textContent = `${activeCount} node${activeCount !== 1 ? 's' : ''}`;
                     document.getElementById('dashboard-map-inactive-count').textContent = `${inactiveCount} node${inactiveCount !== 1 ? 's' : ''}`;
                     
-                    // Fit bounds to show all markers
                     if (boundsPoints.length > 0) {
                         const bounds = L.latLngBounds(boundsPoints);
                         dashboardMap.fitBounds(bounds.pad(0.1));
                     }
-                    
-                    console.log(`Map loaded: ${activeCount} active, ${inactiveCount} inactive`);
                 })
                 .catch(err => {
                     console.error('Failed to load map nodes:', err);
@@ -1354,7 +1125,6 @@
                 });
         }
 
-        // ========== USERS SECTION ==========
         async function refreshUserMetrics() {
             try {
                 const response = await fetch('/api/users/?limit=1&status=all');
@@ -1393,7 +1163,6 @@
             }
         }
         
-        // Initialize
         document.addEventListener('DOMContentLoaded', function() {
             initDashboardMap();
             refreshUserMetrics();

@@ -18,6 +18,7 @@ urlpatterns = [
     path('about/', views.about, name='about'),
     path('shop/', views.shop_view, name='shop'),
     path('shop/checkout/<int:product_id>/', views.dummy_checkout, name='checkout'),
+    path('request-build/<int:product_id>/', views.request_build_view, name='request_build'),
     
     # AUTH ROUTES
     path('login/', views.login_view, name='login'),
@@ -29,6 +30,7 @@ urlpatterns = [
     path('force-password-change/', views.force_password_change, name='force_password_change'),
     path('activate/<uidb64>/<token>/', views.activate_user, name='activate_user'),
     path('dashboard/hardware-inventory/', views.hardware_inventory_view, name='hardware_inventory'),
+    path('dashboard/process-request/<int:request_id>/', views.process_request_view, name='process_request'),
     
     # PASSWORD RESET ADMIN MODERATION
     path('admin/password-reset-requests/', views.admin_password_reset_requests, name='admin_password_reset_requests'),
@@ -52,6 +54,8 @@ urlpatterns = [
     path('dashboard/users/', views.client_users, name='client_users'),
     path('dashboard/ai/', views.client_ai, name='client_ai'),
     path('dashboard/hardware-inventory/<int:product_id>/delete/', views.hardware_delete_view, name='hardware_delete'),
+    path('dashboard/hardware-orders/', views.hardware_orders, name='hardware_orders'),
+    path('dashboard/hardware-orders/<int:order_id>/update-status/', views.update_order_status, name='update_order_status'),
     
     # API ENDPOINTS for ESP8266 Sensor Integration
     path('api/sensor-data/', views.api_sensor_data, name='api_sensor_data'),
@@ -114,6 +118,11 @@ urlpatterns = [
 
 
     path('api/closest-node/', views.api_closest_node, name='api_closest_node'),
+
+    #api for paymongo webhook
+    path('webhook/paymongo/', views.paymongo_webhook, name='paymongo_webhook'),
+    path('checkout/', views.dummy_checkout, name='dummy_checkout'),
+    path('payment-success/<int:order_id>/', views.payment_success, name='payment_success'),
 
 ]
 if settings.DEBUG:

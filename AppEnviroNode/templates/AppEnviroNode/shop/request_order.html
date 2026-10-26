@@ -1,0 +1,253 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Request Hardware - EnviroPlus</title>
+  <link rel="icon" type="image/png" href="{% static 'AppEnviroNode/images/logo.png' %}">
+  
+  <!-- Core CSS -->
+  <link rel="stylesheet" href="{% static 'AppEnviroNode/css/Style.css' %}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Leaflet Map CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  
+  <style>
+    body { background-color: #f8fafc; font-family: inherit; margin: 0; padding: 0; }
+    .checkout-container { max-width: 1000px; margin: 100px auto 60px; padding: 0 20px; }
+    .checkout-header { text-align: center; margin-bottom: 30px; }
+    .checkout-header h1 { font-size: 2.2rem; color: #0B1120; margin: 0 0 10px; font-weight: 700; }
+    .checkout-subtitle { color: #546a86; margin: 0; }
+    
+    .checkout-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 30px; align-items: start; }
+    .checkout-card { background: white; border-radius: 12px; box-shadow: 0 20px 60px rgba(11, 17, 32, 0.08); padding: 35px; border: 2px solid rgba(45, 91, 190, 0.1); }
+    .checkout-card h3 { margin-top: 0; margin-bottom: 20px; color: #0B1120; }
+    .summary-card { background: #f8fafc; border: 2px solid #e2e8f0; position: sticky; top: 100px; }
+
+    /* Widen form layout */
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #0B1120; font-size: 0.95rem; }
+    .form-group input, .form-group textarea { width: 100%; padding: 12px 15px; border: 2px solid #e0e7ff; border-radius: 6px; font-size: 0.95rem; font-family: inherit; box-sizing: border-box; transition: all 0.3s ease; }
+    .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #ea580c; box-shadow: 0 0 0 4px rgba(234, 88, 12, 0.15); }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+
+    /* Map Styling */
+    #address-map { height: 250px; width: 100%; border-radius: 8px; border: 2px solid #e0e7ff; margin-bottom: 12px; z-index: 1; }
+    .map-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .map-hint { font-size: 0.85rem; color: #64748b; margin: 0; }
+    .locate-btn { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; font-weight: 600; }
+    .locate-btn:hover { background: #e2e8f0; color: #0f172a; }
+
+    .summary-item { display: flex; justify-content: space-between; margin-bottom: 12px; color: #1e293b; font-size: 1rem; }
+    .stock-backorder { color: #ea580c; font-weight: 600; }
+    
+    .quantity-group { margin-top: 25px; }
+    .summary-item.total { border-top: 2px dashed #cbd5e1; padding-top: 15px; margin-top: 15px; font-weight: 700; font-size: 1.3rem; color: #ea580c; margin-bottom: 25px; }
+
+    .submit-btn { width: 100%; padding: 14px; background: #ea580c; color: white; border: none; border-radius: 6px; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 25px; }
+    .submit-btn:hover { background: #c2410c; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(234, 88, 12, 0.3); }
+
+    .back-link { display: block; text-align: center; margin-top: 20px; color: #546a86; text-decoration: none; font-size: 0.95rem; transition: color 0.2s ease; }
+    .back-link:hover { color: #ea580c; text-decoration: underline; }
+
+    @media (max-width: 768px) {
+      .checkout-grid { grid-template-columns: 1fr; }
+      .form-row { grid-template-columns: 1fr; gap: 0; }
+      .checkout-card { padding: 25px; }
+    }
+  </style>
+</head>
+<body>
+
+  {% include 'AppEnviroNode/main/navbar.html' %}
+
+  <div class="checkout-container">
+    <div class="checkout-header">
+      <h1>Request Hardware Build</h1>
+      <p class="checkout-subtitle">This item is currently out of stock. Submit your details for manual review.</p>
+    </div>
+
+    <!-- Added ID to form for JS interception -->
+    <form method="POST" action="" id="requestForm">
+      {% csrf_token %}
+      
+      <!-- Hidden field to combine the form data for the backend -->
+      <input type="hidden" id="final_notes" name="notes" value="">
+
+      <div class="checkout-grid">
+        <div class="checkout-card">
+          <h3>Contact Details</h3>
+          
+          <!-- Placed inputs side by side to widen the card -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="customer_name">Full Name / Organization</label>
+              <input type="text" id="customer_name" name="customer_name" placeholder="Juan Dela Cruz" required>
+            </div>
+            <div class="form-group">
+              <label for="customer_email">Contact Email Address</label>
+              <input type="email" id="customer_email" name="customer_email" placeholder="name@company.com" required>
+            </div>
+          </div>
+
+          <!-- MAP SECTION -->
+          <div class="form-group" style="margin-top: 15px;">
+            <div class="map-controls">
+              <label style="margin: 0;">Installation / Shipping Address</label>
+              <button type="button" class="locate-btn" onclick="locateUser()">
+                <i class="fa-solid fa-location-crosshairs"></i> Find My Location
+              </button>
+            </div>
+            <p class="map-hint">Drag the pin to your deployment location to auto-fill the address.</p>
+            
+            <div id="address-map"></div>
+            
+            <textarea id="shipping_address" placeholder="Or manually enter the complete address where the nodes will be deployed..." required autocomplete="off"></textarea>
+          </div>
+
+          <!-- Extra details section -->
+          <div class="form-group">
+            <label for="visible_notes">Additional Configuration Notes</label>
+            <textarea id="visible_notes" placeholder="Specify any custom sensor requirements or deployment details...">Requesting build for {{ product.name }}.</textarea>
+          </div>
+        </div>
+
+        <div class="checkout-card summary-card">
+          <h3>Request Summary</h3>
+          
+          <div class="summary-item">
+            <span>Hardware:</span>
+            <span><strong>{{ product.name }}</strong></span>
+          </div>
+          <div class="summary-item">
+            <span>Unit Price:</span>
+            <span>₱<span id="unit-price">{{ product.price }}</span></span>
+          </div>
+          <div class="summary-item">
+            <span>Status:</span>
+            <span class="stock-backorder">Pending Admin Approval</span>
+          </div>
+
+          <!-- Added explicit quantity input -->
+          <div class="form-group quantity-group">
+            <label for="quantity">Requested Quantity</label>
+            <input type="number" id="quantity" name="quantity" value="1" min="1" required oninput="updateTotal()">
+          </div>
+          
+          <div class="summary-item total">
+            <span>Estimated Total:</span>
+            <span>₱<span id="total-price">{{ product.price }}</span></span>
+          </div>
+
+          <button type="submit" class="submit-btn">
+            <i class="fa-solid fa-paper-plane"></i> Submit Request to Admin
+          </button>
+
+          <a href="{% url 'app:shop' %}" class="back-link">
+            <i class="fa-solid fa-arrow-left"></i> Return to Store
+          </a>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <script>
+    // --- Total Calculation Logic ---
+    function updateTotal() {
+      const unitPrice = parseFloat(document.getElementById('unit-price').innerText);
+      const quantityInput = document.getElementById('quantity');
+      let quantity = parseInt(quantityInput.value);
+      
+      if (isNaN(quantity) || quantity < 1) { quantity = 1; }
+
+      const total = (unitPrice * quantity).toFixed(2);
+      document.getElementById('total-price').innerText = total;
+    }
+
+    // --- Leaflet Map Logic ---
+    let defaultLat = 14.5322;
+    let defaultLng = 121.0493;
+
+    const map = L.map('address-map').setView([defaultLat, defaultLng], 14);
+
+    // Esri World Street Map (No API key needed)
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: 'Tiles &copy; Esri'
+    }).addTo(map);
+
+    const marker = L.marker([defaultLat, defaultLng], {draggable: true}).addTo(map);
+
+    function getAddressFromCoords(lat, lng) {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&email=admin@enviroplus.com`;
+      document.getElementById('shipping_address').placeholder = "Fetching address...";
+
+      fetch(url, { headers: { "Accept-Language": "en-US,en;q=0.9" } })
+        .then(response => response.json())
+        .then(data => {
+          if (data && data.display_name) {
+            document.getElementById('shipping_address').value = data.display_name;
+          } else {
+            document.getElementById('shipping_address').placeholder = "Could not identify address. Please enter manually.";
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching address:', error);
+          document.getElementById('shipping_address').placeholder = "Address lookup failed. Please enter manually.";
+        });
+    }
+
+    marker.on('dragend', function(event) {
+      const position = marker.getLatLng();
+      getAddressFromCoords(position.lat, position.lng);
+    });
+
+    map.on('click', function(event) {
+      const lat = event.latlng.lat;
+      const lng = event.latlng.lng;
+      marker.setLatLng([lat, lng]);
+      getAddressFromCoords(lat, lng);
+    });
+
+    function locateUser() {
+      if (navigator.geolocation) {
+        document.getElementById('shipping_address').placeholder = "Locating you...";
+        navigator.geolocation.getCurrentPosition(
+          function(position) {
+            const userLat = position.coords.latitude;
+            const userLng = position.coords.longitude;
+            map.setView([userLat, userLng], 16);
+            marker.setLatLng([userLat, userLng]);
+            getAddressFromCoords(userLat, userLng);
+          },
+          function(error) {
+            alert("Geolocation access denied or unavailable. Please drop the pin manually.");
+            document.getElementById('shipping_address').placeholder = "Enter the complete address...";
+          },
+          { enableHighAccuracy: true }
+        );
+      } else {
+        alert("Your browser does not support Geolocation.");
+      }
+    }
+
+    // --- Combine form fields before submitting ---
+    document.getElementById('requestForm').addEventListener('submit', function(e) {
+      const address = document.getElementById('shipping_address').value;
+      const customNotes = document.getElementById('visible_notes').value;
+      const qty = document.getElementById('quantity').value;
+      
+      // Combine quantity, notes, and address and put them in the hidden "notes" input for the backend
+      document.getElementById('final_notes').value = "Requested Quantity: " + qty + "\n\n" + customNotes + "\n\nShipping Address:\n" + address;
+    });
+  </script>
+
+</body>
+</html>

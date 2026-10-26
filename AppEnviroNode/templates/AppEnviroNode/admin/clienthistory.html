@@ -10,6 +10,23 @@
     .aqi-unhealthy { color: #f57c00 !important; }
     .aqi-moderate { color: #fbc02d !important; }
     .aqi-good { color: #0a9d42 !important; }
+
+    /* Export Modal Overlay */
+    .export-modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(15, 23, 42, 0.6); z-index: 9999;
+      display: none; align-items: center; justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    .export-modal-content {
+      background: #ffffff; border-radius: 12px; padding: 30px;
+      width: 100%; max-width: 480px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+    .export-modal-content h3 { margin: 0 0 20px 0; color: #0f172a; font-size: 1.3rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; }
+    .export-modal-content label { font-size: 0.85rem; font-weight: 600; color: #475569; margin-bottom: 8px; display: block; text-transform: uppercase; letter-spacing: 0.05em; }
+    .export-modal-content .form-group { margin-bottom: 20px; }
+    .modal-select { padding: 10px 15px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem; outline: none; width: 100%; box-sizing: border-box; transition: all 0.3s ease; }
+    .modal-select:focus { border-color: #2d5bbe; box-shadow: 0 0 0 3px rgba(45, 91, 190, 0.1); }
   </style>
 {% endblock %}
 
@@ -101,6 +118,7 @@
                 <div class="history-filter-group">
                     <label for="dateRange">Date Range</label>
                     <select id="dateRange" name="date_range">
+                        <option value="all" {% if selected_date_range == "all" %}selected{% endif %}>All Time</option>
                         <option value="today" {% if selected_date_range == "today" %}selected{% endif %}>Today</option>
                         <option value="last7" {% if selected_date_range == "last7" %}selected{% endif %}>Last 7 Days</option>
                         <option value="last30" {% if selected_date_range == "last30" %}selected{% endif %}>Last 30 Days</option>
@@ -111,7 +129,12 @@
             
             <div class="history-panel-actions">
                 <button type="submit" class="history-export-btn"><i class="fa-solid fa-search"></i> Apply Filters</button>
-                <a href="?export=csv&event_type={{ selected_event_type }}&node={{ selected_node }}&date_range={{ selected_date_range }}&sensor_type={{ selected_sensor_type }}&severity={{ selected_severity }}" class="history-export-btn" style="background: #16a34a;"><i class="fa-solid fa-download"></i> Export Data CSV</a>
+                <a href="{% url 'app:client_history' %}" class="history-export-btn" style="background: #64748b; text-decoration: none;"><i class="fa-solid fa-rotate-left"></i> Reset Filters</a>
+                
+                <!-- NEW SINGLE EXPORT BUTTON -->
+                <button type="button" class="history-export-btn" style="background: #10b981;" onclick="openExportModal()">
+                  <i class="fa-solid fa-file-export"></i> Generate Reports
+                </button>
             </div>
             
             <div class="date-range-modal" id="historyDateModal" aria-hidden="true" style="display:none;">
@@ -120,11 +143,11 @@
                     <div class="date-input-group">
                         <div>
                             <label for="historyStartDate">Start Date:</label>
-                            <input type="date" id="historyStartDate" name="start_date" />
+                            <input type="date" id="historyStartDate" name="start_date" value="{{ request.GET.start_date }}" />
                         </div>
                         <div>
                             <label for="historyEndDate">End Date:</label>
-                            <input type="date" id="historyEndDate" name="end_date" />
+                            <input type="date" id="historyEndDate" name="end_date" value="{{ request.GET.end_date }}" />
                         </div>
                     </div>
                     <div class="date-picker-buttons">
@@ -156,7 +179,7 @@
                     <tbody>
                         {% for log in logs %}
                             <tr>
-                                <td style="font-weight: 500; color: #4b5563;">
+                                <td style="font-weight: 500; color: #4b5563; white-space: nowrap;">
                                     <i class="far fa-clock" style="margin-right: 6px; color:#889ab5;"></i>
                                     {{ log.created_at|date:"M d, g:i A" }}
                                 </td>
@@ -173,6 +196,10 @@
                                         <span style="background: #f3e8ff; color: #6b21a8; padding: 4px 8px; border-radius: 4px;">⚙️ System</span>
                                     {% elif log.event_type == 'admin' %}
                                         <span style="background: #e0e7ff; color: #3730a3; padding: 4px 8px; border-radius: 4px;">👤 Admin</span>
+                                    {% elif log.event_type == 'order' %}
+                                        <span style="background: #e0f2fe; color: #0284c7; padding: 4px 8px; border-radius: 4px;">🛒 Order</span>
+                                    {% else %}
+                                        <span style="background: #f3e8ff; color: #6b21a8; padding: 4px 8px; border-radius: 4px;">⚙️ System</span>
                                     {% endif %}
                                 </td>
                                 <td style="color: #1a3260;">{{ log.node.name|default:"System" }}</td>
@@ -193,7 +220,7 @@
                                 </td>
                                 <td>{{ log.get_sensor_type_display|default:"—" }}</td>
                                 <td style="font-weight: 600;">{{ log.value|default:"—" }}</td>
-                                <td style="color: #4b5563; max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ log.message }}</td>
+                                <td style="color: #4b5563; max-width: 400px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ log.message }}">{{ log.message }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -202,15 +229,15 @@
             
             <div style="display: flex; justify-content: center; align-items: center; gap: 8px; padding: 20px; background: white; border-top: 1px solid #e4ebf3; flex-wrap: wrap;">
                 {% if page_obj.has_previous %}
-                    <a href="?page=1&event_type={{ selected_event_type }}&node={{ selected_node }}&date_range={{ selected_date_range }}&sensor_type={{ selected_sensor_type }}&severity={{ selected_severity }}" class="device-btn neutral" style="text-decoration: none;">« First</a>
-                    <a href="?page={{ page_obj.previous_page_number }}&event_type={{ selected_event_type }}&node={{ selected_node }}&date_range={{ selected_date_range }}&sensor_type={{ selected_sensor_type }}&severity={{ selected_severity }}" class="device-btn neutral" style="text-decoration: none;">‹ Prev</a>
+                    <a href="?page=1&event_type={{ selected_event_type }}&node={{ selected_node }}&date_range={{ selected_date_range }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&sensor_type={{ selected_sensor_type }}&severity={{ selected_severity }}" class="device-btn neutral" style="text-decoration: none;">« First</a>
+                    <a href="?page={{ page_obj.previous_page_number }}&event_type={{ selected_event_type }}&node={{ selected_node }}&date_range={{ selected_date_range }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&sensor_type={{ selected_sensor_type }}&severity={{ selected_severity }}" class="device-btn neutral" style="text-decoration: none;">‹ Prev</a>
                 {% endif %}
                 
                 <span style="font-weight: 600; color: #4b5563; padding: 0 12px;">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
                 
                 {% if page_obj.has_next %}
-                    <a href="?page={{ page_obj.next_page_number }}&event_type={{ selected_event_type }}&node={{ selected_node }}&date_range={{ selected_date_range }}&sensor_type={{ selected_sensor_type }}&severity={{ selected_severity }}" class="device-btn neutral" style="text-decoration: none;">Next ›</a>
-                    <a href="?page={{ page_obj.paginator.num_pages }}&event_type={{ selected_event_type }}&node={{ selected_node }}&date_range={{ selected_date_range }}&sensor_type={{ selected_sensor_type }}&severity={{ selected_severity }}" class="device-btn neutral" style="text-decoration: none;">Last »</a>
+                    <a href="?page={{ page_obj.next_page_number }}&event_type={{ selected_event_type }}&node={{ selected_node }}&date_range={{ selected_date_range }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&sensor_type={{ selected_sensor_type }}&severity={{ selected_severity }}" class="device-btn neutral" style="text-decoration: none;">Next ›</a>
+                    <a href="?page={{ page_obj.paginator.num_pages }}&event_type={{ selected_event_type }}&node={{ selected_node }}&date_range={{ selected_date_range }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&sensor_type={{ selected_sensor_type }}&severity={{ selected_severity }}" class="device-btn neutral" style="text-decoration: none;">Last »</a>
                 {% endif %}
             </div>
         {% else %}
@@ -222,30 +249,55 @@
     </section>
 
 </div>
+
+<!-- EXPORT MODAL -->
+<div class="export-modal-overlay" id="exportModal">
+  <div class="export-modal-content">
+    <h3><i class="fa-solid fa-file-export" style="color: #10b981; margin-right: 8px;"></i> Export Audit Logs</h3>
+    <form method="GET" action="">
+      <!-- We silently pass the active filters into the modal so the downloaded report matches what the user is looking at! -->
+      <input type="hidden" name="event_type" value="{{ selected_event_type }}">
+      <input type="hidden" name="node" value="{{ selected_node }}">
+      <input type="hidden" name="sensor_type" value="{{ selected_sensor_type }}">
+      <input type="hidden" name="severity" value="{{ selected_severity }}">
+      <input type="hidden" name="date_range" value="{{ selected_date_range }}">
+      {% if request.GET.start_date %}<input type="hidden" name="start_date" value="{{ request.GET.start_date }}">{% endif %}
+      {% if request.GET.end_date %}<input type="hidden" name="end_date" value="{{ request.GET.end_date }}">{% endif %}
+      
+      <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 20px; line-height: 1.5;">
+        This will generate a report based on the filters you currently have applied to the table.
+      </p>
+
+      <div class="form-group">
+        <label>Export Format</label>
+        <select name="export" class="modal-select" required>
+          <option value="excel">Excel Spreadsheet (.xlsx)</option>
+          <option value="csv">CSV File (.csv)</option>
+        </select>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 30px;">
+        <button type="button" class="history-export-btn" style="background: #e2e8f0; color: #334155;" onclick="closeExportModal()">Cancel</button>
+        <button type="submit" class="history-export-btn" style="background: #10b981;" onclick="closeExportModal()">Download Report</button>
+      </div>
+    </form>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-  // --- FILTER & MODAL LOGIC ---
+  // --- FILTER & CUSTOM DATE LOGIC ---
   const dateRangeSelect = document.getElementById('dateRange');
   const historyDateModal = document.getElementById('historyDateModal');
-  const historyStartDate = document.getElementById('historyStartDate');
   const historyCancelDateBtn = document.getElementById('historyCancelDate');
-  const filterForm = document.getElementById('historyFilterForm');
-
-  function formatDateForLabel(isoDate) {
-    const date = new Date(isoDate + 'T00:00:00');
-    return date.toLocaleDateString('en-US');
-  }
 
   function openHistoryDateModal() {
     historyDateModal.style.display = 'flex';
-    historyDateModal.setAttribute('aria-hidden', 'false');
   }
 
   function closeHistoryDateModal() {
     historyDateModal.style.display = 'none';
-    historyDateModal.setAttribute('aria-hidden', 'true');
   }
 
   if (dateRangeSelect) {
@@ -259,18 +311,31 @@
   if(historyCancelDateBtn) {
     historyCancelDateBtn.addEventListener('click', () => {
       closeHistoryDateModal();
-      if (dateRangeSelect.value === 'custom') dateRangeSelect.value = 'today';
+      if (dateRangeSelect.value === 'custom') dateRangeSelect.value = 'all';
     });
   }
 
-  // Close modal clicking outside
-  if(historyDateModal) {
-    historyDateModal.addEventListener('click', (event) => {
-      if (event.target === historyDateModal) {
-        closeHistoryDateModal();
-        if (dateRangeSelect.value === 'custom') dateRangeSelect.value = 'today';
-      }
-    });
+  // --- EXPORT MODAL LOGIC ---
+  function openExportModal() {
+    document.getElementById('exportModal').style.display = 'flex';
+  }
+
+  function closeExportModal() {
+    document.getElementById('exportModal').style.display = 'none';
+  }
+
+  // Close modals if clicking outside the white box
+  window.onclick = function(event) {
+    const exportModal = document.getElementById('exportModal');
+    const dateModal = document.getElementById('historyDateModal');
+    
+    if (event.target == exportModal) {
+      closeExportModal();
+    }
+    if (event.target == dateModal) {
+      closeHistoryDateModal();
+      if (dateRangeSelect.value === 'custom') dateRangeSelect.value = 'all';
+    }
   }
 </script>
 {% endblock %}

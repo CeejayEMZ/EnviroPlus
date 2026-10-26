@@ -547,6 +547,7 @@
     <a href="{% url 'app:client_realtime' %}" class="menubar-link {% if 'dashboard/realtime' in request.path %}active{% endif %}">Real-Time</a>
     <a href="{% url 'app:client_map' %}" class="menubar-link {% if 'dashboard/map' in request.path %}active{% endif %}">Map View</a>
     <a href="{% url 'app:hardware_inventory' %}" class="global-nav-link {% if 'hardware-inventory' in request.path %}active{% endif %}">Hardware</a>
+    <a href="{% url 'app:hardware_orders' %}" class="menubar-link {% if 'hardware-orders' in request.path %}active{% endif %}">Orders</a>
   </div>
   <div class="menubar-group">
     <a href="{% url 'app:client_analytics' %}" class="menubar-link {% if 'dashboard/analytics' in request.path %}active{% endif %}">Analytics</a>
@@ -561,6 +562,10 @@
     {% endif %}
     {% if user.role == 'admin' %}
     <a href="{% url 'app:client_users' %}" class="menubar-link {% if 'dashboard/users' in request.path %}active{% endif %}">Users</a>
+    {% endif %}
+    <!-- ADDED: History / Audit Logs Link -->
+    {% if user.role == 'admin' %}
+    <a href="{% url 'app:client_history' %}" class="menubar-link {% if 'dashboard/history' in request.path %}active{% endif %}">History</a>
     {% endif %}
   </div>
 </nav>

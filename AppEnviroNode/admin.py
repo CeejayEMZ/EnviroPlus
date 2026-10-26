@@ -141,6 +141,7 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'product', 'quantity', 'total_price', 'status', 'created_at')
+    # Replaced 'user' with the new customer fields
+    list_display = ('id', 'customer_name', 'customer_email', 'product', 'status', 'created_at')
     list_filter = ('status', 'created_at')
-    search_fields = ('user__email', 'shipping_address')
+    search_fields = ('customer_name', 'customer_email')

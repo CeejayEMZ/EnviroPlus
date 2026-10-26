@@ -21,6 +21,11 @@ from django.conf import settings
 from django.views.decorators.cache import cache_page
 from functools import wraps
 from .forms import ProductForm
+import requests
+from requests.auth import HTTPBasicAuth
+from django.views.decorators.http import require_POST
+from django.core.paginator import Paginator
+from django.db.models import Sum, Q
 
 # File processing and standard libraries
 import csv
@@ -32,6 +37,10 @@ import json
 import urllib.parse
 import re
 from datetime import timedelta, datetime
+
+# --- SYSTEM AUDIT LOG SIGNALS ---
+from django.contrib.auth.signals import user_logged_in, user_logged_out, user_login_failed
+from django.dispatch import receiver
 
 # External packages
 import matplotlib
@@ -49,7 +58,7 @@ except ImportError:
 # Local app imports
 from .ai import ask_enviro_ai, generate_ai_insights
 from .forms import CustomAuthenticationForm, CustomUserCreationForm, PasswordResetRequestForm, SensorNodeForm
-from .models import SensorNode, SensorReading, Alert, SystemLog, AdminActionLog, Product, Order
+from .models import HardwareRequest, SensorNode, SensorReading, Alert, SystemLog, AdminActionLog, Product, Order
 from .services import EmailService
 
 def validate_password_strength(password):
@@ -986,13 +995,13 @@ def forgot_password_view(request):
 def client_dashboard(request):
     """Dashboard with all sensor nodes, latest readings, analytics, and chart data."""
     from django.db.models.functions import TruncDay
+    from django.db.models import Sum
     
     # =========================================================================
     # SECTION 1: Get all active sensor nodes with their latest readings
     # =========================================================================
     nodes = SensorNode.objects.filter(is_active=True).prefetch_related('readings').order_by('name')
     
-    # Aggregate data (for node cards)
     aggregate_data = {
         'total_nodes': nodes.count(),
         'nodes': [],
@@ -1025,14 +1034,13 @@ def client_dashboard(request):
                 total_temp += latest.temperature
             valid_readings += 1
     
-    # Calculate averages
     if valid_readings > 0:
         aggregate_data['avg_aqi'] = round(total_aqi / valid_readings)
         aggregate_data['avg_pm2_5'] = round(total_pm2_5 / valid_readings, 2)
         aggregate_data['avg_temperature'] = round(total_temp / valid_readings, 1)
     
     # =========================================================================
-    # SECTION 2: Generate 7-day chart data (reuse client_analytics logic)
+    # SECTION 2: Generate 7-day chart data
     # =========================================================================
     today = timezone.now().date()
     start_date = today - timedelta(days=7)
@@ -1044,7 +1052,6 @@ def client_dashboard(request):
         timestamp__lte=time_end
     ).select_related('node')
     
-    # Chart data: daily aggregation for 7-day trend
     chart_data_raw = readings_qs.annotate(
         period=TruncDay('timestamp')
     ).values('period').annotate(
@@ -1066,7 +1073,7 @@ def client_dashboard(request):
     ]
     
     # =========================================================================
-    # SECTION 3: Analytics aggregations (same as client_analytics, last 7 days)
+    # SECTION 3: Analytics aggregations
     # =========================================================================
     total_readings = readings_qs.count()
     analytics = {
@@ -1120,7 +1127,7 @@ def client_dashboard(request):
     }
     
     # =========================================================================
-    # SECTION 5: Map data (reuse from client_map_view logic)
+    # SECTION 5: Map data
     # =========================================================================
     check_and_update_node_status()
     
@@ -1154,6 +1161,26 @@ def client_dashboard(request):
             active_nodes_json.append(json_data)
         else:
             inactive_nodes_json.append(json_data)
+
+    # =========================================================================
+    # SECTION 6: Transactions & Orders Summary (Updated with Most Bought Item)
+    # =========================================================================
+    from django.db.models import Sum
+    from .models import Order, HardwareRequest
+
+    total_orders_count = Order.objects.count()
+    total_revenue = Order.objects.filter(
+        status__in=['paid', 'shipped', 'received']
+    ).aggregate(Sum('total_price'))['total_price__sum'] or 0.00
+    pending_requests_count = HardwareRequest.objects.filter(is_processed=False).count()
+    
+    # FIXED: Safely exclude deleted products so it never displays "None"
+    most_bought = Order.objects.exclude(product__isnull=True).values('product__name').annotate(
+        total_qty=Sum('quantity')
+    ).order_by('-total_qty').first()
+    
+    most_bought_name = most_bought['product__name'] if most_bought else "No active orders"
+    most_bought_qty = most_bought['total_qty'] if most_bought else 0
     
     context = {
         'aggregate_data': aggregate_data,
@@ -1165,6 +1192,11 @@ def client_dashboard(request):
         'total_nodes': all_nodes.count(),
         'active_count': len(active_nodes_json),
         'inactive_count': len(inactive_nodes_json),
+        'total_orders_count': total_orders_count,
+        'total_revenue': total_revenue,
+        'pending_requests_count': pending_requests_count,
+        'most_bought_name': most_bought_name,
+        'most_bought_qty': most_bought_qty,
     }
     return render(request, 'AppEnviroNode/admin/clientdashboard.html', context)
 
@@ -2537,70 +2569,69 @@ def client_settings(request):
 def client_history(request):
     """
     Enhanced history view with filtering, metrics calculation, and export capabilities.
-    Shows unified logs from SystemLog (readings, warnings, device events, admin actions).
-    Default shows last 30 days to ensure data is visible on first load.
     """
-    # Get filter parameters
+    if not SystemLog.objects.exists():
+        SystemLog.objects.create(
+            event_type='system',
+            severity='good',
+            message="System Audit Logger successfully initialized. Tracking is now active.",
+            created_at=timezone.now()
+        )
+
     event_type = request.GET.get('event_type', 'all')
     node_id = request.GET.get('node', 'all')
-    date_range = request.GET.get('date_range', 'last30')  # Changed default from 'today' to 'last30'
+    date_range = request.GET.get('date_range', 'all')
     sensor_type = request.GET.get('sensor_type', 'all')
     severity = request.GET.get('severity', 'all')
     
-    # Handle export request
+    # Check which export button was clicked
     if request.GET.get('export') == 'csv':
         return export_history_csv(request, event_type, node_id, date_range, sensor_type, severity)
+    elif request.GET.get('export') == 'excel':
+        return export_history_excel(request, event_type, node_id, date_range, sensor_type, severity)
     
-    # Build date filter
+    logs_query = SystemLog.objects.all().order_by('-created_at')
+    
     now = timezone.now()
     if date_range == 'today':
-        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        logs_query = logs_query.filter(created_at__gte=now.replace(hour=0, minute=0, second=0, microsecond=0))
     elif date_range == 'last7':
-        start_date = now - timedelta(days=7)
+        logs_query = logs_query.filter(created_at__gte=now - timedelta(days=7))
     elif date_range == 'last30':
-        start_date = now - timedelta(days=30)
+        logs_query = logs_query.filter(created_at__gte=now - timedelta(days=30))
     elif date_range == 'custom':
-        try:
-            custom_start = request.GET.get('start_date')
-            if custom_start:
-                start_date = timezone.datetime.strptime(custom_start, '%Y-%m-%d').replace(tzinfo=timezone.utc)
-            else:
-                start_date = now - timedelta(days=30)
-        except:
-            start_date = now - timedelta(days=30)
-    else:
-        start_date = now - timedelta(days=30)
-    
-    # Build queryset with filters
-    logs_query = SystemLog.objects.select_related('node', 'reading').filter(created_at__gte=start_date).order_by('-created_at')
+        custom_start = request.GET.get('start_date')
+        custom_end = request.GET.get('end_date')
+        if custom_start:
+            try:
+                s_date = timezone.datetime.strptime(custom_start, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+                logs_query = logs_query.filter(created_at__gte=s_date)
+            except: pass
+        if custom_end:
+            try:
+                e_date = timezone.datetime.strptime(custom_end, '%Y-%m-%d').replace(hour=23, minute=59, tzinfo=timezone.utc)
+                logs_query = logs_query.filter(created_at__lte=e_date)
+            except: pass
     
     if event_type != 'all':
         logs_query = logs_query.filter(event_type=event_type)
-    
     if node_id != 'all':
         try:
             logs_query = logs_query.filter(node_id=int(node_id))
         except (ValueError, TypeError):
             pass
-    
     if sensor_type != 'all':
         logs_query = logs_query.filter(sensor_type=sensor_type)
-    
     if severity != 'all':
         logs_query = logs_query.filter(severity=severity)
     
-    # Pagination
-    paginator = Paginator(logs_query, 15)  # 15 items per page
+    paginator = Paginator(logs_query, 15)
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
     
-    # Calculate metrics for the selected date range (from full queryset, not just current page)
     metrics = calculate_history_metrics(logs_query)
-    
-    # Get all nodes for filter dropdown
     nodes = SensorNode.objects.filter(is_active=True).order_by('name')
     
-    # Get unique event types for secondary filtering
     event_types = [
         ('reading', 'Sensor Reading'),
         ('warning', 'Sensor Warning'),
@@ -2608,23 +2639,18 @@ def client_history(request):
         ('device_offline', 'Device Offline'),
         ('system', 'System Event'),
         ('admin', 'Admin Action'),
+        ('order', 'Store Orders'),
     ]
     
     sensor_types = [
-        ('pm2_5', 'PM2.5'),
-        ('pm10', 'PM10'),
-        ('pm1_0', 'PM1.0'),
-        ('temperature', 'Temperature'),
-        ('humidity', 'Humidity'),
-        ('aqi', 'AQI'),
+        ('pm2_5', 'PM2.5'), ('pm10', 'PM10'), ('pm1_0', 'PM1.0'),
+        ('temperature', 'Temperature'), ('humidity', 'Humidity'), ('aqi', 'AQI'),
     ]
     
     severity_levels = [
-        ('good', 'Good'),
-        ('moderate', 'Moderate'),
+        ('good', 'Good'), ('moderate', 'Moderate'),
         ('unhealthy_sensitive', 'Unhealthy for Sensitive Groups'),
-        ('unhealthy', 'Unhealthy'),
-        ('hazardous', 'Hazardous'),
+        ('unhealthy', 'Unhealthy'), ('hazardous', 'Hazardous'),
     ]
     
     context = {
@@ -2680,48 +2706,52 @@ def calculate_history_metrics(logs_queryset):
 
 def export_history_csv(request, event_type, node_id, date_range, sensor_type, severity):
     """
-    Export filtered history logs as CSV.
+    Export filtered history logs as a detailed CSV.
     """
-    # Build the same filtered queryset as in client_history
     now = timezone.now()
+    logs = SystemLog.objects.all().order_by('-created_at')
+    
     if date_range == 'today':
-        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        logs = logs.filter(created_at__gte=now.replace(hour=0, minute=0, second=0, microsecond=0))
     elif date_range == 'last7':
-        start_date = now - timedelta(days=7)
+        logs = logs.filter(created_at__gte=now - timedelta(days=7))
     elif date_range == 'last30':
-        start_date = now - timedelta(days=30)
-    else:
-        start_date = now - timedelta(days=30)
+        logs = logs.filter(created_at__gte=now - timedelta(days=30))
+    elif date_range == 'custom':
+        custom_start = request.GET.get('start_date')
+        custom_end = request.GET.get('end_date')
+        if custom_start:
+            try:
+                logs = logs.filter(created_at__gte=timezone.datetime.strptime(custom_start, '%Y-%m-%d').replace(tzinfo=timezone.utc))
+            except: pass
+        if custom_end:
+            try:
+                logs = logs.filter(created_at__lte=timezone.datetime.strptime(custom_end, '%Y-%m-%d').replace(hour=23, minute=59, tzinfo=timezone.utc))
+            except: pass
     
-    logs = SystemLog.objects.select_related('node', 'reading').filter(created_at__gte=start_date)
-    
-    if event_type != 'all':
-        logs = logs.filter(event_type=event_type)
+    if event_type != 'all': logs = logs.filter(event_type=event_type)
     if node_id != 'all':
-        try:
-            logs = logs.filter(node_id=int(node_id))
-        except (ValueError, TypeError):
-            pass
-    if sensor_type != 'all':
-        logs = logs.filter(sensor_type=sensor_type)
-    if severity != 'all':
-        logs = logs.filter(severity=severity)
+        try: logs = logs.filter(node_id=int(node_id))
+        except: pass
+    if sensor_type != 'all': logs = logs.filter(sensor_type=sensor_type)
+    if severity != 'all': logs = logs.filter(severity=severity)
     
-    # Create CSV response
     response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="history_{now.strftime("%Y%m%d_%H%M%S")}.csv"'
+    response['Content-Disposition'] = f'attachment; filename="EnviroPlus_Audit_Log_{now.strftime("%Y%m%d_%H%M%S")}.csv"'
     
     writer = csv.writer(response)
-    writer.writerow(['Timestamp', 'Event Type', 'Node', 'Severity', 'Sensor Type', 'Value', 'Message'])
+    writer.writerow(['Timestamp', 'Event Type', 'Node Name', 'Location', 'MAC Address', 'Severity', 'Sensor Type', 'Value', 'Message'])
     
     for log in logs:
         writer.writerow([
             log.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            log.get_event_type_display(),
+            log.get_event_type_display() if hasattr(log, 'get_event_type_display') else log.event_type,
             log.node.name if log.node else 'System',
-            log.get_severity_display() if log.severity else 'N/A',
-            log.get_sensor_type_display() if log.sensor_type else 'N/A',
-            log.value or '',
+            log.node.location if log.node else 'N/A',
+            log.node.mac_address if log.node else 'N/A',
+            log.get_severity_display() if hasattr(log, 'get_severity_display') and log.severity else 'N/A',
+            log.get_sensor_type_display() if hasattr(log, 'get_sensor_type_display') and log.sensor_type else 'N/A',
+            log.value if log.value is not None else 'N/A',
             log.message,
         ])
     
@@ -6018,55 +6048,189 @@ def api_closest_node(request):
     
 
 def shop_view(request):
+    if request.method == 'POST' and 'customer_email' in request.POST:
+        customer_name = request.POST.get('customer_name')
+        customer_email = request.POST.get('customer_email')
+        notes = request.POST.get('notes')
+        
+        HardwareRequest.objects.create(
+            customer_name=customer_name, 
+            customer_email=customer_email, 
+            notes=notes
+        )
+        messages.success(request, "Your hardware request has been submitted successfully.")
+        return redirect('app:shop')
+
     products = Product.objects.filter(is_active=True)
     return render(request, 'AppEnviroNode/shop/store.html', {'products': products})
 
 @login_required
-def dummy_checkout(request, product_id):
-    product = get_object_or_404(Product, id=product_id)
-    
-    if request.method == 'POST':
-        quantity = int(request.POST.get('quantity', 1))
-        address = request.POST.get('shipping_address')
-        
-        if product.stock < quantity:
-            messages.error(request, 'Not enough stock available!')
-            return redirect('app:shop')
-        
-        Order.objects.create(
-            user=request.user,
-            product=product,
-            quantity=quantity,
-            total_price=product.price * quantity,
-            shipping_address=address,
-            status='paid' 
-        )
-        
-        product.stock -= quantity
-        product.save()
-        
-        messages.success(request, 'Sample order placed successfully!')
-        return redirect('app:client_dashboard')
-        
-    return render(request, 'AppEnviroNode/shop/checkout.html', {'product': product})
-
-@login_required
 def hardware_inventory_view(request):
-    # Retrieve all products, ordered by newest first
     products = Product.objects.all().order_by('-id')
+    pending_requests = HardwareRequest.objects.filter(is_processed=False).order_by('-created_at')
     
-    # Handle adding a new product
+    # --- Python Parser: Cleanly separate the request data ---
+    for req in pending_requests:
+        req.parsed_qty = 1
+        req.parsed_address = "No address provided."
+        req.parsed_notes = req.notes or ""
+        req.detected_product_id = ""
+        
+        import re
+        qty_match = re.search(r'Requested Quantity:\s*(\d+)', req.parsed_notes, re.IGNORECASE)
+        if qty_match:
+            req.parsed_qty = int(qty_match.group(1))
+            req.parsed_notes = req.parsed_notes.replace(qty_match.group(0), '')
+            
+        addr_match = re.search(r'Shipping Address:\s*([\s\S]+)', req.parsed_notes, re.IGNORECASE)
+        if addr_match:
+            req.parsed_address = addr_match.group(1).strip()
+            req.parsed_notes = re.sub(r'Shipping Address:\s*[\s\S]+', '', req.parsed_notes, flags=re.IGNORECASE)
+            
+        prod_match = re.search(r'Requesting build for\s+([^.\n]+)', req.parsed_notes, re.IGNORECASE)
+        if prod_match:
+            prod_name = prod_match.group(1).strip().lower()
+            for p in products:
+                if prod_name in p.name.lower():
+                    req.detected_product_id = p.id
+                    break
+        
+        req.parsed_notes = req.parsed_notes.strip()
+        if not req.parsed_notes:
+            req.parsed_notes = "No additional configuration notes provided."
+
+    # --- Handle Form Submissions ---
     if request.method == 'POST':
-        form = ProductForm(request.POST, request.FILES)
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'New U-Node hardware added to the deployment store!')
+        # 1. Handle "Process Requested Order" Modal
+        if 'product_id' in request.POST:
+            customer_name = request.POST.get('customer_name')
+            customer_email = request.POST.get('customer_email')
+            product_id = request.POST.get('product_id')
+            quantity = int(request.POST.get('quantity', 1))
+            
+            if not product_id:
+                messages.error(request, 'Please select a hardware configuration from the dropdown.')
+                return redirect('app:hardware_inventory')
+                
+            product = get_object_or_404(Product, id=product_id)
+            total_price = product.price * quantity
+            
+            req = HardwareRequest.objects.filter(customer_email=customer_email, is_processed=False).first()
+            shipping_address = "Manual Request"
+            if req and req.notes:
+                addr_match = re.search(r'Shipping Address:\s*([\s\S]+)', req.notes, re.IGNORECASE)
+                if addr_match:
+                    shipping_address = addr_match.group(1).strip()
+            
+            if product.stock >= quantity:
+                product.stock -= quantity
+                product.save()
+
+            new_order = Order.objects.create(
+                customer_name=customer_name,
+                customer_email=customer_email,
+                contact_number="Provided via Request",
+                shipping_address=shipping_address,
+                product=product,
+                quantity=quantity,
+                total_price=total_price,
+                status='pending',
+            )
+            
+            try:
+                PAYMONGO_SECRET_KEY = getattr(settings, 'PAYMONGO_SECRET_KEY', '***REMOVED***')
+                pm_url = "https://api.paymongo.com/v1/links"
+                pm_payload = {
+                    "data": {
+                        "attributes": {
+                            "amount": int(total_price * 100), 
+                            "description": f"EnviroPlus Manual Order: {product.name} (Qty: {quantity})",
+                            "remarks": f"EnviroPlus Order ID: {new_order.id}" 
+                        }
+                    }
+                }
+                pm_headers = {"accept": "application/json", "content-type": "application/json"}
+                response = requests.post(pm_url, json=pm_payload, headers=pm_headers, auth=(PAYMONGO_SECRET_KEY, ''), timeout=10)
+                
+                if response.status_code == 200:
+                    checkout_data = response.json()
+                    payment_url = checkout_data['data']['attributes']['checkout_url']
+                    
+                    brevo_url = "https://api.brevo.com/v3/smtp/email"
+                    brevo_payload = {
+                        "sender": {"name": "EnviroPlus Admin", "email": "enviroplusnode@gmail.com"}, 
+                        "to": [{"email": customer_email, "name": customer_name}],
+                        "subject": "Your EnviroPlus Order is Ready for Payment",
+                        "htmlContent": f"""
+                        <html>
+                        <body>
+                            <h2>Hello {customer_name},</h2>
+                            <p>Your requested order for <strong>{quantity}x {product.name}</strong> has been processed by our team!</p>
+                            <p>Total Amount: <strong>PHP {total_price}</strong></p>
+                            <br>
+                            <p>Please click the secure link below to proceed with your payment via GCash, Maya, or Card:</p>
+                            <a href="{payment_url}" style="padding: 12px 24px; background-color: #ea580c; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Proceed to Payment</a>
+                        </body>
+                        </html>
+                        """
+                    }
+                    brevo_headers = {"accept": "application/json", "content-type": "application/json", "api-key": getattr(settings, 'BREVO_API_KEY', '')}
+
+                    try:
+                        brevo_response = requests.post(brevo_url, json=brevo_payload, headers=brevo_headers, timeout=10)
+                        if brevo_response.status_code in [201, 200]:
+                            messages.success(request, f'Order created and payment link emailed via Brevo to {customer_name}.')
+                        else:
+                            messages.warning(request, f'Order created, but email failed. Send them this link manually: {payment_url}')
+                    except Exception:
+                        messages.warning(request, f'Order created, but email failed. Send them this link manually: {payment_url}')
+
+                    if req:
+                        req.is_processed = True
+                        req.save()
+
+                    # --- AUDIT LOG FOR ORDER PROCESSING ---
+                    admin_name = request.user.get_full_name() or request.user.username
+                    SystemLog.objects.create(
+                        event_type='order',
+                        severity='good',
+                        message=f"Admin {admin_name} processed hardware request for {customer_name} ({quantity}x {product.name}).",
+                        created_at=timezone.now()
+                    )
+
+                else:
+                    new_order.delete()
+                    messages.error(request, 'Failed to generate PayMongo checkout link.')
+
+            except Exception:
+                new_order.delete()
+                messages.error(request, 'Connection to the payment gateway timed out.')
+
             return redirect('app:hardware_inventory')
+
+        # 2. Handle "Register New U-Node" Admin Form
+        else:
+            form = ProductForm(request.POST, request.FILES)
+            if form.is_valid():
+                new_product = form.save()
+                
+                # --- AUDIT LOG FOR NEW HARDWARE ---
+                admin_name = request.user.get_full_name() or request.user.username
+                SystemLog.objects.create(
+                    event_type='admin',
+                    severity='good',
+                    message=f"Admin {admin_name} added new hardware to the store: {new_product.name} (Stock: {new_product.stock}).",
+                    created_at=timezone.now()
+                )
+                
+                messages.success(request, 'New U-Node hardware added to the deployment store!')
+                return redirect('app:hardware_inventory')
     else:
         form = ProductForm()
         
     return render(request, 'AppEnviroNode/admin/hardware_inventory.html', {
         'products': products,
+        'pending_requests': pending_requests,
         'form': form
     })
 
@@ -6076,5 +6240,630 @@ def hardware_delete_view(request, product_id):
     product = get_object_or_404(Product, id=product_id)
     product_name = product.name
     product.delete()
+    
+    # --- AUDIT LOG CREATION ---
+    admin_name = request.user.get_full_name() or request.user.username
+    SystemLog.objects.create(
+        event_type='admin',
+        severity='moderate',  # Using 'moderate' gives it a yellow warning tint in the history table
+        message=f"Admin {admin_name} deleted hardware from the store: {product_name}.",
+        created_at=timezone.now()
+    )
+    
     messages.success(request, f'Hardware "{product_name}" has been removed.')
     return redirect('app:hardware_inventory')
+
+
+@csrf_exempt
+def paymongo_webhook(request):
+    if request.method == 'POST':
+        try:
+            # Parse the hidden data sent by PayMongo
+            payload = json.loads(request.body)
+            event_type = payload.get('data', {}).get('attributes', {}).get('type')
+            
+            # Check if the event is a successful link payment
+            if event_type == 'link.payment.paid':
+                # Extract the remarks we sent earlier to identify the specific order
+                remarks = payload['data']['attributes']['data']['attributes']['remarks']
+                
+                if remarks and "EnviroPlus Order ID:" in remarks:
+                    order_id = int(remarks.split(":")[-1].strip())
+                    
+                    # Update the database
+                    order = Order.objects.get(id=order_id)
+                    order.status = 'Paid'
+                    order.save()
+                    
+                    # You can trigger your Brevo email receipt function here later[cite: 8]
+                    
+        except Exception as e:
+            print(f"Webhook error: {e}")
+            return HttpResponse(status=400)
+            
+        # Tell PayMongo we received the message successfully
+        return HttpResponse(status=200)
+        
+    return HttpResponse(status=405)
+
+def dummy_checkout(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+
+    if request.method == 'POST':
+        # 1. Force the backend to capture exactly what is inside the frontend text boxes
+        customer_name = request.POST.get('customer_name')
+        customer_email = request.POST.get('customer_email')
+        contact_number = request.POST.get('contact_number')
+        shipping_address = request.POST.get('shipping_address')
+        
+        quantity = int(request.POST.get('quantity', 1))
+        total_price = product.price * quantity
+
+        # Deduct stock conditionally
+        if product.stock >= quantity:
+            product.stock -= quantity
+            product.save()
+
+        # 2. Save the exact inputs to the database
+        order = Order.objects.create(
+            customer_name=customer_name,
+            customer_email=customer_email,
+            contact_number=contact_number,
+            shipping_address=shipping_address,
+            product=product,
+            quantity=quantity,
+            total_price=total_price,
+            status='pending' 
+        )
+
+        # --- AUDIT LOG CREATION ---
+        SystemLog.objects.create(
+            event_type='order',
+            severity='good',
+            message=f"Storefront Checkout: {customer_name} purchased {quantity}x {product.name}.",
+            created_at=timezone.now()
+        )
+
+        # 3. Call PayMongo Checkout Sessions API (Redirect Auto-Update Method)
+        url = "https://api.paymongo.com/v1/checkout_sessions"
+        
+        success_url = request.build_absolute_uri(f'/payment-success/{order.id}/')
+        cancel_url = request.build_absolute_uri('/shop/')
+        
+        payload = {
+            "data": {
+                "attributes": {
+                    "billing": {
+                        "name": customer_name,
+                        "email": customer_email,
+                        "phone": contact_number
+                    },
+                    "send_email_receipt": True,
+                    "show_description": True,
+                    "show_line_items": True,
+                    "success_url": success_url,
+                    "cancel_url": cancel_url,
+                    "description": f"EnviroPlus U-Node - {product.name}",
+                    "line_items": [
+                        {
+                            "currency": "PHP",
+                            "amount": int(product.price * 100), 
+                            "name": product.name,
+                            "quantity": quantity
+                        }
+                    ],
+                    "payment_method_types": ["gcash", "paymaya", "card"]
+                }
+            }
+        }
+        
+        headers = {
+            "accept": "application/json",
+            "content-type": "application/json"
+        }
+
+        PAYMONGO_SECRET_KEY = getattr(settings, 'PAYMONGO_SECRET_KEY', '***REMOVED***')
+
+        response = requests.post(
+            url, json=payload, headers=headers, auth=(PAYMONGO_SECRET_KEY, '')
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            checkout_url = data['data']['attributes']['checkout_url']
+            return redirect(checkout_url)
+        else:
+            print("PayMongo Error:", response.text)
+            product.stock += quantity
+            product.save()
+            order.delete()
+            messages.error(request, "Payment gateway is currently unavailable. Please try again.")
+            return redirect('app:checkout', product_id=product.id)
+
+    return render(request, 'AppEnviroNode/shop/checkout.html', {'product': product})
+
+@login_required
+def hardware_orders(request):
+    if request.user.role != 'admin':
+        messages.error(request, "Access restricted to administrators.")
+        return redirect('app:client_dashboard')
+
+    # Base queryset, ordered by newest first
+    order_list = Order.objects.all().order_by('-created_at')
+
+    # 1. Search Functionality
+    search_query = request.GET.get('q', '')
+    if search_query:
+        order_list = order_list.filter(
+            Q(customer_name__icontains=search_query) | 
+            Q(customer_email__icontains=search_query) |
+            Q(contact_number__icontains=search_query)
+        )
+
+    # --- REPORT EXPORT LOGIC WITH MODAL FILTERS ---
+    export_format = request.GET.get('export_format')
+    if export_format in ['csv', 'excel']:
+        export_qs = order_list
+        
+        # Apply Status Filter
+        export_status = request.GET.get('export_status', 'all')
+        if export_status != 'all':
+            export_qs = export_qs.filter(status=export_status)
+            
+        # Apply Date Range Filter
+        start_date = request.GET.get('export_start_date')
+        end_date = request.GET.get('export_end_date')
+        
+        if start_date:
+            try:
+                s_date = timezone.datetime.strptime(start_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+                export_qs = export_qs.filter(created_at__gte=s_date)
+            except ValueError:
+                pass
+                
+        if end_date:
+            try:
+                e_date = timezone.datetime.strptime(end_date, '%Y-%m-%d').replace(hour=23, minute=59, tzinfo=timezone.utc)
+                export_qs = export_qs.filter(created_at__lte=e_date)
+            except ValueError:
+                pass
+
+        if export_format == 'csv':
+            return export_orders_csv(export_qs)
+        elif export_format == 'excel':
+            return export_orders_excel(export_qs)
+
+    # 2. Detailed Analytics Calculations
+    total_orders_count = order_list.count()
+    
+    total_revenue = order_list.filter(
+        status__in=['paid', 'shipped', 'received']
+    ).aggregate(Sum('total_price'))['total_price__sum'] or 0.00
+
+    total_units_sold = order_list.aggregate(Sum('quantity'))['quantity__sum'] or 0
+    pending_orders_count = order_list.filter(status='pending').count()
+    pending_requests_count = HardwareRequest.objects.filter(is_processed=False).count()
+    
+    most_bought = Order.objects.exclude(product__isnull=True).values('product__name').annotate(
+        total_qty=Sum('quantity')
+    ).order_by('-total_qty').first()
+    
+    most_bought_name = most_bought['product__name'] if most_bought else "No active orders"
+    most_bought_qty = most_bought['total_qty'] if most_bought else 0
+
+    # 3. Pagination (5 items per page)
+    paginator = Paginator(order_list, 5)
+    page_number = request.GET.get('page')
+    orders = paginator.get_page(page_number)
+
+    context = {
+        'orders': orders,
+        'total_orders_count': total_orders_count,
+        'total_revenue': total_revenue,
+        'total_units_sold': total_units_sold,
+        'pending_orders_count': pending_orders_count,
+        'pending_requests_count': pending_requests_count,
+        'most_bought_name': most_bought_name,
+        'most_bought_qty': most_bought_qty,
+        'search_query': search_query,
+    }
+    
+    return render(request, 'AppEnviroNode/shop/orders.html', context)
+
+def export_orders_csv(queryset):
+    """Generates a CSV report of the filtered orders."""
+    now = timezone.now()
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="EnviroPlus_Orders_{now.strftime("%Y%m%d_%H%M")}.csv"'
+    
+    writer = csv.writer(response)
+    writer.writerow(['Order ID', 'Customer Name', 'Email', 'Contact Number', 'Shipping Address', 'Product', 'Quantity', 'Total Price', 'Status', 'Date Ordered'])
+    
+    for order in queryset:
+        product_name = order.product.name if order.product else 'Deleted Product'
+        writer.writerow([
+            f"#{order.id}",
+            order.customer_name,
+            order.customer_email,
+            order.contact_number,
+            order.shipping_address,
+            product_name,
+            order.quantity,
+            order.total_price,
+            order.get_status_display() if hasattr(order, 'get_status_display') else order.status.title(),
+            order.created_at.strftime('%Y-%m-%d %H:%M:%S')
+        ])
+    
+    return response
+
+
+def export_orders_excel(queryset):
+    """Generates a formatted Excel report of the filtered orders with fixed column widths."""
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
+    from openpyxl import Workbook
+    import io
+    
+    now = timezone.now()
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Hardware Orders"
+    
+    # Stylized Headers
+    headers = ['Order ID', 'Customer Name', 'Email', 'Contact Number', 'Shipping Address', 'Product', 'Quantity', 'Total Price', 'Status', 'Date Ordered']
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num, value=header)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="0F172A", end_color="0F172A", fill_type="solid")
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+    
+    # Populate Rows
+    for row_num, order in enumerate(queryset, 2):
+        product_name = order.product.name if order.product else 'Deleted Product'
+        ws.cell(row=row_num, column=1, value=f"#{order.id}")
+        ws.cell(row=row_num, column=2, value=order.customer_name)
+        ws.cell(row=row_num, column=3, value=order.customer_email)
+        ws.cell(row=row_num, column=4, value=order.contact_number)
+        ws.cell(row=row_num, column=5, value=order.shipping_address)
+        ws.cell(row=row_num, column=6, value=product_name)
+        ws.cell(row=row_num, column=7, value=order.quantity)
+        ws.cell(row=row_num, column=8, value=float(order.total_price))
+        ws.cell(row=row_num, column=9, value=order.get_status_display() if hasattr(order, 'get_status_display') else order.status.title())
+        ws.cell(row=row_num, column=10, value=order.created_at.strftime('%Y-%m-%d %H:%M:%S'))
+    
+    # Explicitly set column widths to prevent '####'
+    widths = [12, 22, 28, 18, 40, 25, 10, 15, 15, 22]
+    for col_num, width in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(col_num)].width = width
+        
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="EnviroPlus_Orders_{now.strftime("%Y%m%d_%H%M")}.xlsx"'
+    return response
+
+@login_required
+@require_POST
+def update_order_status(request, order_id):
+    if request.user.role != 'admin':
+        messages.error(request, "Unauthorized action.")
+        return redirect('app:client_dashboard')
+    
+    order = get_object_or_404(Order, id=order_id)
+    new_status = request.POST.get('status')
+    
+    # Validate that the submitted status is actually one of our choices
+    valid_statuses = [choice[0] for choice in Order.STATUS_CHOICES]
+    if new_status in valid_statuses:
+        order.status = new_status
+        order.save()
+        messages.success(request, f"Order #{order.id} marked as {order.get_status_display()}.")
+    else:
+        messages.error(request, "Invalid status update.")
+        
+    return redirect('app:hardware_orders') # Adjust prefix if needed based on your urls.py
+
+def request_build_view(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+    
+    if request.method == 'POST':
+        customer_name = request.POST.get('customer_name')
+        customer_email = request.POST.get('customer_email')
+        notes = request.POST.get('notes')
+        
+        # Save to the HardwareRequest database for the Admin to see
+        HardwareRequest.objects.create(
+            customer_name=customer_name, 
+            customer_email=customer_email, 
+            notes=notes
+        )
+        
+        # --- AUDIT LOG CREATION ---
+        SystemLog.objects.create(
+            event_type='order',
+            severity='moderate',
+            message=f"New Hardware Request submitted by {customer_name} for review.",
+            created_at=timezone.now()
+        )
+        
+        messages.success(request, "Your hardware request has been sent! Our team will review it and email you the payment link when ready.")
+        return redirect('app:shop')
+
+    return render(request, 'AppEnviroNode/shop/request_order.html', {'product': product})
+
+def payment_success(request, order_id):
+    """Catches the user after PayMongo redirects them back, and auto-updates the order."""
+    order = get_object_or_404(Order, id=order_id)
+    
+    # Auto-update to Paid
+    if order.status != 'paid':
+        order.status = 'paid'
+        order.save()
+        
+    return redirect('app:shop')
+
+@login_required
+def process_request_view(request, request_id):
+    hw_request = get_object_or_404(HardwareRequest, id=request_id)
+    products = Product.objects.all().order_by('-id')
+
+    # 1. Parse Data Safely via Python
+    parsed_qty = 1
+    parsed_notes = hw_request.notes or ""
+    detected_product_id = None
+
+    qty_match = re.search(r'Requested Quantity:\s*(\d+)', parsed_notes, re.IGNORECASE)
+    if qty_match:
+        parsed_qty = int(qty_match.group(1))
+
+    prod_match = re.search(r'Requesting build for\s+([^.\n]+)', parsed_notes, re.IGNORECASE)
+    if prod_match:
+        prod_name = prod_match.group(1).strip().lower()
+        for p in products:
+            if prod_name in p.name.lower():
+                detected_product_id = p.id
+                break
+
+    # 2. Handle the Form Submission (Create Order, PayMongo, Brevo)
+    if request.method == 'POST':
+        product_id = request.POST.get('product_id')
+        quantity = int(request.POST.get('quantity', 1))
+
+        if not product_id:
+            messages.error(request, 'Please select a hardware configuration.')
+            return redirect('app:process_request', request_id=request_id)
+
+        product = get_object_or_404(Product, id=product_id)
+        total_price = product.price * quantity
+
+        # Extract address to save to the actual order
+        shipping_address = "Manual Request"
+        addr_match = re.search(r'Shipping Address:\s*([\s\S]+)', parsed_notes, re.IGNORECASE)
+        if addr_match:
+            shipping_address = addr_match.group(1).strip()
+
+        if product.stock >= quantity:
+            product.stock -= quantity
+            product.save()
+
+        new_order = Order.objects.create(
+            customer_name=hw_request.customer_name,
+            customer_email=hw_request.customer_email,
+            contact_number="Provided via Request",
+            shipping_address=shipping_address,
+            product=product,
+            quantity=quantity,
+            total_price=total_price,
+            status='pending',
+        )
+
+        try:
+            # --- PAYMONGO CHECKOUT SESSIONS API ---
+            url = "https://api.paymongo.com/v1/checkout_sessions"
+            success_url = request.build_absolute_uri(f'/payment-success/{new_order.id}/')
+            cancel_url = request.build_absolute_uri('/shop/')
+            
+            payload = {
+                "data": {
+                    "attributes": {
+                        "billing": {
+                            "name": hw_request.customer_name,
+                            "email": hw_request.customer_email,
+                        },
+                        "send_email_receipt": True,
+                        "show_description": True,
+                        "show_line_items": True,
+                        "success_url": success_url,
+                        "cancel_url": cancel_url,
+                        "description": f"EnviroPlus Manual Order: {product.name}",
+                        "line_items": [
+                            {
+                                "currency": "PHP",
+                                "amount": int(product.price * 100),
+                                "name": product.name,
+                                "quantity": quantity
+                            }
+                        ],
+                        "payment_method_types": ["gcash", "paymaya", "card"]
+                    }
+                }
+            }
+
+            headers = {
+                "accept": "application/json",
+                "content-type": "application/json"
+            }
+
+            PAYMONGO_SECRET_KEY = getattr(settings, 'PAYMONGO_SECRET_KEY', '***REMOVED***')
+            
+            response = requests.post(
+                url, json=payload, headers=headers, auth=HTTPBasicAuth(PAYMONGO_SECRET_KEY, ''), timeout=10
+            )
+            
+            if response.status_code == 200:
+                checkout_data = response.json()
+                payment_url = checkout_data['data']['attributes']['checkout_url']
+                
+                # --- BREVO EMAIL INTEGRATION ---
+                brevo_url = "https://api.brevo.com/v3/smtp/email"
+                brevo_payload = {
+                    "sender": {"name": "EnviroPlus Admin", "email": "enviroplusnode@gmail.com"}, 
+                    "to": [{"email": hw_request.customer_email, "name": hw_request.customer_name}],
+                    "subject": "Your EnviroPlus Order is Ready for Payment",
+                    "htmlContent": f"""
+                    <html>
+                    <body>
+                        <h2>Hello {hw_request.customer_name},</h2>
+                        <p>Your requested order for <strong>{quantity}x {product.name}</strong> has been processed!</p>
+                        <p>Total Amount: <strong>PHP {total_price}</strong></p>
+                        <br>
+                        <p>Please click the secure link below to proceed with your payment:</p>
+                        <a href="{payment_url}" style="padding: 12px 24px; background-color: #ea580c; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Proceed to Payment</a>
+                    </body>
+                    </html>
+                    """
+                }
+                brevo_headers = {"accept": "application/json", "content-type": "application/json", "api-key": getattr(settings, 'BREVO_API_KEY', '')}
+
+                requests.post(brevo_url, json=brevo_payload, headers=brevo_headers, timeout=10)
+                messages.success(request, f'Order created and payment link emailed to {hw_request.customer_name}.')
+
+                hw_request.is_processed = True
+                hw_request.save()
+
+                # --- AUDIT LOG CREATION ---
+                admin_name = request.user.get_full_name() or request.user.username
+                SystemLog.objects.create(
+                    event_type='admin',
+                    severity='good',
+                    message=f"Admin {admin_name} processed hardware request for {hw_request.customer_name} ({quantity}x {product.name}).",
+                    created_at=timezone.now()
+                )
+
+            else:
+                new_order.delete()
+                print("PayMongo Error:", response.text)
+                messages.error(request, 'Failed to generate PayMongo checkout link.')
+
+        except Exception as e:
+            new_order.delete()
+            print("Error:", str(e))
+            messages.error(request, 'Payment gateway connection failed.')
+
+        return redirect('app:hardware_inventory')
+
+    return render(request, 'AppEnviroNode/admin/process_request.html', {
+        'req': hw_request,
+        'products': products,
+        'parsed_qty': parsed_qty,
+        'detected_product_id': detected_product_id
+    })
+
+@receiver(user_logged_in)
+def log_user_login(sender, request, user, **kwargs):
+    SystemLog.objects.create(
+        event_type='system',
+        severity='good',
+        message=f"User '{user.username}' successfully logged into the system.",
+        created_at=timezone.now()
+    )
+
+@receiver(user_login_failed)
+def log_user_login_failed(sender, credentials, request, **kwargs):
+    username = credentials.get('username', 'Unknown')
+    SystemLog.objects.create(
+        event_type='system',
+        severity='unhealthy',
+        message=f"SECURITY: Failed login attempt for username '{username}'.",
+        created_at=timezone.now()
+    )
+
+@receiver(user_logged_out)
+def log_user_logout(sender, request, user, **kwargs):
+    if user:
+        SystemLog.objects.create(
+            event_type='system',
+            severity='good',
+            message=f"User '{user.username}' logged out.",
+            created_at=timezone.now()
+        )
+
+@login_required(login_url='app:login')
+def export_history_excel(request, event_type, node_id, date_range, sensor_type, severity):
+    """
+    Export detailed audit logs to an Excel file with predefined column widths.
+    This permanently prevents the #### timestamp error in Microsoft Excel.
+    """
+    from openpyxl.styles import Font, PatternFill
+    
+    now = timezone.now()
+    logs = SystemLog.objects.all().order_by('-created_at')
+    
+    if date_range == 'today':
+        logs = logs.filter(created_at__gte=now.replace(hour=0, minute=0, second=0, microsecond=0))
+    elif date_range == 'last7':
+        logs = logs.filter(created_at__gte=now - timedelta(days=7))
+    elif date_range == 'last30':
+        logs = logs.filter(created_at__gte=now - timedelta(days=30))
+    elif date_range == 'custom':
+        custom_start = request.GET.get('start_date')
+        custom_end = request.GET.get('end_date')
+        if custom_start:
+            try:
+                logs = logs.filter(created_at__gte=timezone.datetime.strptime(custom_start, '%Y-%m-%d').replace(tzinfo=timezone.utc))
+            except: pass
+        if custom_end:
+            try:
+                logs = logs.filter(created_at__lte=timezone.datetime.strptime(custom_end, '%Y-%m-%d').replace(hour=23, minute=59, tzinfo=timezone.utc))
+            except: pass
+    
+    if event_type != 'all': logs = logs.filter(event_type=event_type)
+    if node_id != 'all':
+        try: logs = logs.filter(node_id=int(node_id))
+        except: pass
+    if sensor_type != 'all': logs = logs.filter(sensor_type=sensor_type)
+    if severity != 'all': logs = logs.filter(severity=severity)
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "System Audit History"
+    
+    # Create Stylized Headers
+    headers = ['Timestamp', 'Event Type', 'Node Name', 'Location', 'MAC Address', 'Severity', 'Sensor Type', 'Value', 'Message']
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num, value=header)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="0F172A", end_color="0F172A", fill_type="solid")
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+    
+    for row_num, log in enumerate(logs, 2):
+        ws.cell(row=row_num, column=1, value=log.created_at.strftime('%Y-%m-%d %H:%M:%S'))
+        ws.cell(row=row_num, column=2, value=log.get_event_type_display() if hasattr(log, 'get_event_type_display') else log.event_type)
+        ws.cell(row=row_num, column=3, value=log.node.name if log.node else 'System')
+        ws.cell(row=row_num, column=4, value=log.node.location if log.node else 'N/A')
+        ws.cell(row=row_num, column=5, value=log.node.mac_address if log.node else 'N/A')
+        ws.cell(row=row_num, column=6, value=log.get_severity_display() if hasattr(log, 'get_severity_display') and log.severity else 'N/A')
+        ws.cell(row=row_num, column=7, value=log.get_sensor_type_display() if hasattr(log, 'get_sensor_type_display') and log.sensor_type else 'N/A')
+        ws.cell(row=row_num, column=8, value=str(log.value) if log.value is not None else 'N/A')
+        ws.cell(row=row_num, column=9, value=log.message)
+    
+    # Explicitly set column widths to prevent '####'
+    widths = [22, 18, 20, 25, 20, 15, 15, 12, 80]
+    for col_num, width in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(col_num)].width = width
+        
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="EnviroPlus_Audit_Log_{now.strftime("%Y%m%d_%H%M%S")}.xlsx"'
+    return response
