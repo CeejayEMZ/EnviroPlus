@@ -6,304 +6,1108 @@
 
 {% block content %}
 <style>
-  /* Scoped admin hardware styling: inherits EnviroPlus fonts, colors, navbar and pixel-city background. */
+  /* Hardware page only; keeps EnviroPlus navbar, background and theme. */
   .main-container:has(> .hw-admin) {
-    width: min(1440px, calc(100% - 48px));
-    max-width: none;
-    margin: 148px auto 0;
-    padding: 0;
     display: block;
+    max-width: none;
+    width: min(1440px, calc(100% - 48px));
+    padding: 0;
+    margin: 155px auto 0;
   }
+
   .hw-admin {
-    --hw-navy: var(--deep-navy, #0B1120);
+    --hw-navy: var(--deep-navy, #0b1120);
     --hw-blue: var(--cyber-blue, #2d5bbe);
-    --hw-amber: var(--warning-amber, #f59e0b);
-    --hw-muted: var(--text-muted, #475569);
-    --hw-border: #e3eaf3;
-    --hw-card: var(--card-bg, rgba(255, 255, 255, .97));
+    --hw-line: #e0e8f2;
+    --hw-muted: #637790;
+    color: #1c3453;
     font-family: 'Inter', sans-serif;
-    color: #1a2f52;
+    padding-bottom: 45px;
     min-width: 0;
-    padding-bottom: 35px;
   }
-  .hw-admin *, .hw-admin *::before, .hw-admin *::after { box-sizing: border-box; }
-  .hw-admin :is(button, input, select, textarea) { font: inherit; }
-  .hw-admin :is(a, button, input, select, textarea, summary):focus-visible {
+
+  .hw-admin *,
+  .hw-admin *::before,
+  .hw-admin *::after {
+    box-sizing: border-box;
+  }
+
+  .hw-admin :is(button, input, textarea, select) {
+    font: inherit;
+  }
+
+  .hw-admin :is(button, input, textarea, select, a):focus-visible {
     outline: 3px solid #fbbf24;
     outline-offset: 3px;
   }
-  .hw-hero {
-    display: flex; justify-content: space-between; align-items: center;
-    gap: 22px; margin-bottom: 23px;
+
+  .hw-admin [hidden] {
+    display: none !important;
   }
-  .hw-eyebrow { color: #fbbf24; font-size: .72rem; font-weight: 800; letter-spacing: .13em; }
-  .hw-hero h1 { color: #fff; font-size: clamp(1.5rem, 2.5vw, 2.1rem); line-height: 1.24; margin: 7px 0; }
-  .hw-hero p { color: #e3ebf7; font-size: .91rem; line-height: 1.55; max-width: 700px; }
-  .hw-hero-action, .hw-btn-primary, .hw-btn-secondary, .hw-review-link {
-    display: inline-flex; align-items: center; justify-content: center; gap: 9px;
-    border-radius: 9px; text-decoration: none; font-size: .84rem; font-weight: 750;
-    min-height: 42px; padding: 10px 15px; white-space: nowrap;
-    transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
+
+  /* Page heading and buttons */
+  .hw-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 23px;
   }
-  .hw-hero-action { color: #fff; border: 1px solid rgba(255,255,255,.3); background: rgba(11,17,32,.58); }
-  .hw-hero-action:hover { background: rgba(45,91,190,.7); color: #fff; }
-  .hw-stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 15px; margin-bottom: 22px; }
+
+  .hw-eyebrow {
+    color: #fbbf24;
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .12em;
+  }
+
+  .hw-heading h1 {
+    color: #fff;
+    font-size: clamp(1.55rem, 2.8vw, 2.07rem);
+    margin: 6px 0;
+  }
+
+  .hw-heading p {
+    color: #dce8f8;
+    font-size: .88rem;
+    line-height: 1.6;
+  }
+
+  .hw-button {
+    border: 1px solid transparent;
+    border-radius: 9px;
+    padding: 10px 14px;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-decoration: none;
+    font-size: .81rem;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .hw-admin .hw-button--primary {
+    background: linear-gradient(135deg, #0b1120, #2d5bbe);
+    color: #fff;
+  }
+
+  .hw-admin .hw-button--primary:hover {
+    color: #fff;
+    background: linear-gradient(135deg, #1c3561, #3b82f6);
+  }
+
+  .hw-admin .hw-button--light {
+    background: rgba(11,17,32,.72);
+    color: #fff;
+    border-color: rgba(255,255,255,.25);
+  }
+
+  .hw-admin .hw-button--light:hover {
+    color: #fff;
+    background: #244988;
+  }
+
+  .hw-admin .hw-button--edit {
+    color: #2457aa;
+    background: #edf3ff;
+    border-color: #cfddf5;
+  }
+
+  .hw-admin .hw-button--edit:hover {
+    color: #183e85;
+    background: #dfeafa;
+  }
+
+  .hw-admin .hw-button--delete {
+    color: #ae3434;
+    background: #fff0f0;
+    border-color: #f7d3d3;
+  }
+
+  .hw-admin .hw-button--delete:hover {
+    background: #fde5e5;
+  }
+
+  .hw-admin .hw-button:disabled {
+    opacity: .62;
+    cursor: not-allowed;
+  }
+
+  /* Inventory summary */
+  .hw-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+
   .hw-stat {
-    display: flex; gap: 14px; align-items: center; padding: 17px 19px;
-    border-radius: 13px; border: 1px solid rgba(255,255,255,.19);
-    background: rgba(11, 17, 32, .78); box-shadow: 0 8px 22px rgba(0,0,0,.12);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 17px;
+    border-radius: 12px;
+    background: rgba(11,17,32,.83);
+    border: 1px solid rgba(255,255,255,.18);
     backdrop-filter: blur(10px);
   }
-  .hw-stat-icon { width: 42px; height: 42px; flex: 0 0 42px; border-radius: 11px; display: grid; place-items: center; background: rgba(59,130,246,.19); color: #8dc0ff; font-size: 1rem; }
-  .hw-stat--amber .hw-stat-icon { background: rgba(245,158,11,.18); color: #fbbf24; }
-  .hw-stat--green .hw-stat-icon { background: rgba(34,197,94,.16); color: #86efac; }
-  .hw-stat-value { display: block; font-size: 1.48rem; line-height: 1.1; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
-  .hw-stat-label { display: block; color: #c1d0e4; font-size: .75rem; margin-top: 5px; }
-  .hw-main-grid { display: grid; grid-template-columns: minmax(315px, .85fr) minmax(0, 1.65fr); gap: 20px; align-items: start; }
-  .hw-panel {
-    background: var(--hw-card); border-radius: 13px; border: 1px solid var(--hw-border);
-    box-shadow: 0 8px 28px rgba(11,17,32,.14); overflow: hidden; min-width: 0;
-  }
-  .hw-panel-header {
-    display: flex; justify-content: space-between; align-items: center; gap: 15px;
-    border-bottom: 1px solid var(--hw-border); padding: 19px 22px; background: #f8faff;
-  }
-  .hw-panel-title { display: flex; align-items: center; gap: 11px; min-width: 0; }
-  .hw-title-icon { display: grid; place-items: center; width: 39px; height: 39px; flex: 0 0 39px; border-radius: 10px; color: var(--hw-blue); background: #e9f0fe; }
-  .hw-title-icon--amber { color: #ba6d0b; background: #fff3dc; }
-  .hw-panel-title h2 { color: var(--hw-navy); font-size: 1.02rem; margin: 0; font-weight: 800; }
-  .hw-panel-title p { color: #718198; font-size: .76rem; line-height: 1.55; margin-top: 3px; }
-  .hw-header-count { border-radius: 999px; font-size: .75rem; font-weight: 750; background: #e9f0fd; color: #2854a4; padding: 7px 10px; white-space: nowrap; }
-  .hw-header-count--amber { background: #fff2d9; color: #995900; }
-  .hw-form { padding: 21px 22px 23px; display: grid; gap: 17px; }
-  .hw-form-field { min-width: 0; }
-  .hw-form-field > label { display: block; color: #263951; font-size: .82rem; font-weight: 750; margin-bottom: 8px; }
-  .hw-form-field > label .hw-required { color: #c53846; }
-  .hw-form-field :is(input[type="text"], input[type="number"], input[type="file"], textarea) {
-    width: 100%; max-width: 100%; border: 1px solid #cfdaeb; border-radius: 9px;
-    background: #fff; color: #183353; min-height: 44px; padding: 10px 12px; font-size: .85rem;
-  }
-  .hw-form-field textarea { resize: vertical; min-height: 90px; line-height: 1.55; }
-  .hw-form-field input:focus, .hw-form-field textarea:focus { outline: none; border-color: var(--hw-blue); box-shadow: 0 0 0 3px rgba(45,91,190,.13); }
-  .hw-form-field input[type="file"] { padding: 8px; background: #f8faff; border-style: dashed; cursor: pointer; }
-  .hw-form-field input[type="file"]::file-selector-button { color: #2454a2; background: #eaf0fc; border: none; border-radius: 6px; padding: 7px 10px; font-size: .78rem; font-weight: 750; margin-right: 10px; cursor: pointer; }
-  .hw-form-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 13px; }
-  .hw-field-help { color: #718198; font-size: .74rem; line-height: 1.5; margin-top: 6px; }
-  .hw-field-errors { color: #ae2935; font-size: .77rem; margin-top: 7px; }
-  .hw-field-errors ul { margin: 0; padding-left: 16px; }
-  .hw-form-errors { padding: 12px; border-radius: 8px; background: #fff1f2; border: 1px solid #fecdd3; color: #9f1239; font-size: .8rem; }
-  .hw-check-row { display: flex; align-items: flex-start; gap: 11px; padding: 13px; border: 1px solid #dce6f5; border-radius: 10px; background: #f7faff; cursor: pointer; }
-  .hw-check-row input { flex: 0 0 auto; width: 18px; height: 18px; accent-color: var(--hw-blue); margin-top: 2px; }
-  .hw-check-row strong { display: block; color: #233952; font-size: .81rem; }
-  .hw-check-row small { display: block; color: #718198; line-height: 1.55; font-size: .73rem; margin-top: 3px; }
-  .hw-btn-primary { border: none; background: linear-gradient(135deg, var(--hw-navy), var(--hw-blue)); color: #fff; cursor: pointer; }
-  .hw-btn-primary:hover { background: linear-gradient(135deg, #1b3564, #3b82f6); box-shadow: 0 5px 15px rgba(45,91,190,.23); }
-  .hw-btn-secondary { border: 1px solid #cbd7ea; background: #f3f7fe; color: #2d57a0; cursor: pointer; }
-  .hw-btn-secondary:hover { background: #e7f0ff; }
-  .hw-submit { width: 100%; min-height: 45px; }
-  .hw-image-preview { display: none; align-items: center; gap: 11px; margin-top: 10px; padding: 9px; background: #f8faff; border-radius: 9px; border: 1px solid #e1e8f3; }
-  .hw-image-preview.is-visible { display: flex; }
-  .hw-image-preview img { width: 54px; height: 54px; object-fit: cover; border-radius: 7px; border: 1px solid #d2dfed; }
-  .hw-image-preview span { font-size: .78rem; color: #526781; overflow-wrap: anywhere; }
-  .hw-table-toolbar { display: flex; gap: 10px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--hw-border); }
-  .hw-search { position: relative; flex: 1; min-width: 0; }
-  .hw-search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #8796ab; font-size: .82rem; pointer-events: none; }
-  .hw-search input { width: 100%; background: #fff; border: 1px solid #d5dfed; border-radius: 8px; padding: 10px 12px 10px 35px; min-height: 40px; font-size: .8rem; color: #263b57; }
-  .hw-filter { min-height: 40px; max-width: 150px; border: 1px solid #d5dfed; background: #fff; padding: 9px 8px; border-radius: 8px; font-size: .8rem; color: #334d70; }
-  .hw-table-wrap { width: 100%; overflow-x: auto; }
-  .hw-table { border-collapse: collapse; width: 100%; text-align: left; font-size: .81rem; }
-  .hw-table thead { background: #f8faff; }
-  .hw-table th { padding: 13px 14px; color: #536681; font-weight: 750; font-size: .73rem; white-space: nowrap; border-bottom: 1px solid #e6edf5; }
-  .hw-table td { padding: 14px; border-bottom: 1px solid #e9eef5; vertical-align: middle; color: #334b68; }
-  .hw-table tbody tr:last-child td { border-bottom: none; }
-  .hw-table tbody tr:hover { background: #f9fbff; }
-  .hw-table .hw-cell-end { text-align: right; }
-  .hw-product-name { font-weight: 750; color: #132943; font-size: .86rem; line-height: 1.4; }
-  .hw-product-desc { font-size: .74rem; color: #7a899d; margin-top: 4px; line-height: 1.45; max-width: 240px; }
-  .hw-product-thumb { display: grid; place-items: center; width: 50px; height: 50px; border-radius: 9px; overflow: hidden; background: #eaf1fd; border: 1px solid #dbe6f4; color: #3b69ba; font-size: 1.2rem; }
-  .hw-product-thumb img { width: 100%; height: 100%; object-fit: cover; }
-  .hw-price { font-weight: 800; color: #183657; white-space: nowrap; }
-  .hw-pill { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; padding: 6px 9px; border-radius: 999px; font-size: .72rem; font-weight: 750; }
-  .hw-pill--green { background: #e6f7ed; color: #127044; }
-  .hw-pill--red { background: #fff0ef; color: #af332e; }
-  .hw-pill--gray { background: #eef2f6; color: #66788e; }
-  .hw-pill--amber { background: #fff2da; color: #9c5f08; }
-  .hw-pill i { font-size: .65rem; }
-  .hw-delete { width: 35px; height: 35px; background: #fff2f2; border: 1px solid #fbd3d3; color: #bb3838; border-radius: 8px; cursor: pointer; }
-  .hw-delete:hover { color: #fff; background: #ce4343; border-color: #ce4343; }
-  .hw-empty-cell { text-align: center; padding: 43px 20px !important; color: #718198 !important; }
-  .hw-empty-cell i { display: block; color: #9fb1c8; font-size: 2rem; margin-bottom: 12px; }
-  .hw-filter-empty { padding: 25px; text-align: center; font-size: .82rem; color: #6c819b; }
-  .hw-filter-empty[hidden] { display: none; }
-  .hw-panel-footer { padding: 12px 20px; border-top: 1px solid #e5ebf4; background: #fbfcff; color: #718198; font-size: .74rem; line-height: 1.5; }
-  .hw-requests { margin-top: 22px; }
-  .hw-request-customer strong { color: #19324f; display: block; font-size: .84rem; }
-  .hw-request-customer a { display: inline-block; color: #3565b1; font-size: .76rem; margin-top: 5px; text-decoration: none; overflow-wrap: anywhere; }
-  .hw-request-customer a:hover { text-decoration: underline; }
-  .hw-request-address { min-width: 170px; max-width: 285px; line-height: 1.55; font-size: .78rem; overflow-wrap: anywhere; }
-  .hw-request-address i { color: #7e9ac2; margin-right: 4px; }
-  .hw-notes-snippet { min-width: 180px; max-width: 270px; line-height: 1.5; font-size: .77rem; color: #566b86; overflow-wrap: anywhere; }
-  .hw-notes { margin-top: 8px; }
-  .hw-notes summary { color: #305eac; font-size: .75rem; font-weight: 750; cursor: pointer; }
-  .hw-notes p { white-space: pre-wrap; margin-top: 8px; font-size: .75rem; line-height: 1.5; color: #566b86; }
-  .hw-review-link { background: linear-gradient(135deg, var(--hw-navy), var(--hw-blue)); color: #fff; padding: 9px 13px; min-height: 38px; font-size: .78rem; }
-  .hw-review-link:hover { color: #fff; background: linear-gradient(135deg, #1e3765, #3b82f6); }
-  .hw-request-date { color: #6e829b; font-size: .76rem; white-space: nowrap; }
 
-  @media (max-width: 1190px) {
-    .hw-main-grid { grid-template-columns: minmax(290px, 0.9fr) minmax(0, 1.4fr); gap: 15px; }
-    .hw-stat { padding: 14px; }
-    .hw-stat-icon { width: 38px; height: 38px; flex-basis: 38px; }
-    .hw-stat-value { font-size: 1.32rem; }
+  .hw-stat-icon {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border-radius: 11px;
+    display: grid;
+    place-items: center;
+    background: rgba(59,130,246,.2);
+    color: #9fc7ff;
   }
-  @media (max-width: 980px) {
-    .hw-main-grid { grid-template-columns: 1fr; }
-    .hw-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .hw-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .hw-form-field--wide, .hw-form-row, .hw-check-row, .hw-submit, .hw-form-errors { grid-column: 1 / -1; }
+
+  .hw-stat--green .hw-stat-icon {
+    background: rgba(35,183,111,.16);
+    color: #86efac;
   }
+
+  .hw-stat--amber .hw-stat-icon {
+    background: rgba(245,158,11,.19);
+    color: #fbbf24;
+  }
+
+  .hw-stat strong {
+    display: block;
+    font-size: 1.43rem;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+    line-height: 1.15;
+  }
+
+  .hw-stat span:last-child {
+    display: block;
+    font-size: .75rem;
+    color: #c6d5e7;
+    margin-top: 5px;
+  }
+
+  /* Main panels */
+  .hw-grid {
+    display: grid;
+    grid-template-columns: minmax(325px,.87fr) minmax(0,1.65fr);
+    gap: 20px;
+    align-items: start;
+  }
+
+  .hw-panel {
+    min-width: 0;
+    border-radius: 14px;
+    overflow: hidden;
+    background: rgba(255,255,255,.98);
+    border: 1px solid var(--hw-line);
+    box-shadow: 0 9px 29px rgba(7,18,39,.15);
+  }
+
+  .hw-panel-head {
+    padding: 20px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    background: #f8faff;
+    border-bottom: 1px solid var(--hw-line);
+  }
+
+  .hw-panel-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .hw-panel-icon {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 11px;
+    color: #2d5bbe;
+    background: #e7effd;
+  }
+
+  .hw-panel-icon--amber {
+    color: #a46514;
+    background: #fff1dd;
+  }
+
+  .hw-panel-title h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #0b1120;
+  }
+
+  .hw-panel-title p {
+    margin-top: 5px;
+    font-size: .77rem;
+    color: #6d829f;
+  }
+
+  .hw-count {
+    background: #e8efff;
+    padding: 7px 11px;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 800;
+    color: #2b5bb0;
+    white-space: nowrap;
+  }
+
+  /* Product registration form */
+  .hw-form {
+    display: grid;
+    gap: 16px;
+    padding: 23px;
+  }
+
+  .hw-field label {
+    display: block;
+    margin-bottom: 8px;
+    color: #263d5d;
+    font-size: .82rem;
+    font-weight: 750;
+  }
+
+  .hw-required {
+    color: #c63345;
+  }
+
+  .hw-field :is(
+    input[type='text'],
+    input[type='number'],
+    input[type='file'],
+    textarea
+  ) {
+    width: 100%;
+    min-height: 45px;
+    border: 1px solid #cfdaea;
+    border-radius: 9px;
+    padding: 10px 12px;
+    color: #183456;
+    background: #fff;
+    font-size: .85rem;
+  }
+
+  .hw-field textarea {
+    min-height: 90px;
+    resize: vertical;
+    line-height: 1.5;
+  }
+
+  .hw-field input:focus,
+  .hw-field textarea:focus {
+    outline: none;
+    border-color: #2d5bbe;
+    box-shadow: 0 0 0 3px rgba(45,91,190,.12);
+  }
+
+  .hw-field input[type='file'] {
+    border-style: dashed;
+    background: #f8faff;
+    padding: 8px;
+  }
+
+  .hw-field input[type='file']::file-selector-button {
+    background: #e7eefb;
+    border: none;
+    border-radius: 6px;
+    color: #244f9c;
+    padding: 7px 10px;
+    font-weight: 750;
+    cursor: pointer;
+  }
+
+  .hw-field p,
+  .hw-form-note {
+    font-size: .73rem;
+    color: #7285a0;
+    line-height: 1.5;
+    margin-top: 7px;
+  }
+
+  .hw-field-errors {
+    color: #a72839;
+    font-size: .77rem;
+    margin-top: 6px;
+  }
+
+  .hw-field-errors ul {
+    padding-left: 20px;
+  }
+
+  .hw-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .hw-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid #dbe5f4;
+    background: #f6f9ff;
+    border-radius: 9px;
+    cursor: pointer;
+  }
+
+  .hw-check input {
+    margin-top: 3px;
+    width: 17px;
+    height: 17px;
+    accent-color: #2d5bbe;
+  }
+
+  .hw-check strong {
+    display: block;
+    color: #29405c;
+    font-size: .83rem;
+  }
+
+  .hw-check small {
+    display: block;
+    color: #6c7f98;
+    font-size: .73rem;
+    margin-top: 5px;
+  }
+
+  .hw-preview {
+    display: none;
+    gap: 10px;
+    align-items: center;
+    margin-top: 10px;
+    background: #f7faff;
+    padding: 9px;
+    border-radius: 9px;
+    border: 1px solid #e1e8f3;
+  }
+
+  .hw-preview.is-visible {
+    display: flex;
+  }
+
+  .hw-preview img {
+    width: 52px;
+    height: 52px;
+    object-fit: cover;
+    border-radius: 7px;
+  }
+
+  .hw-preview span {
+    color: #4a6280;
+    font-size: .76rem;
+    overflow-wrap: anywhere;
+  }
+
+  /* Search and tables */
+  .hw-toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--hw-line);
+  }
+
+  .hw-search {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+  }
+
+  .hw-search i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #8295ad;
+    pointer-events: none;
+  }
+
+  .hw-search input {
+    width: 100%;
+    height: 41px;
+    border: 1px solid #d2deed;
+    background: #fff;
+    border-radius: 9px;
+    padding: 9px 12px 9px 36px;
+    color: #223d60;
+    font-size: .82rem;
+  }
+
+  .hw-filter {
+    border: 1px solid #d2deed;
+    background: #fff;
+    border-radius: 9px;
+    height: 41px;
+    padding: 8px 9px;
+    color: #314b72;
+    font-size: .8rem;
+    max-width: 155px;
+  }
+
+  .hw-table-scroller {
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  .hw-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: .8rem;
+  }
+
+  .hw-table th {
+    padding: 13px 14px;
+    border-bottom: 1px solid #dce6f2;
+    background: #f8faff;
+    font-size: .74rem;
+    color: #4f6688;
+    white-space: nowrap;
+  }
+
+  .hw-table td {
+    padding: 14px;
+    border-bottom: 1px solid #e5edf6;
+    vertical-align: middle;
+    color: #344f70;
+  }
+
+  .hw-table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .hw-table tbody tr:hover {
+    background: #fbfcff;
+  }
+
+  .hw-image {
+    width: 50px;
+    height: 50px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 9px;
+    background: #e8f0ff;
+    color: #3468b6;
+    font-size: 1.2rem;
+  }
+
+  .hw-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .hw-model {
+    font-weight: 800;
+    color: #193552;
+    font-size: .86rem;
+  }
+
+  .hw-description {
+    font-size: .74rem;
+    color: #7587a0;
+    margin-top: 4px;
+    max-width: 200px;
+    line-height: 1.4;
+  }
+
+  .hw-price {
+    font-weight: 800;
+    color: #1d3d62;
+    white-space: nowrap;
+  }
+
+  .hw-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 9px;
+    border-radius: 999px;
+    font-weight: 750;
+    font-size: .73rem;
+    white-space: nowrap;
+  }
+
+  .hw-pill--green {
+    color: #167249;
+    background: #e4f7ed;
+  }
+
+  .hw-pill--red {
+    color: #ac3033;
+    background: #fff0f0;
+  }
+
+  .hw-pill--gray {
+    color: #5d7089;
+    background: #edf2f7;
+  }
+
+  .hw-pill--amber {
+    color: #8c5405;
+    background: #fff2d9;
+  }
+
+  .hw-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .hw-actions form {
+    margin: 0;
+  }
+
+  .hw-footer {
+    border-top: 1px solid #e0e8f2;
+    background: #fafcff;
+    padding: 13px 19px;
+    font-size: .75rem;
+    color: #7487a2;
+  }
+
+  .hw-empty {
+    padding: 42px !important;
+    color: #71839d !important;
+    text-align: center;
+  }
+
+  .hw-empty i {
+    display: block;
+    font-size: 1.7rem;
+    margin-bottom: 9px;
+  }
+
+  .hw-no-match {
+    padding: 20px;
+    color: #71839d;
+    font-size: .82rem;
+    text-align: center;
+  }
+
+  /* Customer requests */
+  .hw-requests {
+    margin-top: 22px;
+  }
+
+  .hw-customer-name {
+    font-weight: 800;
+    color: #183551;
+  }
+
+  .hw-customer-email {
+    color: #3567ad;
+    text-decoration: none;
+    font-size: .74rem;
+    overflow-wrap: anywhere;
+  }
+
+  .hw-customer-email:hover {
+    text-decoration: underline;
+  }
+
+  .hw-request-text {
+    max-width: 290px;
+    overflow-wrap: anywhere;
+    font-size: .78rem;
+    line-height: 1.6;
+    white-space: normal;
+  }
+
+  .hw-notes summary {
+    color: #3567ad;
+    font-size: .76rem;
+    font-weight: 750;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+
+  .hw-notes p {
+    white-space: pre-wrap;
+    margin-top: 8px;
+  }
+
+  /* Stock editing dialog */
+  #hw-stock-dialog {
+    width: min(480px, calc(100vw - 26px));
+    max-height: calc(100dvh - 30px);
+    margin: auto;
+    border: 0;
+    border-radius: 15px;
+    padding: 0;
+    background: #fff;
+    color: #183456;
+    box-shadow: 0 25px 70px rgba(3,13,34,.4);
+    overflow-y: auto;
+  }
+
+  #hw-stock-dialog::backdrop {
+    background: rgba(5,13,29,.72);
+    backdrop-filter: blur(3px);
+  }
+
+  #hw-stock-dialog .hw-dialog-header {
+    padding: 21px 24px;
+    background: #f8faff;
+    border-bottom: 1px solid #e1e8f2;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  #hw-stock-dialog .hw-dialog-header h2 {
+    color: #142e51;
+    font-size: 1.18rem;
+    margin: 0 0 5px;
+  }
+
+  #hw-stock-dialog .hw-dialog-header p {
+    color: #6b7e99;
+    font-size: .82rem;
+    line-height: 1.5;
+  }
+
+  #hw-stock-dialog .hw-dialog-close {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    border-radius: 8px;
+    border: 1px solid #d7e0ee;
+    background: #f0f4fb;
+    color: #446080;
+    cursor: pointer;
+  }
+
+  #hw-stock-dialog .hw-dialog-body {
+    padding: 22px 24px;
+  }
+
+  #hw-stock-dialog .hw-dialog-label {
+    display: block;
+    color: #263d5d;
+    font-weight: 750;
+    font-size: .81rem;
+    margin: 16px 0 8px;
+  }
+
+  #hw-stock-dialog .hw-dialog-input {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: .85rem;
+    color: #1b3657;
+    background: #fff;
+    border: 1px solid #cfdaea;
+    border-radius: 9px;
+  }
+
+  #hw-stock-dialog .hw-dialog-help {
+    color: #72859c;
+    font-size: .76rem;
+    line-height: 1.5;
+    margin-top: 8px;
+  }
+
+  #hw-stock-dialog .hw-stock-change {
+    display: grid;
+    grid-template-columns: 1fr 28px 1fr;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+    background: #f3f7fd;
+    padding: 15px;
+    border: 1px solid #dce7f6;
+    border-radius: 10px;
+  }
+
+  #hw-stock-dialog .hw-stock-change span {
+    display: block;
+    color: #71839c;
+    font-size: .73rem;
+  }
+
+  #hw-stock-dialog .hw-stock-change strong {
+    display: block;
+    color: #203e63;
+    font-size: 1.35rem;
+    margin-top: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #hw-stock-dialog .hw-stock-change i {
+    color: #4872b6;
+  }
+
+  #hw-stock-dialog .hw-dialog-actions {
+    border-top: 1px solid #e1e8f2;
+    padding: 17px 24px 22px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  #hw-stock-dialog .hw-dialog-actions button {
+    min-height: 43px;
+    border-radius: 9px;
+    font-weight: 800;
+    padding: 10px 16px;
+    cursor: pointer;
+  }
+
+  #hw-stock-dialog #hw-stock-cancel {
+    background: #edf3fc;
+    color: #28549b;
+    border: 1px solid #cedbef;
+  }
+
+  #hw-stock-dialog #hw-stock-save {
+    background: linear-gradient(135deg,#0b1120,#2d5bbe);
+    color: #fff;
+    border: 1px solid #2d5bbe;
+  }
+
+  #hw-stock-dialog #hw-stock-save:hover:not(:disabled) {
+    background: linear-gradient(135deg,#1c3561,#3b82f6);
+    color: #fff;
+  }
+
+  #hw-stock-dialog #hw-stock-save:disabled {
+    background: #94a3b8;
+    border-color: #94a3b8;
+    color: #fff;
+    cursor: not-allowed;
+  }
+
+  #hw-stock-dialog :is(button, input, select):focus-visible {
+    outline: 3px solid #fbbf24;
+    outline-offset: 3px;
+  }
+
+  /* Responsive layout */
+  @media (max-width: 1120px) {
+    .hw-grid {
+      grid-template-columns: minmax(295px,.9fr) minmax(0,1.5fr);
+      gap: 15px;
+    }
+
+    .hw-table {
+      min-width: 680px;
+    }
+  }
+
+  @media (max-width: 920px) {
+    .hw-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .hw-stats {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
   @media (max-width: 650px) {
-    .main-container:has(> .hw-admin) { width: calc(100% - 28px); margin-top: 142px; }
-    .hw-hero { flex-direction: column; align-items: stretch; }
-    .hw-hero-action { align-self: flex-start; }
-    .hw-stat-grid { gap: 10px; }
-    .hw-stat { gap: 10px; padding: 12px; }
-    .hw-stat-icon { width: 34px; height: 34px; flex-basis: 34px; }
-    .hw-stat-value { font-size: 1.25rem; }
-    .hw-stat-label { font-size: .71rem; }
-    .hw-form { grid-template-columns: 1fr; }
-    .hw-form-field--wide, .hw-form-row, .hw-check-row, .hw-submit, .hw-form-errors { grid-column: auto; }
-    .hw-form-row { grid-template-columns: 1fr 1fr; }
-    .hw-panel-header { padding: 16px; }
-    .hw-form { padding: 17px; }
-    .hw-table-toolbar { padding: 12px; flex-wrap: wrap; }
-    .hw-filter { flex: 1; max-width: none; }
+    .main-container:has(> .hw-admin) {
+      width: calc(100% - 28px);
+      margin-top: 125px;
+    }
+
+    .hw-heading {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .hw-panel-head {
+      padding: 16px;
+    }
+
+    .hw-form {
+      padding: 17px;
+    }
+
+    .hw-toolbar {
+      flex-wrap: wrap;
+      padding: 12px;
+    }
+
+    .hw-filter {
+      max-width: none;
+      flex: 1;
+    }
+
+    .hw-stat {
+      padding: 12px;
+    }
+
+    .hw-stat strong {
+      font-size: 1.2rem;
+    }
+
+    .hw-stat-icon {
+      width: 33px;
+      height: 33px;
+      flex-basis: 33px;
+    }
   }
+
   @media (max-width: 390px) {
-    .hw-form-row { grid-template-columns: 1fr; }
-    .hw-stat-grid { grid-template-columns: 1fr 1fr; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .hw-admin :is(button, a, input, select, textarea) { transition: none; }
+    .hw-form-row {
+      grid-template-columns: 1fr;
+    }
+
+    .hw-stats {
+      gap: 8px;
+    }
+
+    .hw-stat {
+      gap: 8px;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    #hw-stock-dialog .hw-dialog-actions {
+      flex-direction: column-reverse;
+    }
+
+    #hw-stock-dialog .hw-dialog-actions button {
+      width: 100%;
+    }
   }
 </style>
 
 <section class="hw-admin" aria-labelledby="hw-page-title">
-  <header class="hw-hero">
+
+  <!-- Page heading -->
+  <header class="hw-heading">
     <div>
       <span class="hw-eyebrow">ENVIROPLUS / HARDWARE MANAGEMENT</span>
       <h1 id="hw-page-title">Hardware Deployment Inventory</h1>
-      <p>Register U-Node models, monitor available stock, and review build requests from the public catalog.</p>
+      <p>
+        Register U-Nodes, adjust stock without deleting products,
+        and review customer build requests.
+      </p>
     </div>
-    <a class="hw-hero-action" href="{% url 'app:shop' %}" target="_blank" rel="noopener noreferrer">
-      <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> View public catalog
+
+    <a
+      href="{% url 'app:shop' %}"
+      class="hw-button hw-button--light"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+      View public catalog
     </a>
   </header>
 
-  <div class="hw-stat-grid" aria-label="Hardware overview">
+  <!-- Dashboard statistics -->
+  <div class="hw-stats" aria-label="Hardware overview">
+
     <div class="hw-stat">
-      <span class="hw-stat-icon"><i class="fa-solid fa-microchip" aria-hidden="true"></i></span>
-      <div><strong class="hw-stat-value">{{ products|length }}</strong><span class="hw-stat-label">Registered models</span></div>
+      <div class="hw-stat-icon">
+        <i class="fa-solid fa-microchip" aria-hidden="true"></i>
+      </div>
+      <div>
+        <strong>{{ products|length }}</strong>
+        <span>Registered models</span>
+      </div>
     </div>
+
     <div class="hw-stat hw-stat--green">
-      <span class="hw-stat-icon"><i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i></span>
-      <div><strong class="hw-stat-value" id="hw-total-units">—</strong><span class="hw-stat-label">Units in inventory</span></div>
+      <div class="hw-stat-icon">
+        <i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i>
+      </div>
+      <div>
+        <strong id="hw-total-units">—</strong>
+        <span>Units in inventory</span>
+      </div>
     </div>
+
     <div class="hw-stat hw-stat--amber">
-      <span class="hw-stat-icon"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i></span>
-      <div><strong class="hw-stat-value" id="hw-out-of-stock">—</strong><span class="hw-stat-label">Out-of-stock models</span></div>
+      <div class="hw-stat-icon">
+        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+      </div>
+      <div>
+        <strong id="hw-empty-models">—</strong>
+        <span>Out-of-stock models</span>
+      </div>
     </div>
+
     <div class="hw-stat hw-stat--amber">
-      <span class="hw-stat-icon"><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i></span>
-      <div><strong class="hw-stat-value">{{ pending_requests|length }}</strong><span class="hw-stat-label">Pending build requests</span></div>
+      <div class="hw-stat-icon">
+        <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
+      </div>
+      <div>
+        <strong>{{ pending_requests|length }}</strong>
+        <span>Pending build requests</span>
+      </div>
     </div>
+
   </div>
 
-  <div class="hw-main-grid">
-    <section class="hw-panel" aria-labelledby="hw-register-heading">
-      <div class="hw-panel-header">
+  <div class="hw-grid">
+
+    <!-- New product registration -->
+    <section class="hw-panel" aria-labelledby="hw-add-title">
+
+      <div class="hw-panel-head">
         <div class="hw-panel-title">
-          <span class="hw-title-icon"><i class="fa-solid fa-circle-plus" aria-hidden="true"></i></span>
+          <span class="hw-panel-icon">
+            <i class="fa-solid fa-circle-plus" aria-hidden="true"></i>
+          </span>
           <div>
-            <h2 id="hw-register-heading">Register New U-Node</h2>
-            <p>Add a model to the hardware catalog</p>
+            <h2 id="hw-add-title">Register New U-Node</h2>
+            <p>Add a new model to your hardware catalog</p>
           </div>
         </div>
       </div>
-      <form class="hw-form" method="post" enctype="multipart/form-data" id="hw-product-form">
-        {% csrf_token %}
-        {% if form.non_field_errors %}<div class="hw-form-errors">{{ form.non_field_errors }}</div>{% endif %}
 
-        <div class="hw-form-field hw-form-field--wide">
-          <label for="{{ form.name.id_for_label }}">Model name <span class="hw-required">*</span></label>
+      <form
+        id="hw-new-form"
+        class="hw-form"
+        method="post"
+        enctype="multipart/form-data"
+        action="{% url 'app:hardware_inventory' %}"
+      >
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="hw-field-errors">
+            {{ form.non_field_errors }}
+          </div>
+        {% endif %}
+
+        <div class="hw-field">
+          <label for="{{ form.name.id_for_label }}">
+            Model name <span class="hw-required">*</span>
+          </label>
           {{ form.name }}
-          {% if form.name.errors %}<div class="hw-field-errors">{{ form.name.errors }}</div>{% endif %}
+          {% if form.name.errors %}
+            <div class="hw-field-errors">{{ form.name.errors }}</div>
+          {% endif %}
         </div>
 
-        <div class="hw-form-field hw-form-field--wide">
-          <label for="{{ form.description.id_for_label }}">Technical description <span class="hw-required">*</span></label>
+        <div class="hw-field">
+          <label for="{{ form.description.id_for_label }}">
+            Technical description <span class="hw-required">*</span>
+          </label>
           {{ form.description }}
-          <p class="hw-field-help">Describe the monitoring hardware and supported sensors.</p>
-          {% if form.description.errors %}<div class="hw-field-errors">{{ form.description.errors }}</div>{% endif %}
+          <p>Describe supported sensors and hardware specifications.</p>
+          {% if form.description.errors %}
+            <div class="hw-field-errors">{{ form.description.errors }}</div>
+          {% endif %}
         </div>
 
         <div class="hw-form-row">
-          <div class="hw-form-field">
-            <label for="{{ form.price.id_for_label }}">Unit price (₱) <span class="hw-required">*</span></label>
+          <div class="hw-field">
+            <label for="{{ form.price.id_for_label }}">
+              Unit price (₱) <span class="hw-required">*</span>
+            </label>
             {{ form.price }}
-            {% if form.price.errors %}<div class="hw-field-errors">{{ form.price.errors }}</div>{% endif %}
+            {% if form.price.errors %}
+              <div class="hw-field-errors">{{ form.price.errors }}</div>
+            {% endif %}
           </div>
-          <div class="hw-form-field">
-            <label for="{{ form.stock.id_for_label }}">Available stock <span class="hw-required">*</span></label>
+
+          <div class="hw-field">
+            <label for="{{ form.stock.id_for_label }}">
+              Initial stock <span class="hw-required">*</span>
+            </label>
             {{ form.stock }}
-            {% if form.stock.errors %}<div class="hw-field-errors">{{ form.stock.errors }}</div>{% endif %}
+            {% if form.stock.errors %}
+              <div class="hw-field-errors">{{ form.stock.errors }}</div>
+            {% endif %}
           </div>
         </div>
 
-        <div class="hw-form-field hw-form-field--wide">
-          <label for="{{ form.image.id_for_label }}">Product preview image</label>
+        <div class="hw-field">
+          <label for="{{ form.image.id_for_label }}">
+            Hardware preview image
+          </label>
           {{ form.image }}
-          <p class="hw-field-help">Optional. Use a clear image of the U-Node hardware.</p>
-          <div class="hw-image-preview" id="hw-image-preview" aria-live="polite">
-            <img id="hw-preview-picture" alt="Selected hardware image preview">
+          <p>Optional. Upload a clear product photo.</p>
+
+          <div class="hw-preview" id="hw-image-preview">
+            <img id="hw-preview-image" alt="New hardware photo preview">
             <span id="hw-preview-name"></span>
           </div>
-          {% if form.image.errors %}<div class="hw-field-errors">{{ form.image.errors }}</div>{% endif %}
+
+          {% if form.image.errors %}
+            <div class="hw-field-errors">{{ form.image.errors }}</div>
+          {% endif %}
         </div>
 
-        <label class="hw-check-row" for="{{ form.is_active.id_for_label }}">
+        <label
+          class="hw-check"
+          for="{{ form.is_active.id_for_label }}"
+        >
           {{ form.is_active }}
           <span>
             <strong>List in public U-Nodes store</strong>
-            <small>Turn off to keep this model hidden from customers.</small>
+            <small>Uncheck to keep this model hidden from customers.</small>
           </span>
         </label>
-        {% if form.is_active.errors %}<div class="hw-field-errors">{{ form.is_active.errors }}</div>{% endif %}
 
-        <button class="hw-btn-primary hw-submit" type="submit">
-          <i class="fa-solid fa-plus" aria-hidden="true"></i> Add to Deployment Catalog
+        {% if form.is_active.errors %}
+          <div class="hw-field-errors">{{ form.is_active.errors }}</div>
+        {% endif %}
+
+        <button type="submit" class="hw-button hw-button--primary">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+          Add to Deployment Catalog
         </button>
       </form>
     </section>
 
-    <section class="hw-panel" aria-labelledby="hw-inventory-heading">
-      <div class="hw-panel-header">
+    <!-- Hardware catalog -->
+    <section class="hw-panel" aria-labelledby="hw-catalog-title">
+
+      <div class="hw-panel-head">
         <div class="hw-panel-title">
-          <span class="hw-title-icon"><i class="fa-solid fa-layer-group" aria-hidden="true"></i></span>
+          <span class="hw-panel-icon">
+            <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+          </span>
+
           <div>
-            <h2 id="hw-inventory-heading">Hardware Catalog &amp; Stock</h2>
-            <p>Registered models and public listing status</p>
+            <h2 id="hw-catalog-title">Hardware Catalog &amp; Stock</h2>
+            <p>Update stock for existing models without creating duplicates</p>
           </div>
         </div>
-        <span class="hw-header-count">{{ products|length }} models</span>
+        <span class="hw-count">{{ products|length }} models</span>
       </div>
 
-      <div class="hw-table-toolbar">
-        <label class="hw-search" for="hw-product-search">
+      <div class="hw-toolbar">
+        <label class="hw-search">
           <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-          <input id="hw-product-search" type="search" placeholder="Search hardware models" autocomplete="off" aria-label="Search hardware models">
+          <input
+            type="search"
+            id="hw-search-products"
+            aria-label="Search hardware models"
+            placeholder="Search hardware models"
+          >
         </label>
-        <select id="hw-product-filter" class="hw-filter" aria-label="Filter hardware inventory">
+
+        <select
+          class="hw-filter"
+          id="hw-filter-products"
+          aria-label="Filter models"
+        >
           <option value="all">All models</option>
           <option value="available">In stock</option>
           <option value="empty">Out of stock</option>
@@ -312,8 +1116,8 @@
         </select>
       </div>
 
-      <div class="hw-table-wrap">
-        <table class="hw-table" aria-label="Registered hardware models">
+      <div class="hw-table-scroller">
+        <table class="hw-table" aria-label="Hardware models and stock">
           <thead>
             <tr>
               <th scope="col">Preview</th>
@@ -321,88 +1125,183 @@
               <th scope="col">Price</th>
               <th scope="col">Stock</th>
               <th scope="col">Catalog</th>
-              <th scope="col" class="hw-cell-end">Action</th>
+              <th scope="col" style="text-align:right">Actions</th>
             </tr>
           </thead>
-          <tbody id="hw-products-body">
+
+          <tbody>
             {% for product in products %}
-            <tr class="hw-product-row" data-stock="{{ product.stock }}" data-active="{{ product.is_active|yesno:'true,false' }}" data-search="{{ product.name }} {{ product.description }}">
+            <tr
+              class="hw-product-row"
+              data-search="{{ product.name }} {{ product.description }}"
+              data-stock="{{ product.stock }}"
+              data-listed="{{ product.is_active|yesno:'true,false' }}"
+            >
+
               <td>
-                <div class="hw-product-thumb">
+                <div class="hw-image">
                   {% if product.image %}
-                    <img src="{{ product.image.url }}" alt="{{ product.name }}">
+                    <img
+                      src="{{ product.image.url }}"
+                      alt="{{ product.name }}"
+                    >
                   {% else %}
-                    <i class="fa-solid fa-microchip" aria-label="No product image"></i>
+                    <i
+                      class="fa-solid fa-microchip"
+                      aria-label="No image"
+                    ></i>
                   {% endif %}
                 </div>
               </td>
+
               <td>
-                <div class="hw-product-name">{{ product.name }}</div>
-                <div class="hw-product-desc">{{ product.description|truncatechars:75 }}</div>
+                <div class="hw-model">{{ product.name }}</div>
+                <div class="hw-description">
+                  {{ product.description|truncatechars:75 }}
+                </div>
               </td>
-              <td><span class="hw-price">₱{{ product.price|floatformat:2 }}</span></td>
+
+              <td>
+                <span class="hw-price">
+                  ₱{{ product.price|floatformat:2 }}
+                </span>
+              </td>
+
               <td>
                 {% if product.stock > 0 %}
-                  <span class="hw-pill hw-pill--green">{{ product.stock }} units</span>
+                  <span class="hw-pill hw-pill--green">
+                    {{ product.stock }} unit{{ product.stock|pluralize }}
+                  </span>
                 {% else %}
                   <span class="hw-pill hw-pill--red">Out of stock</span>
                 {% endif %}
               </td>
+
               <td>
                 {% if product.is_active %}
-                  <span class="hw-pill hw-pill--green"><i class="fa-solid fa-circle" aria-hidden="true"></i> Listed</span>
+                  <span class="hw-pill hw-pill--green">
+                    <i class="fa-solid fa-circle" aria-hidden="true"></i>
+                    Listed
+                  </span>
                 {% else %}
-                  <span class="hw-pill hw-pill--gray"><i class="fa-solid fa-circle" aria-hidden="true"></i> Hidden</span>
+                  <span class="hw-pill hw-pill--gray">
+                    <i class="fa-solid fa-circle" aria-hidden="true"></i>
+                    Hidden
+                  </span>
                 {% endif %}
               </td>
-              <td class="hw-cell-end">
-                <form method="post" action="{% url 'app:hardware_delete' product.id %}" class="hw-delete-form">
-                  {% csrf_token %}
-                  <button type="submit" class="hw-delete" data-name="{{ product.name }}" title="Delete {{ product.name }}" aria-label="Delete {{ product.name }}">
-                    <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+
+              <td>
+                <div class="hw-actions">
+
+                  <!-- NEW: Edit or restock existing product -->
+                  <button
+                    type="button"
+                    class="hw-button hw-button--edit hw-stock-open"
+                    data-url="{% url 'app:hardware_stock_update' product.id %}"
+                    data-name="{{ product.name }}"
+                    data-stock="{{ product.stock }}"
+                    aria-label="Edit stock for {{ product.name }}"
+                    title="Edit stock for {{ product.name }}"
+                  >
+                    <i
+                      class="fa-solid fa-pen-to-square"
+                      aria-hidden="true"
+                    ></i>
+
+                    {% if product.stock <= 0 %}
+                      Restock
+                    {% else %}
+                      Edit stock
+                    {% endif %}
                   </button>
-                </form>
+
+                  <!-- Existing delete functionality -->
+                  <form
+                    method="post"
+                    action="{% url 'app:hardware_delete' product.id %}"
+                    class="hw-delete-form"
+                  >
+                    {% csrf_token %}
+                    <button
+                      type="submit"
+                      class="hw-button hw-button--delete"
+                      data-name="{{ product.name }}"
+                      aria-label="Delete {{ product.name }}"
+                      title="Delete {{ product.name }}"
+                    >
+                      <i
+                        class="fa-solid fa-trash-can"
+                        aria-hidden="true"
+                      ></i>
+                    </button>
+                  </form>
+
+                </div>
               </td>
+
             </tr>
+
             {% empty %}
             <tr>
-              <td class="hw-empty-cell" colspan="6">
+              <td colspan="6" class="hw-empty">
                 <i class="fa-solid fa-box-open" aria-hidden="true"></i>
-                No hardware models have been registered yet.
+                No models registered yet.
               </td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
-      <div id="hw-product-no-match" class="hw-filter-empty" hidden>No hardware matches your search or selected filter.</div>
-      <div class="hw-panel-footer">Use the form to register new models. Deleting an item removes it from the catalog and may affect its linked records.</div>
+
+      <div id="hw-products-no-match" class="hw-no-match" hidden>
+        No models match your search or filter.
+      </div>
+
+      <div class="hw-footer">
+        Use <strong>Restock / Edit stock</strong> to update inventory
+        while preserving each product's ID, image, price, and linked orders.
+      </div>
     </section>
+
   </div>
 
-  <section class="hw-panel hw-requests" aria-labelledby="hw-requests-heading">
-    <div class="hw-panel-header">
+  <!-- Existing customer request management -->
+  <section
+    class="hw-panel hw-requests"
+    aria-labelledby="hw-requests-title"
+  >
+    <div class="hw-panel-head">
+
       <div class="hw-panel-title">
-        <span class="hw-title-icon hw-title-icon--amber"><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i></span>
+        <span class="hw-panel-icon hw-panel-icon--amber">
+          <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
+        </span>
         <div>
-          <h2 id="hw-requests-heading">Pending Customer Build Requests</h2>
-          <p>Requests submitted through the public U-Nodes storefront</p>
+          <h2 id="hw-requests-title">Pending Customer Build Requests</h2>
+          <p>Hardware build requests from the public U-Nodes storefront</p>
         </div>
       </div>
-      <span class="hw-header-count hw-header-count--amber">{{ pending_requests|length }} pending</span>
+
+      <span class="hw-count">{{ pending_requests|length }} pending</span>
     </div>
 
     {% if pending_requests %}
-    <div class="hw-table-toolbar">
-      <label class="hw-search" for="hw-request-search">
+    <div class="hw-toolbar">
+      <label class="hw-search">
         <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-        <input id="hw-request-search" type="search" placeholder="Search customers, addresses, or requests" autocomplete="off" aria-label="Search customer build requests">
+        <input
+          type="search"
+          id="hw-search-requests"
+          aria-label="Search customer requests"
+          placeholder="Search customer requests"
+        >
       </label>
     </div>
     {% endif %}
 
-    <div class="hw-table-wrap">
-      <table class="hw-table" aria-label="Pending customer hardware requests">
+    <div class="hw-table-scroller">
+      <table class="hw-table" aria-label="Pending hardware requests">
         <thead>
           <tr>
             <th scope="col">Submitted</th>
@@ -410,153 +1309,446 @@
             <th scope="col">Deployment address</th>
             <th scope="col">Quantity</th>
             <th scope="col">Request notes</th>
-            <th scope="col" class="hw-cell-end">Action</th>
+            <th scope="col" style="text-align:right">Action</th>
           </tr>
         </thead>
+
         <tbody>
           {% for req in pending_requests %}
-          <tr class="hw-request-row" data-search="{{ req.customer_name }} {{ req.customer_email }} {{ req.parsed_address }} {{ req.parsed_notes }}">
-            <td><span class="hw-request-date">{{ req.created_at|date:'M d, Y' }}<br>{{ req.created_at|date:'h:i A' }}</span></td>
-            <td class="hw-request-customer">
-              <strong>{{ req.customer_name }}</strong>
-              <a href="mailto:{{ req.customer_email }}">{{ req.customer_email }}</a>
+          <tr
+            class="hw-request-row"
+            data-search="{{ req.customer_name }} {{ req.customer_email }} {{ req.parsed_address }} {{ req.parsed_notes }}"
+          >
+
+            <td style="white-space:nowrap">
+              {{ req.created_at|date:'M d, Y' }}
+              <br>
+              {{ req.created_at|date:'h:i A' }}
             </td>
-            <td><div class="hw-request-address"><i class="fa-solid fa-location-dot" aria-hidden="true"></i>{{ req.parsed_address|default:'Not provided' }}</div></td>
-            <td><span class="hw-pill hw-pill--amber">{{ req.parsed_qty }} requested</span></td>
+
             <td>
-              <div class="hw-notes-snippet">{{ req.parsed_notes|truncatechars:85 }}</div>
-              {% if req.parsed_notes|length > 85 %}
-              <details class="hw-notes">
-                <summary>View full notes</summary>
-                <p>{{ req.parsed_notes }}</p>
-              </details>
-              {% endif %}
-            </td>
-            <td class="hw-cell-end">
-              <a class="hw-review-link" href="{% url 'app:process_request' req.id %}">
-                <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> Review
+              <div class="hw-customer-name">
+                {{ req.customer_name }}
+              </div>
+              <a
+                class="hw-customer-email"
+                href="mailto:{{ req.customer_email }}"
+              >
+                {{ req.customer_email }}
               </a>
             </td>
+
+            <td>
+              <div class="hw-request-text">
+                <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                {{ req.parsed_address|default:'Not provided' }}
+              </div>
+            </td>
+
+            <td>
+              <span class="hw-pill hw-pill--amber">
+                {{ req.parsed_qty }} requested
+              </span>
+            </td>
+
+            <td>
+              <div class="hw-request-text">
+                {{ req.parsed_notes|truncatechars:85 }}
+
+                {% if req.parsed_notes|length > 85 %}
+                <details class="hw-notes">
+                  <summary>Read full notes</summary>
+                  <p>{{ req.parsed_notes }}</p>
+                </details>
+                {% endif %}
+              </div>
+            </td>
+
+            <td style="text-align:right">
+              <a
+                class="hw-button hw-button--primary"
+                href="{% url 'app:process_request' req.id %}"
+              >
+                <i
+                  class="fa-solid fa-arrow-up-right-from-square"
+                  aria-hidden="true"
+                ></i>
+                Review
+              </a>
+            </td>
+
           </tr>
           {% empty %}
           <tr>
-            <td colspan="6" class="hw-empty-cell">
+            <td class="hw-empty" colspan="6">
               <i class="fa-solid fa-clipboard-check" aria-hidden="true"></i>
-              No pending hardware build requests at the moment.
+              No pending hardware requests.
             </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-    <div class="hw-filter-empty" id="hw-request-no-match" hidden>No customer requests match your search.</div>
-    <div class="hw-panel-footer">
-      Select <strong>Review</strong> to open the existing request processing page and continue the admin approval workflow.
+
+    <div id="hw-requests-no-match" class="hw-no-match" hidden>
+      No requests match your search.
+    </div>
+
+    <div class="hw-footer">
+      Review requests with the existing order-processing workflow.
     </div>
   </section>
+
+  <!-- NEW: Shared stock editing modal -->
+  <dialog id="hw-stock-dialog" aria-labelledby="hw-stock-title">
+
+    <form method="post" id="hw-stock-form">
+      {% csrf_token %}
+
+      <input
+        type="hidden"
+        name="expected_stock"
+        id="hw-expected-stock"
+      >
+
+      <div class="hw-dialog-header">
+        <div>
+          <h2 id="hw-stock-title">Edit hardware stock</h2>
+          <p id="hw-stock-product">Selected U-Node</p>
+        </div>
+
+        <button
+          type="button"
+          class="hw-dialog-close"
+          id="hw-stock-close"
+          aria-label="Close"
+        >
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <div class="hw-dialog-body">
+
+        <div class="hw-stock-change">
+
+          <div>
+            <span>Current stock</span>
+            <strong id="hw-stock-before">0</strong>
+          </div>
+
+          <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+
+          <div>
+            <span>Stock after update</span>
+            <strong id="hw-stock-after">0</strong>
+          </div>
+
+        </div>
+
+        <label
+          for="hw-stock-operation"
+          class="hw-dialog-label"
+        >
+          Adjustment type
+        </label>
+
+        <select
+          class="hw-dialog-input"
+          name="stock_operation"
+          id="hw-stock-operation"
+          required
+        >
+          <option value="add">Add units to existing stock</option>
+          <option value="set">Set an exact stock count</option>
+        </select>
+
+        <label
+          for="hw-stock-quantity"
+          class="hw-dialog-label"
+          id="hw-stock-quantity-label"
+        >
+          Units to add
+        </label>
+
+        <input
+          class="hw-dialog-input"
+          type="number"
+          name="quantity"
+          id="hw-stock-quantity"
+          min="1"
+          max="1000000"
+          step="1"
+          value="1"
+          inputmode="numeric"
+          required
+        >
+
+        <p class="hw-dialog-help" id="hw-stock-help">
+          Add newly received units without resetting the current stock.
+        </p>
+
+      </div>
+
+      <div class="hw-dialog-actions">
+        <button type="button" id="hw-stock-cancel">
+          Cancel
+        </button>
+
+        <button type="submit" id="hw-stock-save">
+          <i class="fa-solid fa-check" aria-hidden="true"></i>
+          Save stock
+        </button>
+      </div>
+
+    </form>
+  </dialog>
+
 </section>
 
 <script>
-  (() => {
-    'use strict';
+(() => {
+  'use strict';
 
-    const productRows = Array.from(document.querySelectorAll('.hw-product-row'));
-    const requestRows = Array.from(document.querySelectorAll('.hw-request-row'));
-    const searchInput = document.getElementById('hw-product-search');
-    const filterSelect = document.getElementById('hw-product-filter');
-    const productNoMatch = document.getElementById('hw-product-no-match');
-    const requestInput = document.getElementById('hw-request-search');
-    const requestNoMatch = document.getElementById('hw-request-no-match');
+  const productRows = [
+    ...document.querySelectorAll('.hw-product-row')
+  ];
 
-    const units = productRows.reduce((sum, row) => sum + Math.max(0, Number(row.dataset.stock) || 0), 0);
-    const emptyModels = productRows.filter(row => Number(row.dataset.stock) <= 0).length;
+  const requestRows = [
+    ...document.querySelectorAll('.hw-request-row')
+  ];
 
-    document.getElementById('hw-total-units').textContent = units.toLocaleString('en-PH');
-    document.getElementById('hw-out-of-stock').textContent = emptyModels.toLocaleString('en-PH');
+  // Inventory overview statistics
+  const stockTotal = productRows.reduce(
+    (sum, row) => sum + Math.max(
+      0,
+      Number(row.dataset.stock) || 0
+    ),
+    0
+  );
 
-    const applyProductsFilter = () => {
-      const text = searchInput.value.trim().toLocaleLowerCase();
-      const filter = filterSelect.value;
-      let visible = 0;
+  document.getElementById('hw-total-units').textContent =
+    stockTotal.toLocaleString('en-PH');
 
-      for (const row of productRows) {
-        const stock = Number(row.dataset.stock);
-        const active = row.dataset.active === 'true';
-        const matchesText = row.dataset.search.toLocaleLowerCase().includes(text);
-        const matchesFilter = filter === 'all' ||
+  document.getElementById('hw-empty-models').textContent =
+    productRows.filter(row => Number(row.dataset.stock) <= 0).length;
+
+  // Product searching and filtering
+  const productSearch = document.getElementById('hw-search-products');
+  const productFilter = document.getElementById('hw-filter-products');
+
+  function filterProducts() {
+    const query = productSearch.value.toLocaleLowerCase().trim();
+    const filter = productFilter.value;
+    let shown = 0;
+
+    productRows.forEach(row => {
+      const stock = Number(row.dataset.stock);
+      const listed = row.dataset.listed === 'true';
+
+      const matches =
+        row.dataset.search.toLocaleLowerCase().includes(query) &&
+        (
+          filter === 'all' ||
           (filter === 'available' && stock > 0) ||
           (filter === 'empty' && stock <= 0) ||
-          (filter === 'listed' && active) ||
-          (filter === 'hidden' && !active);
+          (filter === 'listed' && listed) ||
+          (filter === 'hidden' && !listed)
+        );
 
-        row.hidden = !(matchesText && matchesFilter);
-        if (!row.hidden) visible += 1;
+      row.hidden = !matches;
+
+      if (matches) {
+        shown++;
       }
-
-      productNoMatch.hidden = visible > 0 || productRows.length === 0;
-    };
-
-    searchInput.addEventListener('input', applyProductsFilter);
-    filterSelect.addEventListener('change', applyProductsFilter);
-
-    if (requestInput) {
-      requestInput.addEventListener('input', () => {
-        const term = requestInput.value.trim().toLocaleLowerCase();
-        let visible = 0;
-
-        for (const row of requestRows) {
-          row.hidden = !row.dataset.search.toLocaleLowerCase().includes(term);
-          if (!row.hidden) visible += 1;
-        }
-
-        requestNoMatch.hidden = visible > 0 || requestRows.length === 0;
-      });
-    }
-
-    document.querySelectorAll('.hw-delete-form').forEach(form => {
-      form.addEventListener('submit', event => {
-        const button = form.querySelector('button[data-name]');
-        const name = button ? button.dataset.name : 'this hardware model';
-
-        if (!window.confirm(`Delete "${name}" from the hardware inventory? This cannot be undone.`)) {
-          event.preventDefault();
-        }
-      });
     });
 
-    const imageField = document.querySelector('#hw-product-form input[type="file"]');
-    const preview = document.getElementById('hw-image-preview');
-    const previewPicture = document.getElementById('hw-preview-picture');
-    const previewName = document.getElementById('hw-preview-name');
-    let objectURL = null;
+    document.getElementById('hw-products-no-match').hidden =
+      shown > 0 || productRows.length === 0;
+  }
 
-    if (imageField) {
-      imageField.setAttribute('accept', 'image/*');
+  productSearch.addEventListener('input', filterProducts);
+  productFilter.addEventListener('change', filterProducts);
 
-      imageField.addEventListener('change', () => {
-        if (objectURL) {
-          URL.revokeObjectURL(objectURL);
-          objectURL = null;
-        }
+  // Customer request searching
+  const requestSearch = document.getElementById('hw-search-requests');
 
-        const file = imageField.files && imageField.files[0];
+  if (requestSearch) {
+    requestSearch.addEventListener('input', () => {
+      const query = requestSearch.value.toLocaleLowerCase().trim();
+      let shown = 0;
 
-        if (file && file.type.startsWith('image/')) {
-          objectURL = URL.createObjectURL(file);
-          previewPicture.src = objectURL;
-          previewName.textContent = file.name;
-          preview.classList.add('is-visible');
-        } else {
-          previewPicture.removeAttribute('src');
-          previewName.textContent = '';
-          preview.classList.remove('is-visible');
+      requestRows.forEach(row => {
+        row.hidden = !row.dataset.search
+          .toLocaleLowerCase()
+          .includes(query);
+
+        if (!row.hidden) {
+          shown++;
         }
       });
 
-      window.addEventListener('pagehide', () => {
-        if (objectURL) URL.revokeObjectURL(objectURL);
-      });
+      document.getElementById('hw-requests-no-match').hidden =
+        shown > 0 || requestRows.length === 0;
+    });
+  }
+
+  // Existing product deletion confirmation
+  document.querySelectorAll('.hw-delete-form').forEach(form => {
+    form.addEventListener('submit', event => {
+      const name = form.querySelector('button[data-name]').dataset.name;
+
+      if (!window.confirm(
+        `Delete "${name}"? This cannot be undone and may affect linked records.`
+      )) {
+        event.preventDefault();
+      }
+    });
+  });
+
+  // Image preview for registering new products
+  const imageField = document.querySelector(
+    '#hw-new-form input[type="file"]'
+  );
+
+  const imagePreview = document.getElementById('hw-image-preview');
+  const previewImage = document.getElementById('hw-preview-image');
+  const previewName = document.getElementById('hw-preview-name');
+
+  let previewURL = null;
+
+  if (imageField) {
+    imageField.addEventListener('change', () => {
+      if (previewURL) {
+        URL.revokeObjectURL(previewURL);
+      }
+
+      const file = imageField.files[0];
+
+      if (file && file.type.startsWith('image/')) {
+        previewURL = URL.createObjectURL(file);
+        previewImage.src = previewURL;
+        previewName.textContent = file.name;
+        imagePreview.classList.add('is-visible');
+      } else {
+        previewURL = null;
+        previewImage.removeAttribute('src');
+        imagePreview.classList.remove('is-visible');
+      }
+    });
+  }
+
+  window.addEventListener('pagehide', () => {
+    if (previewURL) {
+      URL.revokeObjectURL(previewURL);
     }
-  })();
+  });
+
+  // Stock editor
+  const dialog = document.getElementById('hw-stock-dialog');
+  const stockForm = document.getElementById('hw-stock-form');
+  const stockMode = document.getElementById('hw-stock-operation');
+  const stockQuantity = document.getElementById('hw-stock-quantity');
+  const saveButton = document.getElementById('hw-stock-save');
+
+  let currentStock = 0;
+  const maximumStock = 1000000;
+
+  function updateStockPreview() {
+    const isAdd = stockMode.value === 'add';
+    const input = Number(stockQuantity.value);
+
+    const valid =
+      Number.isSafeInteger(input) &&
+      input >= (isAdd ? 1 : 0) &&
+      input <= maximumStock;
+
+    const next = valid
+      ? (isAdd ? currentStock + input : input)
+      : NaN;
+
+    const permitted =
+      valid &&
+      next >= 0 &&
+      next <= maximumStock;
+
+    document.getElementById('hw-stock-after').textContent =
+      permitted ? next.toLocaleString('en-PH') : '—';
+
+    document.getElementById('hw-stock-quantity-label').textContent =
+      isAdd ? 'Units to add' : 'New exact stock count';
+
+    document.getElementById('hw-stock-help').textContent =
+      isAdd
+        ? 'Add received units on top of the current stock.'
+        : 'Use this to correct the recorded count. If another transaction changes stock first, you will be asked to refresh.';
+
+    stockQuantity.min = isAdd ? '1' : '0';
+    saveButton.disabled = !permitted;
+
+    return permitted;
+  }
+
+  stockMode.addEventListener('change', () => {
+    stockQuantity.value =
+      stockMode.value === 'add'
+        ? '1'
+        : String(currentStock);
+
+    updateStockPreview();
+  });
+
+  stockQuantity.addEventListener('input', updateStockPreview);
+
+  // Open the correct product for editing
+  document.querySelectorAll('.hw-stock-open').forEach(button => {
+    button.addEventListener('click', () => {
+      currentStock = Number(button.dataset.stock);
+
+      stockForm.action = button.dataset.url;
+
+      document.getElementById('hw-stock-product').textContent =
+        button.dataset.name;
+
+      document.getElementById('hw-stock-before').textContent =
+        currentStock.toLocaleString('en-PH');
+
+      document.getElementById('hw-expected-stock').value =
+        String(currentStock);
+
+      stockMode.value = 'add';
+      stockQuantity.value = '1';
+
+      updateStockPreview();
+
+      if (typeof dialog.showModal === 'function') {
+        dialog.showModal();
+      } else {
+        window.alert(
+          'This browser does not support the stock editor dialog.'
+        );
+      }
+    });
+  });
+
+  // Close controls
+  document.getElementById('hw-stock-close')
+    .addEventListener('click', () => dialog.close());
+
+  document.getElementById('hw-stock-cancel')
+    .addEventListener('click', () => dialog.close());
+
+  // Validate before submitting to Django
+  stockForm.addEventListener('submit', event => {
+    if (!updateStockPreview() || !stockForm.checkValidity()) {
+      event.preventDefault();
+      stockForm.reportValidity();
+      return;
+    }
+
+    saveButton.disabled = true;
+    saveButton.textContent = 'Saving…';
+  });
+
+})();
 </script>
 {% endblock %}

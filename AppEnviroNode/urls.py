@@ -1,7 +1,9 @@
+
 from django.urls import path
 from . import views
-from django.conf import settings             # <-- Add this
-from django.conf.urls.static import static   # <-- Add this
+from .hardware_stock import hardware_stock_update
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include
 
@@ -19,7 +21,7 @@ urlpatterns = [
     path('shop/', views.shop_view, name='shop'),
     path('shop/checkout/<int:product_id>/', views.dummy_checkout, name='checkout'),
     path('request-build/<int:product_id>/', views.request_build_view, name='request_build'),
-    
+
     # AUTH ROUTES
     path('login/', views.login_view, name='login'),
     path('signup/', views.signup_view, name='signup'),
@@ -31,12 +33,12 @@ urlpatterns = [
     path('activate/<uidb64>/<token>/', views.activate_user, name='activate_user'),
     path('dashboard/hardware-inventory/', views.hardware_inventory_view, name='hardware_inventory'),
     path('dashboard/process-request/<int:request_id>/', views.process_request_view, name='process_request'),
-    
+
     # PASSWORD RESET ADMIN MODERATION
     path('admin/password-reset-requests/', views.admin_password_reset_requests, name='admin_password_reset_requests'),
     path('admin/password-reset/<int:alert_id>/approve/', views.admin_approve_password_reset, name='admin_approve_password_reset'),
     path('admin/password-reset/<int:alert_id>/deny/', views.admin_deny_password_reset, name='admin_deny_password_reset'),
-    
+
     # ADMIN PAGES
     path('dashboard/dashboard/', views.client_dashboard, name='client_dashboard'),
     path('dashboard/analytics/', views.client_analytics, name='client_analytics'),
@@ -54,32 +56,33 @@ urlpatterns = [
     path('dashboard/users/', views.client_users, name='client_users'),
     path('dashboard/ai/', views.client_ai, name='client_ai'),
     path('dashboard/hardware-inventory/<int:product_id>/delete/', views.hardware_delete_view, name='hardware_delete'),
+    path('dashboard/hardware-inventory/<int:product_id>/stock/', hardware_stock_update, name='hardware_stock_update'),
     path('dashboard/hardware-orders/', views.hardware_orders, name='hardware_orders'),
     path('dashboard/hardware-orders/<int:order_id>/update-status/', views.update_order_status, name='update_order_status'),
-    
-    # API ENDPOINTS for ESP8266 Sensor Integration
+
+    # API ENDPOINTS FOR ESP8266 SENSOR INTEGRATION
     path('api/sensor-data/', views.api_sensor_data, name='api_sensor_data'),
     path('api/sensor/latest/', views.api_sensor_latest, name='api_sensor_latest'),
     path('api/sensor/node/<int:node_id>/history/', views.api_sensor_node_history, name='api_sensor_history'),
-    
-    # API ENDPOINTS for Analytics (future-proof for async updates)
+
+    # API ENDPOINTS FOR ANALYTICS
     path('api/analytics/', views.api_analytics, name='api_analytics'),
     path('api/analytics/top-areas/', views.api_analytics_top_areas, name='api_analytics_top_areas'),
     path('api/dashboard/nodes/', views.api_dashboard_nodes, name='api_dashboard_nodes'),
     path('api/realtime-data/', views.api_realtime_data, name='api_realtime_data'),
-    
-    # API ENDPOINTS for Dynamic Analytics Dashboard
+
+    # DYNAMIC ANALYTICS DASHBOARD
     path('api/analytics/overview/', views.api_analytics_overview, name='api_analytics_overview'),
     path('api/analytics/trends/', views.api_analytics_trends, name='api_analytics_trends'),
     path('api/analytics/top-areas/', views.api_analytics_top_areas, name='api_analytics_top_areas'),
     path('api/analytics/aqi-trend/', views.api_analytics_aqi_trend, name='api_analytics_aqi_trend'),
     path('api/analytics/system-health/', views.api_analytics_system_health, name='api_analytics_system_health'),
-    
+
     # SPIKE MANAGEMENT API ENDPOINTS
     path('api/spike/delete/', views.api_spike_delete, name='api_spike_delete'),
     path('api/spike/flag/', views.api_spike_flag, name='api_spike_flag'),
-    
-    # OPTIMIZATION: New map view API endpoints (viewport rendering, limited data)
+
+    # MAP AND NODE API ENDPOINTS
     path('api/daily-forecast/', views.api_daily_forecast, name='api_daily_forecast'),
     path('api/nodes/viewport/', views.api_nodes_viewport, name='api_nodes_viewport'),
     path('api/nodes/live/', views.api_nodes_live, name='api_nodes_live'),
@@ -90,7 +93,7 @@ urlpatterns = [
     path('api/nodes/<int:node_id>/readings/export/', views.api_node_readings_export, name='api_node_readings_export'),
     path('api/readings/<int:reading_id>/delete/', views.api_node_reading_delete, name='api_node_reading_delete'),
 
-    # API ENDPOINTS for User Management
+    # USER MANAGEMENT API ENDPOINTS
     path('api/auth/me/', views.api_auth_me, name='api_auth_me'),
     path('api/users/', views.api_users, name='api_users'),
     path('api/users/create/', views.api_users_create, name='api_users_create'),
@@ -102,28 +105,31 @@ urlpatterns = [
     path('api/users/<int:user_id>/invite-link/', views.api_users_invite_link, name='api_users_invite_link'),
     path('api/users/<int:user_id>/reset-password/', views.api_users_reset_password, name='api_users_reset_password'),
 
+    # REPORT EXPORTS
     path('export/pdf/', views.export_report_pdf, name='export_report_pdf'),
     path('export/csv/', views.export_report_csv, name='export_report_csv'),
     path('export/excel/', views.export_report_excel, name='export_report_excel'),
     path('export/print/', views.export_report_print, name='export_report_print'),
 
+    # AI AND ANALYTICS
     path('api/analytics/', views.api_analytics, name='api_analytics'),
     path('api/chat/', views.api_enviro_ai_chat, name='api_enviro_ai_chat'),
     path('api/ai-insights/', views.api_ai_insights, name='api_ai_insights'),
 
+    # NOTIFICATIONS
     path('api/notifications/unread/', views.api_notifications_unread, name='api_notifications_unread'),
     path('api/notifications/list/', views.api_notifications_list, name='api_notifications_list'),
     path('api/notifications/<int:notification_id>/read/', views.api_notification_mark_read, name='api_notification_mark_read'),
     path('api/notifications/mark-all-read/', views.api_notifications_mark_all_read, name='api_notifications_mark_all_read'),
 
-
+    # CLOSEST NODE
     path('api/closest-node/', views.api_closest_node, name='api_closest_node'),
 
-    #api for paymongo webhook
+    # PAYMONGO
     path('webhook/paymongo/', views.paymongo_webhook, name='paymongo_webhook'),
     path('checkout/', views.dummy_checkout, name='dummy_checkout'),
     path('payment-success/<int:order_id>/', views.payment_success, name='payment_success'),
-
 ]
+
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
