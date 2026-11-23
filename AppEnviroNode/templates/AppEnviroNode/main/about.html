@@ -1,820 +1,462 @@
+
 {% extends 'AppEnviroNode/Index.html' %}
 {% load static %}
 
-{% block title %}About - EnviroPlus{% endblock %}
-
-{% block extra_head %}
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-{% endblock %}
+{% block title %}About Us | EnviroPlus{% endblock %}
 
 {% block content %}
-    <style>
-      /* ANIMATIONS & KEYFRAMES */
-      @keyframes fadeInDown {
-        from { opacity: 0; transform: translateY(-15px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      @keyframes fadeInUp {
-        from { opacity: 0; transform: translateY(15px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      @keyframes slideInLeft {
-        from { opacity: 0; transform: translateX(-15px); }
-        to { opacity: 1; transform: translateX(0); }
-      }
-      @keyframes slideInRight {
-        from { opacity: 0; transform: translateX(15px); }
-        to { opacity: 1; transform: translateX(0); }
-      }
-      @keyframes scaleIn {
-        from { opacity: 0; transform: scale(0.95); }
-        to { opacity: 1; transform: scale(1); }
-      }
-
-      /* Light gray background - matches the rest of the website */
-      .about-background {
-        background-color: transparent;
-        min-height: 100vh;
-        position: relative;
-      }
-
-      .main-container {
-        margin-top: 70px;
-        padding: 12px 14px 18px;
-        width: calc(100% - 20px);
-        gap: 10px;
-      }
-
-      .about-page {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        color: #ffffff;
-      }
-
-      /* Centered header section with logo */
-      .about-header-centered {
-        text-align: center;
-        margin-bottom: 8px;
-        animation: fadeInDown 0.8s ease-out;
-      }
-
-      .about-logo {
-        display: flex;
-        justify-content: center;
-        margin-bottom: 16px;
-        animation: scaleIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-      }
-
-      .about-logo img {
-        width: 80px;
-        height: 80px;
-        object-fit: contain;
-        background: #e0f2fe;
-        border: 2px solid #06b6d4;
-        border-radius: 50%;
-        padding: 8px;
-        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        box-shadow: 0 0 16px rgba(6, 182, 212, 0.3), inset 0 0 10px rgba(6, 182, 212, 0.15);
-      }
-
-      .about-logo img:hover {
-        transform: scale(1.08) rotate(2deg);
-        box-shadow: 0 0 24px rgba(6, 182, 212, 0.5), inset 0 0 15px rgba(6, 182, 212, 0.25);
-        border-color: #06b6d4;
-      }
-
-      .about-title {
-        font-size: 2rem;
-        font-weight: 800;
-        background: linear-gradient(135deg, #60a5fa 0%, #fbbf24 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin: 0 0 8px 0;
-        letter-spacing: -0.3px;
-      }
-
-      .about-tagline {
-        font-size: 0.95rem;
-        color: #cbd5e1;
-        margin: 0 auto;
-        line-height: 1.5;
-        max-width: 75%;
-        animation: fadeInUp 0.8s ease-out 0.2s both;
-      }
-
-      /* Mission & Vision container - side by side */
-      .mission-vision-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 16px;
-        margin: 16px 0 8px 0;
-      }
-
-      .mission-card {
-        background: linear-gradient(135deg, #1e3a8a 0%, #2d5bbe 100%);
-        border: 2px solid #06b6d4;
-        border-radius: 12px;
-        padding: 16px 20px;
-        box-shadow: 0 8px 24px rgba(6, 182, 212, 0.2);
-        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        animation: slideInLeft 0.6s ease-out 0.3s both;
-      }
-
-      .vision-card {
-        background: linear-gradient(135deg, #1e3a8a 0%, #f59e0b 100%);
-        border: 2px solid #f59e0b;
-        border-radius: 12px;
-        padding: 16px 20px;
-        box-shadow: 0 8px 24px rgba(249, 158, 11, 0.15);
-        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        animation: slideInRight 0.6s ease-out 0.3s both;
-      }
-
-      .mission-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 32px rgba(6, 182, 212, 0.35);
-        border-color: #06b6d4;
-      }
-      .vision-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 32px rgba(245, 158, 11, 0.35);
-        border-color: #f59e0b;
-      }
-
-      .card-title {
-        font-size: 1.2rem;
-        font-weight: 800;
-        color: #ffffff;
-        margin: 0 0 12px 0;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .card-title i {
-        color: #fbbf24;
-        font-size: 1.1rem;
-      }
-
-      .card-content {
-        font-size: 0.9rem;
-        line-height: 1.5;
-        color: #e2e8f0;
-        margin: 0;
-      }
-
-      /* How It Works - plain text heading */
-      .how-it-works-heading {
-        text-align: center;
-        font-size: 1.4rem;
-        font-weight: 700;
-        background: linear-gradient(90deg, #60a5fa 0%, #34d399 50%, #fbbf24 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin: 20px 0 8px 0;
-        letter-spacing: -0.2px;
-        animation: fadeInUp 0.8s ease-out;
-      }
-
-      /* Three-column workflow grid */
-      .workflow-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 20px;
-        margin: 0 0 10px 0;
-        text-align: center;
-      }
-
-      .workflow-item {
-        background: linear-gradient(135deg, #1e3a8a 0%, #2d5bbe 100%);
-        border: 2px solid #06b6d4;
-        border-radius: 12px;
-        padding: 20px 16px;
-        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        animation: fadeInUp 0.6s ease-out;
-      }
-
-      .workflow-item:nth-child(1) { animation-delay: 0.2s; }
-      .workflow-item:nth-child(2) { animation-delay: 0.3s; }
-      .workflow-item:nth-child(3) { animation-delay: 0.4s; }
-
-      .workflow-item:hover {
-        transform: translateY(-6px) scale(1.02);
-        box-shadow: 0 12px 32px rgba(6, 182, 212, 0.35);
-        border-color: #06b6d4;
-      }
-
-      .workflow-icon {
-        width: 56px;
-        height: 56px;
-        margin: 0 auto 12px;
-        background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
-        border: 2px solid #06b6d4;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #ffffff;
-        font-size: 1.6rem;
-        transition: all 0.3s ease;
-      }
-
-      .workflow-item:hover .workflow-icon {
-        transform: scale(1.1) rotate(10deg);
-        box-shadow: 0 0 20px rgba(6, 182, 212, 0.5);
-      }
-
-      .workflow-title {
-        font-size: 1.05rem;
-        font-weight: 800;
-        color: #ffffff;
-        margin: 0 0 8px 0;
-      }
-
-      .workflow-desc {
-        font-size: 0.85rem;
-        color: #cbd5e1;
-        line-height: 1.5;
-        margin: 0;
-      }
-
-      /* Our Client - plain text heading */
-      .our-client-heading {
-        text-align: center;
-        font-size: 1.4rem;
-        font-weight: 700;
-        background: linear-gradient(90deg, #60a5fa 0%, #34d399 50%, #fbbf24 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin: 20px 0 8px 0;
-        letter-spacing: -0.2px;
-        animation: fadeInUp 0.8s ease-out;
-      }
-
-      /* Meet the Team - plain text heading */
-      .meet-team-heading {
-        text-align: center;
-        font-size: 1.4rem;
-        font-weight: 700;
-        background: linear-gradient(90deg, #60a5fa 0%, #34d399 50%, #fbbf24 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin: 20px 0 16px 0;
-        letter-spacing: -0.2px;
-        animation: fadeInUp 0.8s ease-out;
-      }
-
-      /* Team grid - 3 columns */
-      .team-grid-container {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 20px;
-        margin: 0 0 16px 0;
-      }
-
-      .team-card-item {
-        background: linear-gradient(135deg, #1e3a8a 0%, #2d5bbe 100%);
-        border: 2px solid #06b6d4;
-        border-radius: 16px;
-        padding: 20px 16px;
-        text-align: center;
-        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        animation: fadeInUp 0.6s ease-out;
-      }
-
-      .team-card-item:nth-child(1) { animation-delay: 0.2s; }
-      .team-card-item:nth-child(2) { animation-delay: 0.3s; }
-      .team-card-item:nth-child(3) { animation-delay: 0.4s; }
-      .team-card-item:nth-child(4) { animation-delay: 0.5s; }
-
-      .team-card-item:hover {
-        transform: translateY(-8px) scale(1.02);
-        box-shadow: 0 16px 40px rgba(6, 182, 212, 0.35);
-        border-color: #06b6d4;
-      }
-
-      .team-avatar {
-        width: 100px;
-        height: 100px;
-        margin: 0 auto 12px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2rem;
-        font-weight: 800;
-        color: white;
-        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
-      }
-
-      .team-card-item:hover .team-avatar {
-        transform: scale(1.1) rotate(-5deg);
-        box-shadow: 0 8px 24px rgba(6, 182, 212, 0.5);
-      }
-
-      .team-avatar-photo {
-        width: 100px;
-        height: 100px;
-        border-radius: 50%;
-        object-fit: cover;
-        display: block;
-        margin: 0 auto;
-        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
-      }
-
-      .team-card-item:hover .team-avatar-photo {
-        transform: scale(1.1);
-        box-shadow: 0 8px 24px rgba(6, 182, 212, 0.5);
-      }
-
-      .team-initials {
-        font-size: 2rem;
-        font-weight: 800;
-        color: white;
-      }
-
-      .team-name {
-        font-size: 1rem;
-        font-weight: 800;
-        color: #ffffff;
-        margin: 12px 0 4px 0;
-      }
-
-      .team-role {
-        font-size: 0.75rem;
-        font-weight: 600;
-        color: #fbbf24;
-        margin: 0 0 8px 0;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-      }
-
-      .team-description {
-        font-size: 0.75rem;
-        color: #cbd5e1;
-        line-height: 1.4;
-        margin: 0;
-        padding-top: 8px;
-        border-top: 1px solid #06b6d4;
-      }
-
-      /* Get in Touch Section */
-      .get-in-touch-section {
-        background: linear-gradient(135deg, #1e3a8a 0%, #f59e0b 100%);
-        border: 2px solid #06b6d4;
-        border-radius: 16px;
-        padding: 24px 20px;
-        margin: 8px 0 10px 0;
-        text-align: center;
-        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        animation: fadeInUp 0.8s ease-out 0.6s both;
-      }
-
-      .get-in-touch-section:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 32px rgba(6, 182, 212, 0.35);
-        border-color: #06b6d4;
-      }
-
-      .get-in-touch-title {
-        font-size: 1.4rem;
-        font-weight: 800;
-        background: linear-gradient(90deg, #60a5fa 0%, #fbbf24 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin: 0 0 8px 0;
-      }
-
-      .get-in-touch-subtitle {
-        font-size: 0.9rem;
-        color: #cbd5e1;
-        margin: 0 0 20px 0;
-        line-height: 1.5;
-      }
-
-      .contact-support-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        background: linear-gradient(135deg, #2d5bbe 0%, #3b82f6 100%);
-        color: white;
-        border: none;
-        border-radius: 40px;
-        padding: 10px 28px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        text-decoration: none;
-        box-shadow: 0 4px 15px rgba(45, 91, 190, 0.3);
-      }
-
-      .contact-support-btn:hover {
-        background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
-        transform: translateY(-2px) scale(1.05);
-        box-shadow: 0 8px 24px rgba(45, 91, 190, 0.5);
-      }
-
-      .contact-support-btn:active {
-        transform: translateY(0) scale(0.98);
-      }
-
-      .contact-support-btn i {
-        font-size: 1rem;
-      }
-
-      /* Barangay Partnership Section - Black to Navy Gradient */
-      .partnership-section {
-        background: linear-gradient(135deg, rgba(45, 91, 190, 0.2) 0%, rgba(30, 64, 175, 0.15) 50%, rgba(30, 41, 82, 0.2) 100%);
-        border: 2px solid rgba(45, 91, 190, 0.3);
-        border-radius: 16px;
-        padding: 28px 24px;
-        margin: 0 0 10px 0;
-        display: flex;
-        align-items: flex-start;
-        gap: 32px;
-        flex-wrap: wrap;
-        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        animation: fadeInUp 0.8s ease-out 0.4s both;
-      }
-
-      .partnership-section:hover {
-        border-color: rgba(45, 91, 190, 0.5);
-        box-shadow: 0 12px 32px rgba(45, 91, 190, 0.2);
-      }
-
-      .partnership-image {
-        flex-shrink: 0;
-        background: #ffffff;
-        border-radius: 50%;
-        padding: 4px;
-        box-shadow: 0 8px 20px rgba(45, 91, 190, 0.3);
-        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        animation: scaleIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.5s both;
-      }
-
-      .partnership-section:hover .partnership-image {
-        transform: scale(1.08);
-        box-shadow: 0 12px 30px rgba(45, 91, 190, 0.4);
-      }
-
-      .circular-image {
-        width: 130px;
-        height: 130px;
-        border-radius: 50%;
-        object-fit: cover;
-        display: block;
-      }
-
-      .partnership-content {
-        flex: 1;
-        color: #ffffff;
-      }
-
-      .partnership-title {
-        font-size: 1.4rem;
-        font-weight: 800;
-        margin: 0 0 8px 0;
-        color: #ffffff;
-        animation: slideInLeft 0.6s ease-out 0.6s both;
-      }
-
-      .partnership-description {
-        font-size: 0.92rem;
-        line-height: 1.5;
-        margin: 0 0 16px 0;
-        color: rgba(255, 255, 255, 0.9);
-        animation: slideInLeft 0.6s ease-out 0.7s both;
-      }
-
-      /* Contact info - compact horizontal row */
-      .contact-info-horizontal {
-        background: rgba(255, 255, 255, 0.08);
-        border-radius: 10px;
-        padding: 8px 16px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: flex-start;
-        gap: 20px;
-        flex-wrap: wrap;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        width: auto;
-      }
-
-      .contact-info-horizontal p {
-        margin: 0;
-        font-size: 0.8rem;
-        color: rgba(255, 255, 255, 0.9);
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        white-space: nowrap;
-      }
-
-      .contact-info-horizontal i {
-        width: 14px;
-        font-size: 0.75rem;
-        color: #60a5fa;
-      }
-
-      .divider {
-        color: rgba(255, 255, 255, 0.25);
-        font-size: 0.8rem;
-      }
-
-      @media (max-width: 900px) {
-        .mission-vision-grid {
-          grid-template-columns: 1fr;
-          gap: 12px;
-        }
-        
-        .workflow-grid {
-          grid-template-columns: 1fr;
-          gap: 16px;
-        }
-        
-        .team-grid-container {
-          grid-template-columns: repeat(2, 1fr);
-          gap: 16px;
-        }
-        
-        .about-tagline {
-          max-width: 90%;
-        }
-        
-        .about-title {
-          font-size: 1.6rem;
-        }
-
-        .how-it-works-heading {
-          font-size: 1.2rem;
-        }
-
-        .our-client-heading {
-          font-size: 1.2rem;
-        }
-
-        .meet-team-heading {
-          font-size: 1.2rem;
-        }
-
-        .get-in-touch-title {
-          font-size: 1.2rem;
-        }
-
-        .partnership-section {
-          flex-direction: column;
-          text-align: center;
-          padding: 24px 20px;
-          align-items: center;
-        }
-
-        .partnership-title {
-          font-size: 1.2rem;
-        }
-
-        .circular-image {
-          width: 110px;
-          height: 110px;
-        }
-
-        .contact-info-horizontal {
-          display: flex;
-          justify-content: center;
-          gap: 12px;
-          flex-wrap: wrap;
-          padding: 8px 14px;
-        }
-
-        .contact-info-horizontal p {
-          white-space: normal;
-        }
-
-        .divider {
-          display: none;
-        }
-      }
-
-      @media (max-width: 768px) {
-        .workflow-grid {
-          grid-template-columns: 1fr;
-        }
-
-        .main-container {
-          margin-top: 84px;
-        }
-      }
-
-      @media (max-width: 640px) {
-        .team-grid-container {
-          grid-template-columns: 1fr;
-        }
-
-        .main-container {
-          width: calc(100% - 14px);
-          padding: 10px;
-        }
-
-        .about-logo img {
-          width: 60px;
-          height: 60px;
-        }
-
-        .about-title {
-          font-size: 1.4rem;
-        }
-
-        .about-tagline {
-          font-size: 0.85rem;
-          max-width: 100%;
-        }
-
-        .how-it-works-heading {
-          font-size: 1.1rem;
-          margin-top: 16px;
-        }
-
-        .our-client-heading {
-          font-size: 1.1rem;
-        }
-
-        .meet-team-heading {
-          font-size: 1.1rem;
-        }
-
-        .get-in-touch-title {
-          font-size: 1.1rem;
-        }
-
-        .get-in-touch-subtitle {
-          font-size: 0.85rem;
-        }
-
-        .card-title {
-          font-size: 1.05rem;
-        }
-
-        .card-content {
-          font-size: 0.85rem;
-        }
-
-        .workflow-title {
-          font-size: 0.95rem;
-        }
-
-        .workflow-desc {
-          font-size: 0.8rem;
-        }
-
-        .partnership-title {
-          font-size: 1.1rem;
-        }
-
-        .partnership-description {
-          font-size: 0.85rem;
-        }
-
-        .contact-info-horizontal {
-          flex-direction: column;
-          align-items: center;
-          gap: 6px;
-          width: 100%;
-        }
-
-        .contact-info-horizontal p {
-          font-size: 0.7rem;
-        }
-
-        .team-name {
-          font-size: 0.9rem;
-        }
-
-        .team-role {
-          font-size: 0.7rem;
-        }
-
-        .team-description {
-          font-size: 0.7rem;
-        }
-
-        .team-avatar, .team-avatar-photo {
-          width: 80px;
-          height: 80px;
-        }
-
-        .team-initials {
-          font-size: 1.6rem;
-        }
-
-        .contact-support-btn {
-          padding: 8px 24px;
-          font-size: 0.8rem;
-        }
-      }
-    </style>
-
-    <div class="about-background">
-      <div class="about-page">
-        <!-- Centered header section with logo -->
-        <div class="about-header-centered">
-          <div class="about-logo">
-            <img src="{% static 'AppEnviroNode/images/logo.png' %}" alt="EnviroPlus Logo">
-          </div>
-          <h1 class="about-title">Breathing Better in Taguig</h1>
-          <p class="about-tagline">EnviroPlus is a smart city initiative designed to deliver real-time, accessible, and highly accurate air quality data, empowering the citizens of Taguig City with timely information to promote healthier living, informed decision-making, and environmental awareness.</p>
-        </div>
-
-        <!-- Mission & Vision Grid -->
-        <div class="mission-vision-grid">
-          <div class="mission-card">
-            <h2 class="card-title">
-              <i class="fa-solid fa-bullseye"></i> Our Mission
-            </h2>
-            <p class="card-content">To empower communities with actionable environmental data, promoting public health awareness and enabling data-driven policy making for a cleaner, greener city.</p>
-          </div>
-          <div class="vision-card">
-            <h2 class="card-title">
-              <i class="fa-solid fa-eye"></i> Our Vision
-            </h2>
-            <p class="card-content">A future where every citizen has access to transparent environmental information, fostering a culture of sustainability and proactive health management.</p>
-          </div>
-        </div>
-
-        <!-- Plain text heading - How It Works -->
-        <h2 class="how-it-works-heading">How It Works</h2>
-
-        <!-- Three-column workflow grid - Data Collection, Processing & AI, Public Access -->
-        <div class="workflow-grid">
-          <div class="workflow-item">
-            <div class="workflow-icon">
-              <i class="fa-solid fa-database"></i>
-            </div>
-            <h3 class="workflow-title">1. Data Collection</h3>
-            <p class="workflow-desc">IoT sensors deployed across barangays continuously monitor pollutants and weather conditions.</p>
-          </div>
-          <div class="workflow-item">
-            <div class="workflow-icon">
-              <i class="fa-solid fa-brain"></i>
-            </div>
-            <h3 class="workflow-title">2. Processing & AI</h3>
-            <p class="workflow-desc">Data is securely transmitted, validated, and analyzed using machine learning algorithms.</p>
-          </div>
-          <div class="workflow-item">
-            <div class="workflow-icon">
-              <i class="fa-solid fa-chart-line"></i>
-            </div>
-            <h3 class="workflow-title">3. Public Access</h3>
-            <p class="workflow-desc">Information is presented through this intuitive dashboard for citizens and policymakers.</p>
-          </div>
-        </div>
-
-        <!-- Plain text heading - Meet the Team -->
-        <h2 class="meet-team-heading">Meet the Team</h2>
-
-        <!-- Team Grid - 4 containers -->
-        <div class="team-grid-container">
-          <!-- Member 1: Luis Gabriel Rodriguez (LGR initials) -->
-          <div class="team-card-item">
-            <img src="{% static 'AppEnviroNode/images/rodri.jpg' %}" alt="Luis Gabriel Rodriguez" class="team-avatar-photo">
-            <h3 class="team-name">Luis Gabriel Rodriguez</h3>
-            <p class="team-role">Project Lead</p>
-            <p class="team-description">Driving innovation in environmental tech</p>
-          </div>
-
-          <!-- Member 2: Mijare -->
-          <div class="team-card-item">
-            <img src="{% static 'AppEnviroNode/images/MIJARESUMAAK.jpg' %}" alt="Carl Justin Mijares" class="team-avatar-photo">
-            <h3 class="team-name">Carl Justin Mijares</h3>
-            <p class="team-role">UI/UX Designer</p>
-            <p class="team-description">Creating intuitive user experiences</p>
-          </div>
-
-          <!-- Member 3: Rumbao -->
-          <div class="team-card-item">
-            <img src="{% static 'AppEnviroNode/images/TYSHAUNUMAK.jpg' %}" alt="Tyshaun Carl Rumbaoa" class="team-avatar-photo">
-            <h3 class="team-name">Tyshaun Carl Rumbaoa</h3>
-            <p class="team-role">Backend Developer</p>
-            <p class="team-description">Building robust data infrastructure</p>
-          </div>
-        </div>
-
-        <!-- Get in Touch Section -->
-        <div class="get-in-touch-section">
-          <h2 class="get-in-touch-title">Get in Touch</h2>
-          <p class="get-in-touch-subtitle">Have questions or want to contribute to the project?</p>
-          <button class="contact-support-btn" onclick="window.location.href='mailto:enviro.support@example.com'">
-            <i class="fa-regular fa-envelope"></i> Contact Support
-          </button>
-        </div>
+<style>
+  /* About page only — preserves global EnviroPlus navbar, background and footer. */
+  .main-container:has(> .ep-about) {
+    display: block;
+    width: min(1240px, calc(100% - 40px));
+    max-width: none;
+    margin: calc(var(--ep-about-nav-bottom, 72px) + 28px) auto 0;
+    padding: 0;
+  }
+
+  .ep-about {
+    --ab-navy: var(--deep-navy, #0b1120);
+    --ab-blue: var(--cyber-blue, #2d5bbe);
+    --ab-bright: var(--cyber-blue-light, #3b82f6);
+    --ab-amber: #fbbf24;
+    --ab-ink: #1a2f52;
+    --ab-muted: #60738e;
+    --ab-line: #e1e9f4;
+    --ab-card: var(--card-bg, rgba(255, 255, 255, .97));
+    font-family: 'Inter', sans-serif;
+    color: var(--ab-ink);
+    min-width: 0;
+    padding-bottom: 18px;
+  }
+
+  .ep-about *,
+  .ep-about *::before,
+  .ep-about *::after { box-sizing: border-box; }
+
+  .ep-about a { text-decoration: none; }
+  .ep-about a:focus-visible {
+    outline: 3px solid var(--ab-amber);
+    outline-offset: 4px;
+  }
+
+  /* Intro */
+  .ep-about .ab-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(290px, .8fr);
+    align-items: center;
+    gap: clamp(25px, 5vw, 66px);
+    padding: clamp(26px, 5vw, 62px);
+    border-radius: 18px;
+    background: linear-gradient(118deg, rgba(11, 17, 32, .96), rgba(22, 53, 105, .94));
+    border: 1px solid rgba(171, 203, 255, .22);
+    box-shadow: 0 16px 40px rgba(5, 15, 35, .25);
+    overflow: hidden;
+    position: relative;
+  }
+  .ep-about .ab-hero::after {
+    content: '';
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    right: -180px;
+    top: -180px;
+    border-radius: 50%;
+    background: rgba(59, 130, 246, .13);
+    pointer-events: none;
+  }
+  .ep-about .ab-hero-content,
+  .ep-about .ab-hero-panel { position: relative; z-index: 1; }
+  .ep-about .ab-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: .71rem;
+    font-weight: 800;
+    letter-spacing: .13em;
+    color: var(--ab-blue);
+    text-transform: uppercase;
+  }
+  .ep-about .ab-hero .ab-eyebrow { color: #bcd7ff; }
+  .ep-about .ab-eyebrow-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ab-amber);
+  }
+  .ep-about .ab-hero h1 {
+    margin: 17px 0 17px;
+    color: white;
+    font-size: clamp(2.05rem, 4.2vw, 3.35rem);
+    line-height: 1.15;
+    letter-spacing: -.035em;
+    font-weight: 800;
+  }
+  .ep-about .ab-hero h1 span { color: var(--ab-amber); }
+  .ep-about .ab-hero-description {
+    max-width: 670px;
+    color: #d5e2f4;
+    font-size: .94rem;
+    line-height: 1.85;
+  }
+  .ep-about .ab-hero-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 11px;
+    margin-top: 24px;
+  }
+  .ep-about .ab-btn {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 17px;
+    min-height: 45px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    font-size: .84rem;
+    font-weight: 750;
+    line-height: 1.3;
+    transition: background .16s ease, border-color .16s ease, box-shadow .16s ease;
+  }
+  .ep-about .ab-btn--primary {
+    color: #fff;
+    background: linear-gradient(135deg, #1e438d, var(--ab-bright));
+    border-color: #4b82e5;
+  }
+  .ep-about .ab-btn--primary:hover {
+    color: #fff;
+    background: linear-gradient(135deg, var(--ab-blue), #5593ff);
+    box-shadow: 0 5px 18px rgba(59, 130, 246, .22);
+  }
+  .ep-about .ab-btn--ghost {
+    background: rgba(255,255,255,.07);
+    border-color: rgba(255,255,255,.28);
+    color: #f4f7ff;
+  }
+  .ep-about .ab-btn--ghost:hover { background: rgba(255,255,255,.14); color: #fff; }
+  .ep-about .ab-hero-panel {
+    border: 1px solid rgba(216, 231, 255, .19);
+    background: rgba(255,255,255,.075);
+    border-radius: 15px;
+    padding: 23px;
+    backdrop-filter: blur(7px);
+  }
+  .ep-about .ab-brand-row { display: flex; align-items: center; gap: 12px; }
+  .ep-about .ab-brand-logo {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+    flex: 0 0 56px;
+    padding: 6px;
+    background: #e0f2fe;
+    border: 2px solid rgba(6, 182, 212, .65);
+    border-radius: 50%;
+  }
+  .ep-about .ab-brand-row strong { display: block; color: #fff; font-size: 1.04rem; }
+  .ep-about .ab-brand-row span { display: block; color: #c2d1e7; font-size: .76rem; margin-top: 4px; }
+  .ep-about .ab-panel-rule { height: 1px; background: rgba(255,255,255,.17); margin: 20px 0 17px; }
+  .ep-about .ab-panel-label { font-size: .72rem; font-weight: 800; letter-spacing: .1em; color: #a8c9ff; margin-bottom: 12px; }
+  .ep-about .ab-panel-line { display: flex; align-items: flex-start; gap: 11px; color: #e3ecfa; font-size: .81rem; line-height: 1.55; }
+  .ep-about .ab-panel-line + .ab-panel-line { margin-top: 12px; }
+  .ep-about .ab-panel-line i { color: #87bdff; margin-top: 4px; width: 15px; text-align: center; }
+
+  /* Section headings */
+  .ep-about .ab-section { margin-top: 38px; }
+  .ep-about .ab-section-heading { margin: 0 0 19px; }
+  .ep-about .ab-section-heading h2 {
+    color: #fff;
+    font-size: clamp(1.35rem, 2.5vw, 1.82rem);
+    font-weight: 800;
+    line-height: 1.3;
+    margin: 6px 0 6px;
+  }
+  .ep-about .ab-section-heading p { color: #d7e4f3; font-size: .88rem; line-height: 1.6; }
+  .ep-about .ab-section-heading .ab-eyebrow { color: var(--ab-amber); }
+
+  /* Mission and vision */
+  .ep-about .ab-values {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .ep-about .ab-value-card {
+    min-width: 0;
+    background: var(--ab-card);
+    border: 1px solid var(--ab-line);
+    border-radius: 13px;
+    box-shadow: 0 7px 24px rgba(4, 20, 45, .13);
+    padding: 25px 26px;
+  }
+  .ep-about .ab-value-head { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; }
+  .ep-about .ab-icon-box {
+    width: 43px;
+    height: 43px;
+    flex: 0 0 43px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    color: var(--ab-blue);
+    background: #e8f0ff;
+  }
+  .ep-about .ab-icon-box--amber { color: #9c6100; background: #fff3d8; }
+  .ep-about .ab-value-head h3 { font-size: 1.07rem; color: var(--ab-navy); margin: 0; }
+  .ep-about .ab-value-card p { font-size: .88rem; line-height: 1.75; color: var(--ab-muted); }
+
+  /* Monitoring workflow */
+  .ep-about .ab-workflow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 17px; }
+  .ep-about .ab-step {
+    min-width: 0;
+    padding: 24px 23px;
+    border-radius: 13px;
+    background: var(--ab-card);
+    border: 1px solid var(--ab-line);
+    box-shadow: 0 7px 24px rgba(4, 20, 45, .13);
+  }
+  .ep-about .ab-step-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .ep-about .ab-step-num { color: #7c9cc9; font-size: .85rem; letter-spacing: .05em; font-weight: 800; }
+  .ep-about .ab-step h3 { color: var(--ab-navy); font-size: .99rem; margin-bottom: 9px; }
+  .ep-about .ab-step p { color: var(--ab-muted); font-size: .83rem; line-height: 1.7; }
+
+  /* Meet the team */
+  .ep-about .ab-team-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+  .ep-about .ab-team-card {
+    background: var(--ab-card);
+    border: 1px solid var(--ab-line);
+    border-radius: 13px;
+    box-shadow: 0 7px 24px rgba(4, 20, 45, .13);
+    overflow: hidden;
+    min-width: 0;
+  }
+  .ep-about .ab-team-banner { height: 84px; background: linear-gradient(110deg, #0b1120, #234b96); }
+  .ep-about .ab-team-body { padding: 0 23px 24px; }
+  .ep-about .ab-team-photo {
+    display: block;
+    width: 92px;
+    height: 92px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 4px solid white;
+    background: #d9e8fb;
+    margin: -46px 0 15px;
+    position: relative;
+    box-shadow: 0 5px 14px rgba(16, 38, 76, .13);
+  }
+  .ep-about .ab-team-body h3 { color: var(--ab-navy); font-size: 1rem; margin: 0 0 5px; overflow-wrap: anywhere; }
+  .ep-about .ab-team-role { color: #2858a8; font-size: .74rem; font-weight: 800; letter-spacing: .035em; text-transform: uppercase; margin-bottom: 14px; }
+  .ep-about .ab-team-description { color: var(--ab-muted); font-size: .84rem; line-height: 1.65; border-top: 1px solid var(--ab-line); padding-top: 14px; }
+
+  /* Contact */
+  .ep-about .ab-contact {
+    margin-top: 38px;
+    padding: clamp(25px, 4vw, 36px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 22px;
+    background: linear-gradient(115deg, rgba(11, 17, 32, .96), rgba(31, 70, 143, .96));
+    border: 1px solid rgba(190, 215, 255, .2);
+    border-radius: 14px;
+    box-shadow: 0 9px 26px rgba(4, 20, 45, .16);
+  }
+  .ep-about .ab-contact h2 { font-size: clamp(1.25rem, 2vw, 1.55rem); color: #fff; margin: 6px 0; }
+  .ep-about .ab-contact p { color: #cfddf1; font-size: .87rem; line-height: 1.6; }
+  .ep-about .ab-contact .ab-eyebrow { color: var(--ab-amber); }
+  .ep-about .ab-contact .ab-btn { flex: 0 0 auto; }
+
+  @media (max-width: 920px) {
+    .ep-about .ab-hero { grid-template-columns: 1fr; }
+    .ep-about .ab-hero-panel { max-width: 610px; }
+    .ep-about .ab-team-grid { gap: 12px; }
+    .ep-about .ab-team-body { padding-left: 17px; padding-right: 17px; }
+  }
+  @media (max-width: 740px) {
+    .main-container:has(> .ep-about) { width: calc(100% - 28px); margin-top: calc(var(--ep-about-nav-bottom, 178px) + 18px); }
+    .ep-about .ab-hero { padding: 28px 22px; }
+    .ep-about .ab-values { grid-template-columns: 1fr; }
+    .ep-about .ab-workflow { grid-template-columns: 1fr; }
+    .ep-about .ab-team-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ep-about .ab-contact { flex-direction: column; align-items: flex-start; }
+  }
+  @media (max-width: 510px) {
+    .ep-about .ab-hero h1 { font-size: 2rem; }
+    .ep-about .ab-hero-description { font-size: .88rem; }
+    .ep-about .ab-section { margin-top: 30px; }
+    .ep-about .ab-team-grid { grid-template-columns: 1fr; }
+    .ep-about .ab-team-body { padding-left: 22px; padding-right: 22px; }
+    .ep-about .ab-value-card, .ep-about .ab-step { padding: 21px; }
+    .ep-about .ab-hero-actions { flex-direction: column; align-items: stretch; }
+    .ep-about .ab-contact .ab-btn { width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ep-about .ab-btn { transition: none; }
+  }
+</style>
+
+<div class="ep-about">
+  <!-- Page introduction -->
+  <header class="ab-hero" aria-labelledby="about-heading">
+    <div class="ab-hero-content">
+      <span class="ab-eyebrow"><span class="ab-eyebrow-dot"></span> About EnviroPlus · Taguig City</span>
+      <h1 id="about-heading">Breathing Better <span>in Taguig.</span></h1>
+      <p class="ab-hero-description">
+        EnviroPlus is a smart city initiative designed to deliver real-time, accessible,
+        and highly accurate air quality data, empowering the citizens of Taguig City
+        with timely information to promote healthier living, informed decision-making,
+        and environmental awareness.
+      </p>
+      <div class="ab-hero-actions">
+        <a class="ab-btn ab-btn--primary" href="{% url 'app:dashboard' %}">
+          <i class="fa-solid fa-chart-line" aria-hidden="true"></i> Explore the dashboard
+          <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+        </a>
+        <a class="ab-btn ab-btn--ghost" href="#how-it-works">
+          How it works <i class="fa-solid fa-arrow-down" aria-hidden="true"></i>
+        </a>
       </div>
     </div>
+    <aside class="ab-hero-panel" aria-label="EnviroPlus at a glance">
+      <div class="ab-brand-row">
+        <img class="ab-brand-logo" src="{% static 'AppEnviroNode/images/logo.png' %}" alt="EnviroPlus logo">
+        <div><strong>EnviroPlus</strong><span>Air Quality Monitoring</span></div>
+      </div>
+      <div class="ab-panel-rule"></div>
+      <p class="ab-panel-label">THE PLATFORM AT A GLANCE</p>
+      <div class="ab-panel-line"><i class="fa-solid fa-wind" aria-hidden="true"></i><span>Environmental readings collected by IoT sensors</span></div>
+      <div class="ab-panel-line"><i class="fa-solid fa-microchip" aria-hidden="true"></i><span>Validated data processing and AI-assisted analysis</span></div>
+      <div class="ab-panel-line"><i class="fa-solid fa-users" aria-hidden="true"></i><span>Accessible information for citizens and policymakers</span></div>
+    </aside>
+  </header>
+
+  <!-- Mission and vision -->
+  <section class="ab-section" aria-labelledby="about-purpose-heading">
+    <div class="ab-section-heading">
+      <span class="ab-eyebrow">What drives us</span>
+      <h2 id="about-purpose-heading">Our purpose</h2>
+      <p>The principles guiding EnviroPlus and its work in environmental monitoring.</p>
+    </div>
+    <div class="ab-values">
+      <article class="ab-value-card">
+        <div class="ab-value-head">
+          <span class="ab-icon-box"><i class="fa-solid fa-bullseye" aria-hidden="true"></i></span>
+          <h3>Our Mission</h3>
+        </div>
+        <p>To empower communities with actionable environmental data, promoting public health awareness and enabling data-driven policy making for a cleaner, greener city.</p>
+      </article>
+      <article class="ab-value-card">
+        <div class="ab-value-head">
+          <span class="ab-icon-box ab-icon-box--amber"><i class="fa-solid fa-eye" aria-hidden="true"></i></span>
+          <h3>Our Vision</h3>
+        </div>
+        <p>A future where every citizen has access to transparent environmental information, fostering a culture of sustainability and proactive health management.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- How the platform works -->
+  <section class="ab-section" id="how-it-works" aria-labelledby="about-workflow-heading">
+    <div class="ab-section-heading">
+      <span class="ab-eyebrow">From sensors to insight</span>
+      <h2 id="about-workflow-heading">How it works</h2>
+      <p>Three connected stages make environmental information accessible to the community.</p>
+    </div>
+    <div class="ab-workflow">
+      <article class="ab-step">
+        <div class="ab-step-top"><span class="ab-icon-box"><i class="fa-solid fa-database" aria-hidden="true"></i></span><span class="ab-step-num">01 / 03</span></div>
+        <h3>Data Collection</h3>
+        <p>IoT sensors deployed across barangays continuously monitor pollutants and weather conditions.</p>
+      </article>
+      <article class="ab-step">
+        <div class="ab-step-top"><span class="ab-icon-box"><i class="fa-solid fa-brain" aria-hidden="true"></i></span><span class="ab-step-num">02 / 03</span></div>
+        <h3>Processing &amp; AI</h3>
+        <p>Data is securely transmitted, validated, and analyzed using machine learning algorithms.</p>
+      </article>
+      <article class="ab-step">
+        <div class="ab-step-top"><span class="ab-icon-box"><i class="fa-solid fa-chart-line" aria-hidden="true"></i></span><span class="ab-step-num">03 / 03</span></div>
+        <h3>Public Access</h3>
+        <p>Information is presented through this intuitive dashboard for citizens and policymakers.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- Existing team members and original images -->
+  <section class="ab-section" id="meet-the-team" aria-labelledby="about-team-heading">
+    <div class="ab-section-heading">
+      <span class="ab-eyebrow">The people behind EnviroPlus</span>
+      <h2 id="about-team-heading">Meet the team</h2>
+      <p>Meet the contributors building the platform and its user experience.</p>
+    </div>
+    <div class="ab-team-grid">
+      <article class="ab-team-card">
+        <div class="ab-team-banner" aria-hidden="true"></div>
+        <div class="ab-team-body">
+          <img class="ab-team-photo" src="{% static 'AppEnviroNode/images/rodri.jpg' %}" alt="Portrait of Luis Gabriel Rodriguez" loading="lazy">
+          <h3>Luis Gabriel Rodriguez</h3>
+          <p class="ab-team-role">Project Lead</p>
+          <p class="ab-team-description">Driving innovation in environmental tech</p>
+        </div>
+      </article>
+      <article class="ab-team-card">
+        <div class="ab-team-banner" aria-hidden="true"></div>
+        <div class="ab-team-body">
+          <img class="ab-team-photo" src="{% static 'AppEnviroNode/images/MIJARESUMAAK.jpg' %}" alt="Portrait of Carl Justin Mijares" loading="lazy">
+          <h3>Carl Justin Mijares</h3>
+          <p class="ab-team-role">UI/UX Designer</p>
+          <p class="ab-team-description">Creating intuitive user experiences</p>
+        </div>
+      </article>
+      <article class="ab-team-card">
+        <div class="ab-team-banner" aria-hidden="true"></div>
+        <div class="ab-team-body">
+          <img class="ab-team-photo" src="{% static 'AppEnviroNode/images/TYSHAUNUMAK.jpg' %}" alt="Portrait of Tyshaun Carl Rumbaoa" loading="lazy">
+          <h3>Tyshaun Carl Rumbaoa</h3>
+          <p class="ab-team-role">Backend Developer</p>
+          <p class="ab-team-description">Building robust data infrastructure</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- Contact uses the same destination as the original page -->
+  <section class="ab-contact" aria-labelledby="about-contact-heading">
+    <div>
+      <span class="ab-eyebrow">Connect with us</span>
+      <h2 id="about-contact-heading">Get in touch</h2>
+      <p>Have questions or want to contribute to the project?</p>
+    </div>
+    <a class="ab-btn ab-btn--primary" href="mailto:enviro.support@example.com">
+      <i class="fa-regular fa-envelope" aria-hidden="true"></i> Contact Support
+      <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+    </a>
+  </section>
+</div>
+
+<script>
+  (() => {
+    'use strict';
+    // Match the actual fixed navbar height, including its wrapped mobile layout.
+    const navigation = [
+      document.querySelector('.global-nav'),
+      document.querySelector('.topbar'),
+      document.querySelector('.menubar')
+    ].filter(Boolean);
+
+    function updateNavigationOffset() {
+      if (!navigation.length) return;
+      const bottom = Math.max(...navigation.map(node => node.getBoundingClientRect().bottom));
+      if (bottom > 0) {
+        document.documentElement.style.setProperty('--ep-about-nav-bottom', `${Math.ceil(bottom)}px`);
+      }
+    }
+
+    updateNavigationOffset();
+    window.addEventListener('load', updateNavigationOffset);
+    window.addEventListener('resize', updateNavigationOffset);
+    if ('ResizeObserver' in window) {
+      const observer = new ResizeObserver(updateNavigationOffset);
+      navigation.forEach(node => observer.observe(node));
+    }
+  })();
+</script>
 {% endblock %}

@@ -1,310 +1,1558 @@
+
 {% extends 'AppEnviroNode/Index.html' %}
 {% load static %}
 
+{% block title %}Hardware Orders | EnviroPlus{% endblock %}
+
 {% block content %}
 <style>
-  .dashboard-container { max-width: 1400px; margin: 100px auto 60px; padding: 0 20px; font-family: inherit; }
-
-  /* Expanded Analytics Grid */
-  .analytics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 25px; }
-  .analytic-card { background: #ffffff; border-radius: 12px; padding: 20px 25px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05); border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 20px; }
-  .analytic-icon { width: 50px; height: 50px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0; }
-  
-  .icon-orders { background: #eff6ff; color: #2d5bbe; }
-  .icon-revenue { background: #f0fdf4; color: #16a34a; }
-  .icon-trophy { background: #e0e7ff; color: #4f46e5; }
-  .icon-clipboard { background: #ffedd5; color: #ea580c; }
-  
-  .analytic-info { overflow: hidden; }
-  .analytic-info h4 { margin: 0; font-size: 0.85rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-  .analytic-info .value { margin: 5px 0 0; font-size: 1.5rem; font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .analytic-subtext { font-size: 0.8rem; margin-top: 4px; font-weight: 600; }
-
-  /* Dashboard Card & Header */
-  .dashboard-card { background: #ffffff; border-radius: 12px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); padding: 30px; border: 1px solid #e2e8f0; }
-  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; flex-wrap: wrap; gap: 15px; }
-  .card-header h2 { margin: 0; color: #0f172a; font-size: 1.4rem; font-weight: 700; }
-  .header-icon { color: #2d5bbe; margin-right: 10px; }
-  .header-actions { display: flex; gap: 15px; flex-wrap: wrap; align-items: center; }
-
-  /* Buttons & Search */
-  .search-form { display: flex; gap: 10px; }
-  .search-input { padding: 10px 15px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem; outline: none; width: 250px; transition: all 0.3s ease; }
-  .search-input:focus { border-color: #2d5bbe; box-shadow: 0 0 0 3px rgba(45, 91, 190, 0.1); }
-  
-  .action-btn { padding: 10px 18px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: background 0.2s; color: white; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-size: 0.9rem; }
-  .btn-search { background: #2d5bbe; }
-  .btn-search:hover { background: #1f3f89; }
-  .btn-export { background: #10b981; }
-  .btn-export:hover { background: #059669; }
-  
-  .clear-search { padding: 10px; background: #e2e8f0; border-radius: 8px; color: #334155; text-decoration: none; display: flex; align-items: center; }
-
-  /* Export Modal Overlay */
-  .export-modal-overlay {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(15, 23, 42, 0.6); z-index: 9999;
-    display: none; align-items: center; justify-content: center;
-    backdrop-filter: blur(4px);
+  /* Hardware Orders: scoped to this tab, retaining the EnviroPlus base theme. */
+  .main-container:has(> .ord-page) {
+    width: min(1440px, calc(100% - 48px));
+    max-width: none;
+    margin: 148px auto 0;
+    padding: 0;
+    display: block;
   }
-  .export-modal-content {
-    background: #ffffff; border-radius: 12px; padding: 30px;
-    width: 100%; max-width: 480px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+
+  .ord-page {
+    --ord-navy: var(--deep-navy, #0b1120);
+    --ord-blue: var(--cyber-blue, #2d5bbe);
+    --ord-border: #e1e8f2;
+    --ord-muted: #64748b;
+    --ord-white: rgba(255, 255, 255, .98);
+    color: #203653;
+    font-family: 'Inter', sans-serif;
+    padding-bottom: 44px;
+    min-width: 0;
   }
-  .export-modal-content h3 { margin: 0 0 20px 0; color: #0f172a; font-size: 1.3rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; }
-  .export-modal-content label { font-size: 0.85rem; font-weight: 600; color: #475569; margin-bottom: 8px; display: block; text-transform: uppercase; letter-spacing: 0.05em; }
-  .export-modal-content .form-group { margin-bottom: 20px; }
 
-  /* Table */
-  .table-responsive { overflow-x: auto; }
-  .modern-table { width: 100%; border-collapse: collapse; text-align: left; }
-  .modern-table th { padding: 15px 12px; color: #475569; font-weight: 600; font-size: 0.9rem; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
-  .modern-table td { padding: 16px 12px; color: #334155; font-size: 0.95rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
-  .modern-table tr:hover td { background: #f8fafc; }
-  
-  .td-id { font-weight: 700; color: #2d5bbe; }
-  .td-customer { font-weight: 600; }
-  .td-contact { color: #334155; font-weight: 600; }
-  .td-contact-sub { font-size: 0.82rem; color: #64748b; margin-top: 3px; }
-  .td-address { font-size: 0.82rem; color: #64748b; margin-top: 6px; max-width: 220px; white-space: normal; line-height: 1.4; }
-  .td-qty { font-size: 0.8rem; color: #64748b; }
-  .td-price { font-weight: 600; }
-  .td-date { font-size: 0.9rem; color: #64748b; white-space: nowrap; }
-  
-  .empty-state { padding: 50px 20px !important; text-align: center; color: #64748b; }
-  .empty-icon { font-size: 2.5rem; color: #cbd5e1; margin-bottom: 12px; }
+  .ord-page *,
+  .ord-page *::before,
+  .ord-page *::after {
+    box-sizing: border-box;
+  }
 
-  /* Status Dropdown */
-  .status-select { border: none; outline: none; padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; cursor: pointer; appearance: none; -webkit-appearance: none; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-  .status-pending { background: #fef3c7; color: #92400e; }
-  .status-paid { background: #dcfce3; color: #166534; }
-  .status-shipped { background: #e0e7ff; color: #3730a3; }
-  .status-received { background: #e0f2fe; color: #0369a1; }
+  .ord-page :is(button, input, select) {
+    font: inherit;
+  }
 
-  /* Pagination */
-  .pagination-container { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; padding-top: 15px; border-top: 1px solid #f1f5f9; flex-wrap: wrap; gap: 15px; }
-  .pagination-info { font-size: 0.9rem; color: #64748b; }
-  .pagination-links { display: flex; gap: 6px; }
-  .page-link { padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; background: white; color: #334155; text-decoration: none; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; }
-  .page-link:hover { background: #f1f5f9; border-color: #94a3b8; }
-  .page-link.active { background: #2d5bbe; color: white; border-color: #2d5bbe; }
+  .ord-page :is(a, button, input, select, summary):focus-visible {
+    outline: 3px solid #fbbf24;
+    outline-offset: 3px;
+  }
+
+  .ord-page a {
+    text-decoration: none;
+  }
+
+  .ord-page .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .ord-page [hidden] {
+    display: none !important;
+  }
+
+  /* PAGE HEADING */
+
+  .ord-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 22px;
+  }
+
+  .ord-eyebrow {
+    display: block;
+    color: #fbbf24;
+    font-size: .71rem;
+    font-weight: 800;
+    letter-spacing: .13em;
+  }
+
+  .ord-hero h1 {
+    color: #fff;
+    font-family: 'Poppins', 'Inter', sans-serif;
+    font-size: clamp(1.55rem, 2.7vw, 2.08rem);
+    line-height: 1.25;
+    margin: 6px 0;
+  }
+
+  .ord-hero p {
+    color: #dce8f7;
+    font-size: .88rem;
+    line-height: 1.6;
+  }
+
+  /* BUTTONS */
+
+  .ord-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    min-height: 42px;
+    padding: 10px 15px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    font-size: .82rem;
+    font-weight: 800;
+    text-align: center;
+    cursor: pointer;
+    transition: background .15s ease, box-shadow .15s ease;
+  }
+
+  .ord-page .ord-btn--primary {
+    color: #fff;
+    background: linear-gradient(135deg, #0b1120, #2d5bbe);
+    border-color: #2d5bbe;
+  }
+
+  .ord-page .ord-btn--primary:hover {
+    color: #fff;
+    background: linear-gradient(135deg, #1b3562, #3b82f6);
+    box-shadow: 0 6px 17px rgba(45, 91, 190, .2);
+  }
+
+  .ord-page .ord-btn--secondary {
+    color: #28549a;
+    background: #edf3fc;
+    border-color: #ccdaed;
+  }
+
+  .ord-page .ord-btn--secondary:hover {
+    color: #20447d;
+    background: #e1ebf9;
+  }
+
+  .ord-page .ord-btn--light {
+    color: #fff;
+    background: rgba(11, 17, 32, .65);
+    border-color: rgba(255, 255, 255, .28);
+  }
+
+  .ord-page .ord-btn--light:hover {
+    color: #fff;
+    background: rgba(45, 91, 190, .8);
+  }
+
+  .ord-page .ord-btn:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  /* ANALYTICS CARDS */
+
+  .ord-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 15px;
+    margin-bottom: 22px;
+  }
+
+  .ord-stat {
+    min-width: 0;
+    display: flex;
+    gap: 13px;
+    align-items: center;
+    padding: 18px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, .2);
+    background: rgba(11, 17, 32, .81);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 24px rgba(11, 17, 32, .14);
+  }
+
+  .ord-stat-icon {
+    width: 43px;
+    height: 43px;
+    flex: 0 0 43px;
+    display: grid;
+    place-items: center;
+    border-radius: 11px;
+    color: #a6c9ff;
+    background: rgba(59, 130, 246, .18);
+    font-size: 1.08rem;
+  }
+
+  .ord-stat--green .ord-stat-icon {
+    color: #86efac;
+    background: rgba(22, 163, 74, .19);
+  }
+
+  .ord-stat--amber .ord-stat-icon {
+    color: #fcd34d;
+    background: rgba(245, 158, 11, .17);
+  }
+
+  .ord-stat-label {
+    color: #bdcce0;
+    display: block;
+    font-size: .73rem;
+    line-height: 1.4;
+  }
+
+  .ord-stat-value {
+    color: #fff;
+    font-size: clamp(1.06rem, 2vw, 1.47rem);
+    font-weight: 800;
+    line-height: 1.3;
+    display: block;
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  .ord-stat-note {
+    color: #c4d5e9;
+    font-size: .7rem;
+    display: block;
+    margin-top: 3px;
+  }
+
+  /* ORDER MANAGEMENT PANEL */
+
+  .ord-panel {
+    background: var(--ord-white);
+    border: 1px solid var(--ord-border);
+    border-radius: 13px;
+    box-shadow: 0 8px 29px rgba(11, 17, 32, .16);
+    overflow: hidden;
+  }
+
+  .ord-panel-header {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 21px 23px;
+    background: #f9fbff;
+    border-bottom: 1px solid var(--ord-border);
+  }
+
+  .ord-panel-name {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+  }
+
+  .ord-panel-icon {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: #e8effd;
+    color: var(--ord-blue);
+  }
+
+  .ord-panel-name h2 {
+    color: #162b48;
+    font-family: 'Poppins', 'Inter', sans-serif;
+    margin: 0 0 3px;
+    font-size: 1.1rem;
+  }
+
+  .ord-panel-name p {
+    color: var(--ord-muted);
+    font-size: .76rem;
+    line-height: 1.5;
+  }
+
+  .ord-panel-tools {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  /* SEARCH */
+
+  .ord-search {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .ord-search-label {
+    position: relative;
+    display: block;
+    min-width: 0;
+  }
+
+  .ord-search-label i {
+    position: absolute;
+    left: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #8a99ad;
+    font-size: .79rem;
+    pointer-events: none;
+  }
+
+  .ord-search-label input {
+    width: min(270px, 30vw);
+    height: 42px;
+    min-width: 170px;
+    padding: 9px 12px 9px 36px;
+    border: 1px solid #d2ddec;
+    border-radius: 9px;
+    color: #27405f;
+    background: #fff;
+    font-size: .81rem;
+  }
+
+  .ord-search-label input:focus {
+    outline: none;
+    border-color: var(--ord-blue);
+    box-shadow: 0 0 0 3px rgba(45, 91, 190, .11);
+  }
+
+  .ord-search .ord-btn {
+    min-width: 42px;
+    padding-inline: 12px;
+  }
+
+  .ord-helper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 12px 23px;
+    font-size: .77rem;
+    color: #63768f;
+    border-bottom: 1px solid #edf1f7;
+  }
+
+  .ord-helper strong {
+    color: #2d4c77;
+  }
+
+  /* ORDERS TABLE */
+
+  .ord-table-scroll {
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  .ord-table {
+    width: 100%;
+    min-width: 940px;
+    border-collapse: collapse;
+    text-align: left;
+  }
+
+  .ord-table th {
+    padding: 14px 16px;
+    border-bottom: 1px solid #e2eaf4;
+    background: #f7faff;
+    color: #536783;
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .02em;
+    white-space: nowrap;
+  }
+
+  .ord-table td {
+    padding: 16px;
+    border-bottom: 1px solid #e9eef5;
+    color: #3b506d;
+    font-size: .81rem;
+    vertical-align: middle;
+  }
+
+  .ord-table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .ord-table tbody tr:hover {
+    background: #f9fbff;
+  }
+
+  .ord-id {
+    display: inline-block;
+    padding: 7px 10px;
+    border-radius: 8px;
+    color: #2758ad;
+    font-weight: 800;
+    background: #edf3fe;
+    white-space: nowrap;
+  }
+
+  .ord-customer-name {
+    color: #192e4a;
+    font-weight: 800;
+    font-size: .84rem;
+  }
+
+  .ord-email {
+    display: block;
+    color: #4c6b9c;
+    font-size: .76rem;
+    margin-top: 5px;
+    overflow-wrap: anywhere;
+  }
+
+  .ord-email:hover {
+    text-decoration: underline;
+  }
+
+  .ord-product {
+    color: #233a59;
+    font-weight: 750;
+    font-size: .84rem;
+  }
+
+  .ord-product--deleted {
+    color: #ac3737;
+  }
+
+  .ord-qty {
+    margin-top: 5px;
+    font-size: .74rem;
+    color: #788ba4;
+  }
+
+  .ord-money {
+    font-weight: 800;
+    color: #203b5d;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .ord-date {
+    color: #62758e;
+    font-size: .77rem;
+    white-space: nowrap;
+    line-height: 1.6;
+  }
+
+  .ord-date span {
+    display: block;
+  }
+
+  /* EXPANDABLE CUSTOMER DETAILS */
+
+  .ord-contact-details {
+    margin-top: 9px;
+  }
+
+  .ord-contact-details summary {
+    color: #315eaa;
+    font-size: .74rem;
+    cursor: pointer;
+    font-weight: 750;
+  }
+
+  .ord-contact-details[open] summary {
+    margin-bottom: 9px;
+  }
+
+  .ord-contact-content {
+    background: #f4f8fd;
+    border: 1px solid #dce6f4;
+    padding: 10px 12px;
+    border-radius: 8px;
+    min-width: 180px;
+    max-width: 290px;
+    color: #526984;
+    line-height: 1.55;
+    font-size: .74rem;
+  }
+
+  .ord-contact-content div + div {
+    margin-top: 8px;
+  }
+
+  .ord-contact-content strong {
+    display: block;
+    color: #2c4769;
+    margin-bottom: 2px;
+  }
+
+  .ord-address {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  /* STATUS CONTROLS */
+
+  .ord-status-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .ord-status-form select {
+    width: 128px;
+    min-height: 38px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 800;
+    padding: 7px 26px 7px 11px;
+    cursor: pointer;
+    appearance: auto;
+  }
+
+  .ord-status-form select:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(45, 91, 190, .15);
+  }
+
+  .ord-status-form .ord-status--pending {
+    background: #fff4d6;
+    color: #905700;
+    border-color: #f1dfab;
+  }
+
+  .ord-status-form .ord-status--paid {
+    background: #e4f8eb;
+    color: #116c41;
+    border-color: #c5e9d3;
+  }
+
+  .ord-status-form .ord-status--shipped {
+    background: #e7effd;
+    color: #2855a2;
+    border-color: #cbdcf7;
+  }
+
+  .ord-status-form .ord-status--received {
+    background: #e8f7ff;
+    color: #176e9a;
+    border-color: #cae8f7;
+  }
+
+  /* EMPTY STATE */
+
+  .ord-empty {
+    padding: 52px 20px !important;
+    text-align: center;
+    color: #71829a !important;
+  }
+
+  .ord-empty i {
+    display: block;
+    color: #8ca8d4;
+    font-size: 2.1rem;
+    margin-bottom: 14px;
+  }
+
+  .ord-empty strong {
+    display: block;
+    color: #2c4567;
+    margin-bottom: 6px;
+    font-size: .93rem;
+  }
+
+  /* PAGINATION */
+
+  .ord-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 17px 23px;
+    border-top: 1px solid #e4ebf4;
+    background: #f9fbff;
+  }
+
+  .ord-pagination p {
+    color: #667b96;
+    font-size: .76rem;
+  }
+
+  .ord-pages {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    align-items: center;
+  }
+
+  .ord-pages a,
+  .ord-pages span {
+    min-width: 36px;
+    min-height: 36px;
+    border: 1px solid #d5deec;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    background: #fff;
+    color: #35577e;
+    font-size: .78rem;
+    font-weight: 800;
+  }
+
+  .ord-pages a:hover {
+    background: #e9f1ff;
+  }
+
+  .ord-pages .ord-page-current {
+    background: #2d5bbe;
+    color: #fff;
+    border-color: #2d5bbe;
+  }
+
+  .ord-pages .ord-page-disabled {
+    color: #9daec1;
+    background: #f3f5f9;
+  }
+
+  .ord-footer {
+    color: #dce7f7;
+    font-size: .76rem;
+    padding: 17px 3px 0;
+    line-height: 1.55;
+  }
+
+  .ord-footer i {
+    color: #fbbf24;
+    margin-right: 6px;
+  }
+
+  /* REPORT EXPORT DIALOG */
+
+  .ord-page .ord-dialog {
+    border: 0;
+    padding: 0;
+    width: min(480px, calc(100% - 28px));
+    max-height: calc(100dvh - 36px);
+    margin: auto;
+    border-radius: 15px;
+    background: #fff;
+    color: #213650;
+    box-shadow: 0 22px 70px rgba(4, 16, 37, .38);
+    overflow: auto;
+  }
+
+  .ord-page .ord-dialog::backdrop {
+    background: rgba(6, 15, 32, .70);
+    backdrop-filter: blur(3px);
+  }
+
+  .ord-dialog-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 22px 24px;
+    border-bottom: 1px solid #e5ebf4;
+  }
+
+  .ord-dialog-header h2 {
+    font-family: 'Poppins', 'Inter', sans-serif;
+    font-size: 1.15rem;
+    color: #142943;
+    margin: 0 0 5px;
+  }
+
+  .ord-dialog-header p {
+    color: #64748b;
+    font-size: .78rem;
+    line-height: 1.55;
+  }
+
+  .ord-dialog-close {
+    flex: 0 0 33px;
+    width: 33px;
+    height: 33px;
+    display: grid;
+    place-items: center;
+    border: 1px solid #dce5f1;
+    border-radius: 8px;
+    background: #f4f7fc;
+    color: #63748b;
+    cursor: pointer;
+  }
+
+  .ord-dialog-close:hover {
+    background: #e8effa;
+  }
+
+  .ord-export-body {
+    padding: 22px 24px;
+    display: grid;
+    gap: 16px;
+  }
+
+  .ord-field label {
+    display: block;
+    font-size: .79rem;
+    color: #2c425e;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+
+  .ord-field :is(input, select) {
+    width: 100%;
+    min-height: 43px;
+    padding: 9px 11px;
+    border: 1px solid #cbd8e9;
+    border-radius: 9px;
+    color: #274160;
+    background: #fff;
+    font-size: .83rem;
+  }
+
+  .ord-field :is(input, select):focus {
+    outline: 0;
+    border-color: #2d5bbe;
+    box-shadow: 0 0 0 3px rgba(45, 91, 190, .13);
+  }
+
+  .ord-date-range {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .ord-export-info {
+    display: flex;
+    gap: 9px;
+    background: #eef4fe;
+    border: 1px solid #d5e3f8;
+    border-radius: 9px;
+    padding: 11px 12px;
+    color: #4a6387;
+    font-size: .76rem;
+    line-height: 1.55;
+  }
+
+  .ord-export-info i {
+    color: #2d5bbe;
+    margin-top: 2px;
+  }
+
+  .ord-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 24px 22px;
+    border-top: 1px solid #e5ebf4;
+  }
+
+  .ord-page .ord-dialog .ord-btn {
+    min-width: 125px;
+  }
+
+  .ord-page .ord-dialog #ord-export-download {
+    color: #fff;
+    background: linear-gradient(135deg, #0b1120, #2d5bbe);
+    border-color: #2d5bbe;
+  }
+
+  .ord-page .ord-dialog #ord-export-download:hover {
+    color: #fff;
+    background: linear-gradient(135deg, #1b3562, #3b82f6);
+  }
+
+  /* RESPONSIVE STYLES */
+
+  @media (max-width: 1160px) {
+    .ord-stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ord-panel-header {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .ord-panel-tools {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .ord-search-label input {
+      width: min(350px, 48vw);
+    }
+  }
+
+  @media (max-width: 700px) {
+    .main-container:has(> .ord-page) {
+      width: calc(100% - 28px);
+      margin-top: 148px;
+    }
+
+    .ord-hero {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .ord-stat {
+      padding: 13px;
+    }
+
+    .ord-stat-icon {
+      width: 36px;
+      height: 36px;
+      flex-basis: 36px;
+    }
+
+    .ord-panel-header {
+      padding: 17px;
+    }
+
+    .ord-helper {
+      padding: 12px 17px;
+    }
+
+    .ord-search {
+      width: 100%;
+    }
+
+    .ord-search-label {
+      flex: 1;
+    }
+
+    .ord-search-label input {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .ord-pagination {
+      padding: 15px 17px;
+    }
+  }
+
+  @media (max-width: 440px) {
+    .ord-stats {
+      gap: 10px;
+    }
+
+    .ord-stat {
+      gap: 8px;
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .ord-stat-value {
+      font-size: 1.18rem;
+    }
+
+    .ord-panel-tools > .ord-btn {
+      width: 100%;
+    }
+
+    .ord-date-range {
+      grid-template-columns: 1fr;
+    }
+
+    .ord-dialog-actions {
+      flex-direction: column-reverse;
+    }
+
+    .ord-page .ord-dialog .ord-btn {
+      width: 100%;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ord-page .ord-btn {
+      transition: none;
+    }
+  }
 </style>
 
-<div class="dashboard-container">
+<section class="ord-page" aria-labelledby="ord-title">
 
-  <!-- Detailed Analytics Grid -->
-  <div class="analytics-grid">
-    <div class="analytic-card">
-      <div class="analytic-icon icon-orders">
-        <i class="fa-solid fa-cart-shopping"></i>
-      </div>
-      <div class="analytic-info">
-        <h4>Total Orders</h4>
-        <div class="value">{{ total_orders_count }}</div>
-        <div class="analytic-subtext" style="color: #ea580c;">{{ pending_orders_count }} Awaiting Payment</div>
-      </div>
-    </div>
-    
-    <div class="analytic-card">
-      <div class="analytic-icon icon-revenue">
-        <i class="fa-solid fa-peso-sign"></i>
-      </div>
-      <div class="analytic-info">
-        <h4>Total Revenue</h4>
-        <div class="value">₱{{ total_revenue|floatformat:2 }}</div>
-        <div class="analytic-subtext" style="color: #16a34a;">{{ total_units_sold }} Total Units Sold</div>
-      </div>
+  <!-- PAGE HEADER -->
+  <header class="ord-hero">
+    <div>
+      <span class="ord-eyebrow">
+        ENVIROPLUS / HARDWARE MANAGEMENT
+      </span>
+      <h1 id="ord-title">Hardware Orders</h1>
+      <p>
+        Monitor purchases, manage fulfillment,
+        and export order reports.
+      </p>
     </div>
 
-    <div class="analytic-card">
-      <div class="analytic-icon icon-trophy">
-        <i class="fa-solid fa-trophy"></i>
-      </div>
-      <div class="analytic-info">
-        <h4>Most Bought Item</h4>
-        <div class="value" style="font-size: 1.1rem;" title="{{ most_bought_name }}">{{ most_bought_name|truncatechars:22 }}</div>
-        <div class="analytic-subtext" style="color: #4f46e5;">{{ most_bought_qty }} units ordered</div>
-      </div>
-    </div>
+    <a
+      class="ord-btn ord-btn--light"
+      href="{% url 'app:hardware_inventory' %}"
+    >
+      <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+      Hardware inventory
+    </a>
+  </header>
 
-    <div class="analytic-card">
-      <div class="analytic-icon icon-clipboard">
-        <i class="fa-solid fa-clipboard-list"></i>
+  <!-- ANALYTICS -->
+  <div class="ord-stats" aria-label="Hardware order overview">
+
+    <article class="ord-stat">
+      <span class="ord-stat-icon">
+        <i class="fa-solid fa-cart-shopping" aria-hidden="true"></i>
+      </span>
+      <div>
+        <span class="ord-stat-label">Total orders</span>
+        <strong class="ord-stat-value">
+          {{ total_orders_count }}
+        </strong>
+        <span class="ord-stat-note">
+          {{ pending_orders_count }} awaiting payment
+        </span>
       </div>
-      <div class="analytic-info">
-        <h4>Hardware Requests</h4>
-        <div class="value">{{ pending_requests_count }}</div>
-        <div class="analytic-subtext" style="color: #ea580c;">Pending Review</div>
+    </article>
+
+    <article class="ord-stat ord-stat--green">
+      <span class="ord-stat-icon">
+        <i class="fa-solid fa-peso-sign" aria-hidden="true"></i>
+      </span>
+      <div>
+        <span class="ord-stat-label">Recorded revenue</span>
+        <strong class="ord-stat-value">
+          ₱{{ total_revenue|floatformat:2 }}
+        </strong>
+        <span class="ord-stat-note">
+          Paid, shipped &amp; received orders
+        </span>
       </div>
-    </div>
+    </article>
+
+    <article class="ord-stat">
+      <span class="ord-stat-icon">
+        <i class="fa-solid fa-trophy" aria-hidden="true"></i>
+      </span>
+      <div>
+        <span class="ord-stat-label">Most ordered model</span>
+        <strong
+          class="ord-stat-value"
+          title="{{ most_bought_name }}"
+        >
+          {{ most_bought_name|truncatechars:24 }}
+        </strong>
+        <span class="ord-stat-note">
+          {{ most_bought_qty }} units ordered overall
+        </span>
+      </div>
+    </article>
+
+    <article class="ord-stat ord-stat--amber">
+      <span class="ord-stat-icon">
+        <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
+      </span>
+      <div>
+        <span class="ord-stat-label">Build requests</span>
+        <strong class="ord-stat-value">
+          {{ pending_requests_count }}
+        </strong>
+        <span class="ord-stat-note">
+          Pending admin review
+        </span>
+      </div>
+    </article>
+
   </div>
 
-  <div class="dashboard-card">
-    <div class="card-header">
-      <h2><i class="fa-solid fa-boxes-packing header-icon"></i> Order Management</h2>
-      <div class="header-actions">
-        <!-- New Single Export Button -->
-        <button type="button" class="action-btn btn-export" onclick="openExportModal()">
-          <i class="fa-solid fa-file-export"></i> Generate Reports
+  <!-- ORDER MANAGEMENT -->
+  <section class="ord-panel" aria-labelledby="ord-manage-heading">
+
+    <div class="ord-panel-header">
+
+      <div class="ord-panel-name">
+        <span class="ord-panel-icon">
+          <i class="fa-solid fa-boxes-packing" aria-hidden="true"></i>
+        </span>
+        <div>
+          <h2 id="ord-manage-heading">Order Management</h2>
+          <p>
+            Review customer orders and update their fulfillment status.
+          </p>
+        </div>
+      </div>
+
+      <div class="ord-panel-tools">
+
+        <button
+          type="button"
+          class="ord-btn ord-btn--primary"
+          id="ord-open-export"
+        >
+          <i class="fa-solid fa-file-export" aria-hidden="true"></i>
+          Generate reports
         </button>
-        
-        <!-- Search Bar -->
-        <form method="GET" action="" class="search-form">
-          <input type="text" name="q" value="{{ search_query }}" placeholder="Search customer name/email..." class="search-input">
-          <button type="submit" class="action-btn btn-search"><i class="fa-solid fa-search"></i></button>
+
+        <form
+          class="ord-search"
+          method="get"
+          action="{% url 'app:hardware_orders' %}"
+          role="search"
+        >
+          <label class="ord-search-label" for="ord-search-input">
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <input
+              id="ord-search-input"
+              type="search"
+              name="q"
+              value="{{ search_query }}"
+              placeholder="Search customer or contact"
+              aria-label="Search customer name, email or phone number"
+            >
+          </label>
+
+          <button
+            class="ord-btn ord-btn--primary"
+            type="submit"
+            aria-label="Search orders"
+          >
+            <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+          </button>
+
           {% if search_query %}
-            <a href="{% url 'app:hardware_orders' %}" class="clear-search" title="Clear search"><i class="fa-solid fa-rotate-left"></i></a>
+            <a
+              class="ord-btn ord-btn--secondary"
+              href="{% url 'app:hardware_orders' %}"
+              title="Clear search"
+              aria-label="Clear search"
+            >
+              <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </a>
           {% endif %}
         </form>
+
       </div>
     </div>
-    
-    <div class="table-responsive">
-      <table class="modern-table">
+
+    <div class="ord-helper">
+      <span>
+        {% if search_query %}
+          Search results for <strong>“{{ search_query }}”</strong> ·
+        {% endif %}
+        <strong>{{ total_orders_count }}</strong>
+        order{{ total_orders_count|pluralize }} found
+      </span>
+      <span>
+        Open “Contact &amp; delivery” for full details.
+        Status changes are saved after confirmation.
+      </span>
+    </div>
+
+    <!-- ORDERS TABLE -->
+    <div class="ord-table-scroll">
+      <table class="ord-table" aria-label="Hardware customer orders">
+
         <thead>
           <tr>
-            <th>Order ID</th>
-            <th>Customer</th>
-            <th>Contact & Address</th>
-            <th>Hardware</th>
-            <th>Total Amount</th>
-            <th>Status</th>
-            <th>Date Ordered</th>
+            <th scope="col">Order</th>
+            <th scope="col">Customer</th>
+            <th scope="col">Hardware</th>
+            <th scope="col">Total</th>
+            <th scope="col">Status</th>
+            <th scope="col">Ordered on</th>
           </tr>
         </thead>
+
         <tbody>
           {% for order in orders %}
-          <tr>
-            <td class="td-id">#{{ order.id }}</td>
-            <td class="td-customer">{{ order.customer_name }}</td>
-            <td>
-              <div class="td-contact">{{ order.customer_email }}</div>
-              <div class="td-contact-sub"><i class="fa-solid fa-phone" style="font-size: 0.75rem; color: #94a3b8;"></i> {{ order.contact_number }}</div>
-              <div class="td-address"><i class="fa-solid fa-location-dot" style="font-size: 0.75rem; color: #94a3b8;"></i> {{ order.shipping_address }}</div>
-            </td>
-            <td>
-              {% if order.product %}
-                {{ order.product.name }} 
-              {% else %}
-                <span style="color: #ef4444; font-weight: 600;">[Hardware Deleted]</span>
-              {% endif %}
-              <br><span class="td-qty">Quantity: {{ order.quantity }}</span>
-            </td>
-            <td class="td-price">₱{{ order.total_price }}</td>
-            <td>
-              <form method="POST" action="{% url 'app:update_order_status' order.id %}">
-                {% csrf_token %}
-                <select name="status" class="status-select 
-                  {% if order.status|lower == 'pending' %}status-pending
-                  {% elif order.status|lower == 'paid' %}status-paid
-                  {% elif order.status|lower == 'shipped' %}status-shipped
-                  {% else %}status-received{% endif %}" 
-                  onchange="this.form.submit()">
-                  <option value="pending" {% if order.status|lower == 'pending' %}selected{% endif %}>Pending</option>
-                  <option value="paid" {% if order.status|lower == 'paid' %}selected{% endif %}>Paid</option>
-                  <option value="shipped" {% if order.status|lower == 'shipped' %}selected{% endif %}>Shipped</option>
-                  <option value="received" {% if order.status|lower == 'received' %}selected{% endif %}>Received</option>
-                </select>
-              </form>
-            </td>
-            <td class="td-date">{{ order.created_at|date:"M d, Y h:i A" }}</td>
-          </tr>
+            <tr>
+
+              <!-- ORDER NUMBER -->
+              <td>
+                <span class="ord-id">#{{ order.id }}</span>
+              </td>
+
+              <!-- CUSTOMER -->
+              <td>
+                <strong class="ord-customer-name">
+                  {{ order.customer_name }}
+                </strong>
+
+                <a
+                  class="ord-email"
+                  href="mailto:{{ order.customer_email }}"
+                >
+                  {{ order.customer_email }}
+                </a>
+
+                <details class="ord-contact-details">
+                  <summary>Contact &amp; delivery</summary>
+
+                  <div class="ord-contact-content">
+                    <div>
+                      <strong>Phone number</strong>
+                      {{ order.contact_number|default:'Not provided' }}
+                    </div>
+
+                    <div>
+                      <strong>Shipping / deployment address</strong>
+                      <span class="ord-address">
+                        {{ order.shipping_address|default:'Not provided' }}
+                      </span>
+                    </div>
+                  </div>
+                </details>
+              </td>
+
+              <!-- HARDWARE -->
+              <td>
+                {% if order.product %}
+                  <span class="ord-product">
+                    {{ order.product.name }}
+                  </span>
+                {% else %}
+                  <span class="ord-product ord-product--deleted">
+                    Deleted hardware model
+                  </span>
+                {% endif %}
+
+                <div class="ord-qty">
+                  {{ order.quantity }}
+                  unit{{ order.quantity|pluralize }}
+                </div>
+              </td>
+
+              <!-- PRICE -->
+              <td>
+                <strong class="ord-money">
+                  ₱{{ order.total_price|floatformat:2 }}
+                </strong>
+              </td>
+
+              <!-- ORDER STATUS -->
+              <td>
+                <form
+                  method="post"
+                  action="{% url 'app:update_order_status' order.id %}"
+                  class="ord-status-form"
+                  data-order-id="{{ order.id }}"
+                >
+                  {% csrf_token %}
+
+                  <label
+                    class="sr-only"
+                    for="ord-status-{{ order.id }}"
+                  >
+                    Status for order #{{ order.id }}
+                  </label>
+
+                  <select
+                    id="ord-status-{{ order.id }}"
+                    name="status"
+                    data-original="{{ order.status }}"
+                    class="{% if order.status == 'pending' %}ord-status--pending{% elif order.status == 'paid' %}ord-status--paid{% elif order.status == 'shipped' %}ord-status--shipped{% else %}ord-status--received{% endif %}"
+                  >
+                    <option
+                      value="pending"
+                      {% if order.status == 'pending' %}selected{% endif %}
+                    >
+                      Pending
+                    </option>
+
+                    <option
+                      value="paid"
+                      {% if order.status == 'paid' %}selected{% endif %}
+                    >
+                      Paid
+                    </option>
+
+                    <option
+                      value="shipped"
+                      {% if order.status == 'shipped' %}selected{% endif %}
+                    >
+                      Shipped
+                    </option>
+
+                    <option
+                      value="received"
+                      {% if order.status == 'received' %}selected{% endif %}
+                    >
+                      Received
+                    </option>
+                  </select>
+                </form>
+              </td>
+
+              <!-- DATE -->
+              <td class="ord-date">
+                <span>
+                  {{ order.created_at|date:'M d, Y' }}
+                </span>
+                <span>
+                  {{ order.created_at|date:'h:i A' }}
+                </span>
+              </td>
+
+            </tr>
           {% empty %}
-          <tr>
-            <td colspan="7" class="empty-state">
-              <i class="fa-solid fa-folder-open empty-icon"></i><br>
-              {% if search_query %}No orders found matching "{{ search_query }}"{% else %}No hardware orders have been placed yet.{% endif %}
-            </td>
-          </tr>
+            <tr>
+              <td colspan="6" class="ord-empty">
+                <i class="fa-solid fa-box-open" aria-hidden="true"></i>
+
+                <strong>No hardware orders found</strong>
+
+                {% if search_query %}
+                  Try another customer name, email, or phone number.
+                {% else %}
+                  Orders will appear here when customers complete a
+                  purchase or admins create them.
+                {% endif %}
+              </td>
+            </tr>
           {% endfor %}
         </tbody>
+
       </table>
     </div>
 
+    <!-- PAGINATION -->
     {% if orders.has_other_pages %}
-    <div class="pagination-container">
-      <div class="pagination-info">
-        Showing page {{ orders.number }} of {{ orders.paginator.num_pages }} (Total: {{ total_orders_count }} orders)
+      <nav class="ord-pagination" aria-label="Orders pagination">
+        <p>
+          Page <strong>{{ orders.number }}</strong>
+          of {{ orders.paginator.num_pages }} ·
+          {{ total_orders_count }} matching
+          order{{ total_orders_count|pluralize }}
+        </p>
+
+        <div class="ord-pages">
+
+          {% if orders.has_previous %}
+            <a
+              href="?page=1{% if search_query %}&amp;q={{ search_query|urlencode }}{% endif %}"
+              aria-label="First page"
+            >
+              <i class="fa-solid fa-angles-left" aria-hidden="true"></i>
+            </a>
+
+            <a
+              href="?page={{ orders.previous_page_number }}{% if search_query %}&amp;q={{ search_query|urlencode }}{% endif %}"
+              aria-label="Previous page"
+            >
+              <i class="fa-solid fa-angle-left" aria-hidden="true"></i>
+            </a>
+          {% else %}
+            <span class="ord-page-disabled" aria-label="First page unavailable">
+              <i class="fa-solid fa-angles-left" aria-hidden="true"></i>
+            </span>
+
+            <span class="ord-page-disabled" aria-label="Previous page unavailable">
+              <i class="fa-solid fa-angle-left" aria-hidden="true"></i>
+            </span>
+          {% endif %}
+
+          <span class="ord-page-current" aria-current="page">
+            {{ orders.number }}
+          </span>
+
+          {% if orders.has_next %}
+            <a
+              href="?page={{ orders.next_page_number }}{% if search_query %}&amp;q={{ search_query|urlencode }}{% endif %}"
+              aria-label="Next page"
+            >
+              <i class="fa-solid fa-angle-right" aria-hidden="true"></i>
+            </a>
+
+            <a
+              href="?page={{ orders.paginator.num_pages }}{% if search_query %}&amp;q={{ search_query|urlencode }}{% endif %}"
+              aria-label="Last page"
+            >
+              <i class="fa-solid fa-angles-right" aria-hidden="true"></i>
+            </a>
+          {% else %}
+            <span class="ord-page-disabled" aria-label="Next page unavailable">
+              <i class="fa-solid fa-angle-right" aria-hidden="true"></i>
+            </span>
+
+            <span class="ord-page-disabled" aria-label="Last page unavailable">
+              <i class="fa-solid fa-angles-right" aria-hidden="true"></i>
+            </span>
+          {% endif %}
+
+        </div>
+      </nav>
+    {% else %}
+      <div class="ord-pagination">
+        <p>
+          {{ total_orders_count }} matching
+          order{{ total_orders_count|pluralize }} ·
+          Page {{ orders.number }}
+        </p>
       </div>
-      <div class="pagination-links">
-        {% if orders.has_previous %}
-          <a href="?page=1{% if search_query %}&q={{ search_query }}{% endif %}" class="page-link"><i class="fa-solid fa-angles-left"></i></a>
-          <a href="?page={{ orders.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}" class="page-link"><i class="fa-solid fa-angle-left"></i></a>
-        {% endif %}
-        <span class="page-link active">{{ orders.number }}</span>
-        {% if orders.has_next %}
-          <a href="?page={{ orders.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}" class="page-link"><i class="fa-solid fa-angle-right"></i></a>
-          <a href="?page={{ orders.paginator.num_pages }}{% if search_query %}&q={{ search_query }}{% endif %}" class="page-link"><i class="fa-solid fa-angles-right"></i></a>
-        {% endif %}
-      </div>
-    </div>
     {% endif %}
 
-  </div>
-</div>
+  </section>
 
-<!-- Export Modal Overlay -->
-<div class="export-modal-overlay" id="exportModal">
-  <div class="export-modal-content">
-    <h3><i class="fa-solid fa-file-export" style="color: #10b981; margin-right: 8px;"></i> Export Order Reports</h3>
-    <form method="GET" action="">
+  <p class="ord-footer">
+    <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+    Orders marked Paid, Shipped, or Received are included in the
+    recorded revenue total. Confirm payment separately before
+    manually changing financial statuses.
+  </p>
+
+  <!-- EXPORT DIALOG -->
+  <dialog
+    class="ord-dialog"
+    id="ord-export-dialog"
+    aria-labelledby="ord-export-title"
+  >
+
+    <div class="ord-dialog-header">
+      <div>
+        <h2 id="ord-export-title">
+          <i
+            class="fa-solid fa-file-export"
+            aria-hidden="true"
+            style="color:#2d5bbe;margin-right:7px"
+          ></i>
+          Generate Order Report
+        </h2>
+
+        <p>
+          Choose the status, date range, and file format for your report.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="ord-dialog-close"
+        id="ord-close-export"
+        aria-label="Close report dialog"
+      >
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <form
+      id="ord-export-form"
+      method="get"
+      action="{% url 'app:hardware_orders' %}"
+    >
       {% if search_query %}
         <input type="hidden" name="q" value="{{ search_query }}">
       {% endif %}
-      
-      <div class="form-group">
-        <label>Filter By Status</label>
-        <select name="export_status" class="search-input" style="width: 100%; box-sizing: border-box;">
-          <option value="all">All Orders</option>
-          <option value="pending">Pending</option>
-          <option value="paid">Paid</option>
-          <option value="shipped">Shipped</option>
-          <option value="received">Received</option>
-        </select>
-      </div>
 
-      <div class="form-group" style="display: flex; gap: 15px;">
-        <div style="flex: 1;">
-          <label>Start Date</label>
-          <input type="date" name="export_start_date" class="search-input" style="width: 100%; box-sizing: border-box;">
+      <div class="ord-export-body">
+
+        <!-- STATUS FILTER -->
+        <div class="ord-field">
+          <label for="ord-export-status">Order status</label>
+
+          <select
+            name="export_status"
+            id="ord-export-status"
+          >
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="paid">Paid</option>
+            <option value="shipped">Shipped</option>
+            <option value="received">Received</option>
+          </select>
         </div>
-        <div style="flex: 1;">
-          <label>End Date</label>
-          <input type="date" name="export_end_date" class="search-input" style="width: 100%; box-sizing: border-box;">
+
+        <!-- DATE FILTERS -->
+        <div class="ord-date-range">
+
+          <div class="ord-field">
+            <label for="ord-start-date">From date</label>
+
+            <input
+              type="date"
+              id="ord-start-date"
+              name="export_start_date"
+            >
+          </div>
+
+          <div class="ord-field">
+            <label for="ord-end-date">To date</label>
+
+            <input
+              type="date"
+              id="ord-end-date"
+              name="export_end_date"
+            >
+          </div>
+
         </div>
+
+        <!-- FILE FORMAT -->
+        <div class="ord-field">
+          <label for="ord-export-format">File format</label>
+
+          <select
+            name="export_format"
+            id="ord-export-format"
+            required
+          >
+            <option value="excel">Excel workbook (.xlsx)</option>
+            <option value="csv">CSV file (.csv)</option>
+          </select>
+        </div>
+
+        <div class="ord-export-info">
+          <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+          <span>
+            The export covers all matching orders across pages,
+            not only the current five.
+
+            {% if search_query %}
+              Your customer search will also be applied.
+            {% endif %}
+          </span>
+        </div>
+
       </div>
 
-      <div class="form-group">
-        <label>Export Format</label>
-        <select name="export_format" class="search-input" style="width: 100%; box-sizing: border-box;" required>
-          <option value="excel">Excel Spreadsheet (.xlsx)</option>
-          <option value="csv">CSV File (.csv)</option>
-        </select>
-      </div>
+      <div class="ord-dialog-actions">
 
-      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 30px;">
-        <button type="button" class="action-btn" style="background: #e2e8f0; color: #334155;" onclick="closeExportModal()">Cancel</button>
-        <button type="submit" class="action-btn btn-export" onclick="closeExportModal()">Download Report</button>
+        <button
+          class="ord-btn ord-btn--secondary"
+          type="button"
+          id="ord-cancel-export"
+        >
+          Cancel
+        </button>
+
+        <button
+          class="ord-btn ord-btn--primary"
+          type="submit"
+          id="ord-export-download"
+        >
+          <i class="fa-solid fa-download" aria-hidden="true"></i>
+          Download report
+        </button>
+
       </div>
     </form>
-  </div>
-</div>
+  </dialog>
+
+</section>
 
 <script>
-  function openExportModal() {
-    document.getElementById('exportModal').style.display = 'flex';
-  }
+(() => {
+  'use strict';
 
-  function closeExportModal() {
-    document.getElementById('exportModal').style.display = 'none';
-  }
+  // ORDER STATUS MANAGEMENT
 
-  // Close modal if clicking outside the white box
-  window.onclick = function(event) {
-    const modal = document.getElementById('exportModal');
-    if (event.target == modal) {
-      closeExportModal();
+  const labels = {
+    pending: 'Pending',
+    paid: 'Paid',
+    shipped: 'Shipped',
+    received: 'Received'
+  };
+
+  const classes = [
+    'ord-status--pending',
+    'ord-status--paid',
+    'ord-status--shipped',
+    'ord-status--received'
+  ];
+
+  document.querySelectorAll('.ord-status-form').forEach(form => {
+    const select = form.querySelector('select[name="status"]');
+
+    if (!select) return;
+
+    select.addEventListener('change', () => {
+      const previous = select.dataset.original;
+      const next = select.value;
+
+      if (next === previous) return;
+
+      const warning = next === 'paid'
+        ? '\n\nOnly mark an order Paid after verifying its payment.'
+        : '';
+
+      const confirmed = window.confirm(
+        `Change order #${form.dataset.orderId} from ${labels[previous] || previous} to ${labels[next] || next}?${warning}`
+      );
+
+      if (!confirmed) {
+        select.value = previous;
+        return;
+      }
+
+      select.classList.remove(...classes);
+      select.classList.add(`ord-status--${next}`);
+
+      // Submit through the existing Django endpoint.
+      form.submit();
+    });
+  });
+
+  // REPORT EXPORT DIALOG
+
+  const dialog = document.getElementById('ord-export-dialog');
+
+  const openButton = document.getElementById('ord-open-export');
+  const closeButton = document.getElementById('ord-close-export');
+  const cancelButton = document.getElementById('ord-cancel-export');
+
+  const exportForm = document.getElementById('ord-export-form');
+  const startDate = document.getElementById('ord-start-date');
+  const endDate = document.getElementById('ord-end-date');
+
+  function openDialog() {
+    if (typeof dialog.showModal === 'function') {
+      dialog.showModal();
     }
   }
+
+  function closeDialog() {
+    if (dialog.open) {
+      dialog.close();
+    }
+  }
+
+  openButton.addEventListener('click', openDialog);
+  closeButton.addEventListener('click', closeDialog);
+  cancelButton.addEventListener('click', closeDialog);
+
+  // Allow clicking outside the dialog to close it.
+  dialog.addEventListener('click', event => {
+    if (event.target === dialog) {
+      closeDialog();
+    }
+  });
+
+  // VALIDATE REPORT DATES
+
+  exportForm.addEventListener('submit', event => {
+    endDate.setCustomValidity('');
+
+    if (
+      startDate.value &&
+      endDate.value &&
+      startDate.value > endDate.value
+    ) {
+      event.preventDefault();
+
+      endDate.setCustomValidity(
+        'End date must be on or after the start date.'
+      );
+
+      endDate.reportValidity();
+    }
+  });
+
+  endDate.addEventListener('input', () => {
+    endDate.setCustomValidity('');
+  });
+
+  startDate.addEventListener('input', () => {
+    endDate.setCustomValidity('');
+  });
+
+})();
 </script>
 {% endblock %}

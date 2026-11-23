@@ -1,271 +1,181 @@
-{% load static %}
+
+{% load static l10n %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Checkout - EnviroPlus</title>
-  <link rel="icon" type="image/png" href="{% static 'AppEnviroNode/images/logo.png' %}">
-  
-  <!-- Core CSS -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>U-Node Checkout - EnviroPlus</title>
+  <link rel="icon" href="{% static 'AppEnviroNode/images/logo.png' %}" type="image/png">
   <link rel="stylesheet" href="{% static 'AppEnviroNode/css/Style.css' %}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  
-  <!-- Leaflet Map CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-  
-  <style>
-    body { background-color: #f8fafc; font-family: inherit; margin: 0; padding: 0; }
-    .checkout-container { max-width: 1000px; margin: 100px auto 60px; padding: 0 20px; }
-    .checkout-header { text-align: center; margin-bottom: 30px; }
-    .checkout-header h1 { font-size: 2.2rem; color: #edf2ff; margin: 0 0 10px; font-weight: 700; }
-    .checkout-subtitle { color: #e6f0fd; margin: 0; }
-    
-    .checkout-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 30px; align-items: start; }
-    .checkout-card { background: white; border-radius: 12px; box-shadow: 0 20px 60px rgba(11, 17, 32, 0.08); padding: 35px; border: 2px solid rgba(45, 91, 190, 0.1); }
-    .checkout-card h3 { margin-top: 0; margin-bottom: 20px; color: #0B1120; }
-    .summary-card { background: #f8fafc; border: 2px solid #e2e8f0; position: sticky; top: 100px; }
-
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .form-group { margin-bottom: 20px; }
-    .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #0B1120; font-size: 0.95rem; }
-    .form-group input, .form-group textarea { width: 100%; padding: 12px 15px; border: 2px solid #e0e7ff; border-radius: 6px; font-size: 0.95rem; font-family: inherit; box-sizing: border-box; transition: all 0.3s ease; }
-    .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #2d5bbe; box-shadow: 0 0 0 4px rgba(45, 91, 190, 0.15); }
-    .form-group textarea { resize: vertical; min-height: 80px; }
-
-    /* Map Styling */
-    #address-map { height: 250px; width: 100%; border-radius: 8px; border: 2px solid #e0e7ff; margin-bottom: 12px; z-index: 1; }
-    .map-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    .map-hint { font-size: 0.85rem; color: #64748b; margin: 0; }
-    .locate-btn { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; font-weight: 600; }
-    .locate-btn:hover { background: #e2e8f0; color: #0f172a; }
-
-    .summary-item { display: flex; justify-content: space-between; margin-bottom: 12px; color: #1e293b; font-size: 1rem; }
-    .stock-backorder { color: #ea580c; font-weight: 600; }
-    .quantity-group { margin-top: 25px; }
-    .summary-item.total { border-top: 2px dashed #cbd5e1; padding-top: 15px; margin-top: 15px; font-weight: 700; font-size: 1.3rem; color: #2d5bbe; margin-bottom: 25px; }
-
-    .submit-btn { width: 100%; padding: 14px; background: #2d5bbe; color: white; border: none; border-radius: 6px; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: flex; justify-content: center; align-items: center; gap: 10px; }
-    .submit-btn:hover { background: #1f3f89; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(45, 91, 190, 0.3); }
-
-    .back-link { display: block; text-align: center; margin-top: 20px; color: #546a86; text-decoration: none; font-size: 0.95rem; transition: color 0.2s ease; }
-    .back-link:hover { color: #2d5bbe; text-decoration: underline; }
-
-    @media (max-width: 768px) {
-      .checkout-grid { grid-template-columns: 1fr; }
-      .form-row { grid-template-columns: 1fr; gap: 0; }
-      .checkout-card { padding: 25px; }
-    }
-  </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="{% static 'AppEnviroNode/css/shop.css' %}">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
+  <script src="{% static 'AppEnviroNode/js/shop-checkout.js' %}" defer></script>
 </head>
-<body>
-
+<body class="ep-shop ep-checkout">
   {% include 'AppEnviroNode/main/navbar.html' %}
 
-  <div class="checkout-container">
-    <div class="checkout-header">
-      <h1>Secure Checkout</h1>
-      <p class="checkout-subtitle">Complete your sample order configuration</p>
-    </div>
+  <main class="ep-shop-main" id="main-content">
+    <nav class="ep-breadcrumb" aria-label="Breadcrumb">
+      <a href="{% url 'app:shop' %}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> U-Nodes</a>
+      <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+      <span aria-current="page">Checkout</span>
+    </nav>
 
-    <form method="POST" action="">
+    <header class="ep-page-heading ep-checkout-heading">
+      <div class="ep-heading-icon"><i class="fa-solid fa-bag-shopping" aria-hidden="true"></i></div>
+      <div>
+        <span class="ep-eyebrow">SECURE HARDWARE CHECKOUT</span>
+        <h1>Complete your order</h1>
+        <p>Review your U-Node selection and enter your delivery or installation information.</p>
+      </div>
+    </header>
+
+    {% if messages %}
+      <div class="ep-messages" role="alert">
+        {% for message in messages %}
+          <div class="ep-message {% if 'error' in message.tags %}ep-message--error{% endif %}">
+            <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+            <span>{{ message }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <form id="ep-checkout-form" method="post" action="">
       {% csrf_token %}
-      
-      <!-- Hidden fields to pass lat/lng to Django if needed later -->
       <input type="hidden" id="latitude" name="latitude" value="">
       <input type="hidden" id="longitude" name="longitude" value="">
 
-      <div class="checkout-grid">
-        <div class="checkout-card">
-          <h3>Shipping Details</h3>
-          
-          <div class="form-row">
-            <div class="form-group">
-              <label for="customer_name">Full Name</label>
-              <input type="text" id="customer_name" name="customer_name" placeholder="Juan Dela Cruz" required>
+      <div class="ep-checkout-grid">
+        <div class="ep-checkout-left">
+          <section class="ep-panel ep-checkout-panel" aria-labelledby="contact-heading">
+            <div class="ep-form-section-heading">
+              <span class="ep-step">01</span>
+              <div>
+                <h2 id="contact-heading">Contact details</h2>
+                <p>Enter the information for your order and payment receipt.</p>
+              </div>
             </div>
-            <div class="form-group">
-              <label for="contact_number">Contact Number</label>
-              <input type="text" id="contact_number" name="contact_number" placeholder="0917 123 4567" required>
+            <div class="ep-form-section-body">
+              <div class="ep-form-grid">
+                <div class="ep-field">
+                  <label for="customer_name">Full name <span>*</span></label>
+                  <input id="customer_name" type="text" name="customer_name" autocomplete="name" placeholder="Juan Dela Cruz" maxlength="150" required>
+                </div>
+                <div class="ep-field">
+                  <label for="contact_number">Contact number <span>*</span></label>
+                  <input id="contact_number" type="tel" name="contact_number" autocomplete="tel" placeholder="0917 123 4567" maxlength="32" required>
+                </div>
+                <div class="ep-field ep-field--full">
+                  <label for="customer_email">Email address <span>*</span></label>
+                  <input id="customer_email" type="email" name="customer_email" autocomplete="email" placeholder="name@example.com" maxlength="254" required>
+                  <p class="ep-field-hint">Use an email address you can access for payment updates.</p>
+                </div>
+              </div>
             </div>
-          </div>
+          </section>
 
-          <div class="form-group">
-            <label for="customer_email">Email Address</label>
-            <input type="email" id="customer_email" name="customer_email" placeholder="name@company.com" required>
-          </div>
-
-          <!-- MAP SECTION -->
-          <div class="form-group" style="margin-top: 30px;">
-            <div class="map-controls">
-              <label style="margin: 0;">Installation / Shipping Address</label>
-              <button type="button" class="locate-btn" onclick="locateUser()">
-                <i class="fa-solid fa-location-crosshairs"></i> Find My Location
-              </button>
+          <section class="ep-panel ep-checkout-panel" aria-labelledby="address-heading">
+            <div class="ep-form-section-heading">
+              <span class="ep-step">02</span>
+              <div>
+                <h2 id="address-heading">Installation / shipping address</h2>
+                <p>Choose the deployment site or enter the complete address manually.</p>
+              </div>
             </div>
-            <p class="map-hint">Drag the pin to your deployment location to auto-fill the address.</p>
-            
-            <div id="address-map"></div>
-            
-            <textarea id="shipping_address" name="shipping_address" placeholder="Or manually enter the complete address where the nodes will be deployed..." required autocomplete="off"></textarea>
-          </div>
+            <div class="ep-form-section-body">
+              <div class="ep-location-row">
+                <div>
+                  <strong>Deployment location</strong>
+                  <p>Click anywhere on the map or drag the pin.</p>
+                </div>
+                <button type="button" class="ep-action ep-action--secondary ep-action--small" id="ep-locate-btn">
+                  <i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i> Find my location
+                </button>
+              </div>
+              <div class="ep-map-frame">
+                <div id="address-map" aria-label="Deployment location map"></div>
+              </div>
+              <p id="ep-map-status" class="ep-map-status" role="status" aria-live="polite">
+                <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                <span>Map selection is optional. You can type your address below.</span>
+              </p>
+              <div class="ep-field ep-address-field">
+                <label for="shipping_address">Complete address <span>*</span></label>
+                <textarea id="shipping_address" name="shipping_address" rows="3" autocomplete="street-address" placeholder="House / unit no., street, barangay, city, province, and postal code" required></textarea>
+                <p class="ep-field-hint">If you use the map, verify the generated address and add any missing details.</p>
+              </div>
+            </div>
+          </section>
         </div>
 
-        <div class="checkout-card summary-card">
-          <h3>Order Summary</h3>
-          
-          <div class="summary-item">
-            <span>Hardware:</span>
-            <span><strong>{{ product.name }}</strong></span>
+        <aside class="ep-panel ep-order-card" aria-labelledby="order-heading">
+          <div class="ep-order-header">
+            <span class="ep-eyebrow">YOUR ORDER</span>
+            <h2 id="order-heading">Order summary</h2>
           </div>
-          <div class="summary-item">
-            <span>Price:</span>
-            <span>₱<span id="unit-price">{{ product.price }}</span></span>
-          </div>
-          <div class="summary-item">
-            <span>Stock:</span>
+          <div class="ep-order-body">
+            <div class="ep-order-product">
+              <div class="ep-order-thumbnail">
+                {% if product.image %}
+                  <img src="{{ product.image.url }}" alt="{{ product.name }}">
+                {% else %}
+                  <i class="fa-solid fa-microchip" aria-hidden="true"></i>
+                {% endif %}
+              </div>
+              <div>
+                <span class="ep-eyebrow">U-NODE HARDWARE</span>
+                <h3>{{ product.name }}</h3>
+                <p>₱{{ product.price|floatformat:2 }} per unit</p>
+              </div>
+            </div>
+
             {% if product.stock > 0 %}
-              <span>{{ product.stock }} units</span>
+              <div class="ep-availability ep-availability--yes"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> {{ product.stock }} unit{{ product.stock|pluralize }} in stock</div>
             {% else %}
-              <span class="stock-backorder">Backorder</span>
+              <div class="ep-availability ep-availability--no"><i class="fa-solid fa-circle-xmark" aria-hidden="true"></i> Out of stock</div>
             {% endif %}
-          </div>
 
-          <div class="form-group quantity-group">
-            <label for="quantity">Deployment Quantity</label>
-            <input 
-              type="number" id="quantity" name="quantity" value="1" min="1" 
-              {% if product.stock > 0 %}max="{{ product.stock }}"{% endif %} 
-              required oninput="updateTotal()"
-            >
-          </div>
+            {% if product.stock > 0 %}
+              <div class="ep-quantity-row">
+                <div>
+                  <label for="quantity">Quantity</label>
+                  <p>Units to deploy</p>
+                </div>
+                <div class="ep-quantity-control">
+                  <button type="button" id="ep-qty-minus" aria-label="Decrease quantity"><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
+                  <input id="quantity" type="number" name="quantity" min="1" max="{{ product.stock }}" value="1" step="1" inputmode="numeric" data-price="{{ product.price|unlocalize }}" required>
+                  <button type="button" id="ep-qty-plus" aria-label="Increase quantity"><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
+                </div>
+              </div>
+            {% else %}
+              <p class="ep-stock-unavailable">This item cannot be checked out until stock is available.</p>
+            {% endif %}
 
-          <div class="summary-item total">
-            <span>Estimated Total:</span>
-            <span>₱<span id="total-price">{{ product.price }}</span></span>
-          </div>
-          
-          <button type="submit" class="submit-btn">
-            <i class="fa-solid fa-lock"></i> Proceed to GCash / PayMongo
-          </button>
+            <div class="ep-order-pricing">
+              <div><span>Unit price</span><strong>₱{{ product.price|floatformat:2 }}</strong></div>
+              {% if product.stock > 0 %}<div><span>Quantity</span><strong id="ep-qty-label">1</strong></div>{% endif %}
+              <div class="ep-order-total"><span>Estimated total</span><strong id="ep-order-total">₱{{ product.price|floatformat:2 }}</strong></div>
+            </div>
 
-          <a href="{% url 'app:shop' %}" class="back-link">
-            <i class="fa-solid fa-arrow-left"></i> Return to Store
-          </a>
-        </div>
+            {% if product.stock > 0 %}
+              <button class="ep-action ep-action--primary ep-action--wide ep-pay-button" type="submit" id="ep-submit">
+                <i class="fa-solid fa-lock" aria-hidden="true"></i> Continue to payment
+                <i class="fa-solid fa-arrow-right ep-end-icon" aria-hidden="true"></i>
+              </button>
+            {% else %}
+              <a class="ep-action ep-action--secondary ep-action--wide" href="{% url 'app:request_build' product.id %}">Request hardware build</a>
+            {% endif %}
+
+            <p class="ep-payment-note"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Payment is processed on the PayMongo checkout page.</p>
+          </div>
+          <div class="ep-order-footer"><a href="{% url 'app:shop' %}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Return to U-Nodes</a></div>
+        </aside>
       </div>
     </form>
-  </div>
-
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  
-  <script>
-    // --- Total Calculation Logic ---
-    function updateTotal() {
-      const unitPrice = parseFloat(document.getElementById('unit-price').innerText);
-      const quantityInput = document.getElementById('quantity');
-      let quantity = parseInt(quantityInput.value);
-      
-      if (isNaN(quantity) || quantity < 1) { quantity = 1; }
-      
-      const maxAttr = quantityInput.getAttribute('max');
-      if (maxAttr) {
-        const maxStock = parseInt(maxAttr);
-        if (quantity > maxStock) {
-          quantity = maxStock;
-          quantityInput.value = maxStock; 
-        }
-      }
-
-      const total = (unitPrice * quantity).toFixed(2);
-      document.getElementById('total-price').innerText = total;
-    }
-
-    // --- Leaflet Map Logic ---
-    // Default center set to Metro Manila (Taguig area)
-    let defaultLat = 14.5322;
-    let defaultLng = 121.0493;
-
-    const map = L.map('address-map').setView([defaultLat, defaultLng], 14);
-
-    // FIXED: Switched to Esri World Street Map (No API key needed, no localhost blocks)
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19,
-      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
-    }).addTo(map);
-
-    // Create a draggable marker
-    const marker = L.marker([defaultLat, defaultLng], {draggable: true}).addTo(map);
-
-    // Function to convert coordinates to a street address using OpenStreetMap Nominatim API
-    function getAddressFromCoords(lat, lng) {
-      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&email=admin@enviroplus.com`;
-      
-      // Update hidden coordinates inputs
-      document.getElementById('latitude').value = lat;
-      document.getElementById('longitude').value = lng;
-      
-      document.getElementById('shipping_address').placeholder = "Fetching address...";
-
-      fetch(url, {
-        headers: { "Accept-Language": "en-US,en;q=0.9" }
-      })
-        .then(response => response.json())
-        .then(data => {
-          if (data && data.display_name) {
-            document.getElementById('shipping_address').value = data.display_name;
-          } else {
-            document.getElementById('shipping_address').placeholder = "Could not identify address. Please enter manually.";
-          }
-        })
-        .catch(error => {
-          console.error('Error fetching address:', error);
-          document.getElementById('shipping_address').placeholder = "Address lookup failed. Please enter manually.";
-        });
-    }
-
-    // Update address when the user stops dragging the pin
-    marker.on('dragend', function(event) {
-      const position = marker.getLatLng();
-      getAddressFromCoords(position.lat, position.lng);
-    });
-
-    // Update address when user clicks anywhere on the map
-    map.on('click', function(event) {
-      const lat = event.latlng.lat;
-      const lng = event.latlng.lng;
-      marker.setLatLng([lat, lng]);
-      getAddressFromCoords(lat, lng);
-    });
-
-    // "Find My Location" button logic
-    function locateUser() {
-      if (navigator.geolocation) {
-        document.getElementById('shipping_address').placeholder = "Locating you...";
-        navigator.geolocation.getCurrentPosition(
-          function(position) {
-            const userLat = position.coords.latitude;
-            const userLng = position.coords.longitude;
-            
-            // Move map and marker
-            map.setView([userLat, userLng], 16);
-            marker.setLatLng([userLat, userLng]);
-            
-            // Get the address
-            getAddressFromCoords(userLat, userLng);
-          },
-          function(error) {
-            alert("Geolocation access denied or unavailable. Please drop the pin manually.");
-            document.getElementById('shipping_address').placeholder = "Enter the complete address...";
-          },
-          { enableHighAccuracy: true }
-        );
-      } else {
-        alert("Your browser does not support Geolocation.");
-      }
-    }
-  </script>
-
+  </main>
 </body>
 </html>

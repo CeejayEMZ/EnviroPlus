@@ -1,174 +1,141 @@
+
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Deploy U-Node - EnviroPlus</title>
-  <link rel="icon" type="image/png" href="{% static 'AppEnviroNode/images/logo.png' %}">
-  
+  <link rel="icon" href="{% static 'AppEnviroNode/images/logo.png' %}" type="image/png">
   <link rel="stylesheet" href="{% static 'AppEnviroNode/css/Style.css' %}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  
-  <style>
-    body { background-color: #f8fafc; font-family: inherit; margin: 0; padding: 0; }
-    .node-container { max-width: 1200px; margin: 120px auto 60px; padding: 0 20px; }
-    
-    .deployment-header { text-align: center; margin-bottom: 40px; }
-    .deployment-header h2 { font-size: 2.5rem; color: #ffffff; margin-bottom: 10px; } 
-    .deployment-header p { color: #e7f1ff; font-size: 1.1rem; font-weight: 600; } 
-
-    .unode-explainer { background: #ffffff; border-radius: 12px; padding: 30px; margin-bottom: 50px; border: 1px solid #e2e8f0; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05); }
-    .unode-explainer h3 { margin-top: 0; color: #0f172a; text-align: center; font-size: 1.4rem; margin-bottom: 25px; }
-
-    .explainer-grid { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
-    .explainer-item { background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #e0e7ff; flex: 1; min-width: 250px; }
-    .explainer-item i { font-size: 1.5rem; color: #2d5bbe; margin-bottom: 12px; }
-    .explainer-item h4 { margin: 0 0 8px; color: #0f172a; font-size: 1.05rem; }
-    .explainer-item p { margin: 0; color: #64748b; font-size: 0.9rem; line-height: 1.5; }
-
-    .product-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 40px; margin-bottom: 60px; }
-    .product-card { width: 100%; max-width: 400px; background: white; border-radius: 12px; box-shadow: 0 15px 35px rgba(11, 17, 32, 0.08); border: 2px solid rgba(45, 91, 190, 0.1); display: flex; flex-direction: column; position: relative; }
-    .product-image-container { height: 250px; background: #eef2ff; border-bottom: 1px solid #e0e7ff; display: flex; align-items: center; justify-content: center; padding: 20px; border-radius: 10px 10px 0 0; position: relative; }
-    .product-image-container .main-img { max-width: 100%; max-height: 100%; object-fit: contain; cursor: zoom-in; transition: transform 0.3s ease; }
-    .product-image-container:hover .main-img { transform: scale(1.05); }
-
-    .img-hover-popup { position: absolute; top: 50%; left: 100%; width: 280px; background: white; padding: 10px; border-radius: 12px; box-shadow: 0 15px 40px rgba(0,0,0,0.25); border: 1px solid #e2e8f0; z-index: 1000; opacity: 0; visibility: hidden; pointer-events: none; transform: translate(-10px, -50%) scale(0.95); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-    .img-hover-popup img { width: 100%; height: auto; border-radius: 8px; display: block; object-fit: contain; }
-    .product-image-container:hover .img-hover-popup { opacity: 1; visibility: visible; transform: translate(20px, -50%) scale(1); }
-
-    .product-info { padding: 30px; display: flex; flex-direction: column; flex-grow: 1; }
-    .product-title { font-size: 1.4rem; font-weight: 700; color: #0B1120; margin: 0 0 12px 0; }
-    .product-desc { color: #546a86; font-size: 0.95rem; margin-bottom: 20px; }
-    .product-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-top: 15px; border-top: 1px solid #e0e7ff; flex-wrap: wrap; gap: 10px; }
-    .product-price { font-size: 1.6rem; font-weight: 700; color: #2d5bbe; }
-    .stock-badge { font-size: 0.9rem; font-weight: 600; white-space: nowrap; }
-    
-    .buy-btn { width: 100%; padding: 14px; background: #2d5bbe; color: white; border: none; border-radius: 8px; font-size: 1.05rem; font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.3s ease; }
-    .buy-btn:hover { background: #1f3f89; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(45, 91, 190, 0.3); }
-
-    .request-btn { width: 100%; padding: 14px; background: #ea580c; color: white; border: none; border-radius: 8px; font-size: 1.05rem; font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.3s ease; }
-    .request-btn:hover { background: #c2410c; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(234, 88, 12, 0.3); }
-
-    .empty-catalog { padding: 40px; text-align: center; max-width: 600px; margin: 0 auto; }
-    .empty-catalog i { font-size: 3rem; color: #cbd5e1; margin-bottom: 15px; }
-    .empty-catalog h3 { color: #0f172a; margin-top: 0; }
-    .empty-catalog p { color: #64748b; margin: 0 auto 20px; }
-
-    .info-banner { background: #ffffff; border-radius: 12px; padding: 30px; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 20px; box-shadow: 0 10px 30px rgba(11, 17, 32, 0.03); border: 1px solid #e2e8f0; text-align: center; }
-    .info-item { max-width: 250px; }
-    .info-item i { font-size: 2rem; color: #94a3b8; margin-bottom: 10px; }
-    .info-item h4 { margin: 0 0 5px; color: #0f172a; }
-    .info-item p { margin: 0; font-size: 0.9rem; color: #64748b; }
-
-    @media (max-width: 900px) {
-      .img-hover-popup { left: 50%; top: 100%; transform: translate(-50%, -10px) scale(0.95); }
-      .product-image-container:hover .img-hover-popup { transform: translate(-50%, 15px) scale(1); }
-    }
-  </style>
+  <link rel="stylesheet" href="{% static 'AppEnviroNode/css/shop.css' %}">
 </head>
-<body>
-  
-  {% include 'AppEnviroNode/main/navbar.html' %} 
+<body class="ep-shop ep-store">
+  {% include 'AppEnviroNode/main/navbar.html' %}
 
-  <div class="node-container">
-    
-    <div class="deployment-header">
-      <h2>Deploy a U-Node</h2>
-      <p>Interested in expanding the network? Order a sample node below.</p>
-    </div>
-
-    <div class="unode-explainer">
-      <h3>What is inside a U-Node?</h3>
-      <div class="explainer-grid">
-        <div class="explainer-item">
-          <i class="fa-solid fa-microchip"></i>
-          <h4>ESP8266 Microcontroller</h4>
-          <p>Provides robust processing power and low-cost Wi-Fi connectivity to transmit real-time data.</p>
-        </div>
-        <div class="explainer-item">
-          <i class="fa-solid fa-wind"></i>
-          <h4>PMS5003 Sensor</h4>
-          <p>Precisely tracks fine particulate matter (PM2.5 and PM10) for immediate air quality assessment.</p>
-        </div>
-        <div class="explainer-item">
-          <i class="fa-solid fa-temperature-half"></i>
-          <h4>SGP40 & BME280</h4>
-          <p>Measures Volatile Organic Compounds (VOCs), ambient temperature, humidity, and barometric pressure.</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="product-grid">
-      {% for product in products %}
-      <div class="product-card">
-        <div class="product-image-container">
-          {% if product.image %}
-            <img src="{{ product.image.url }}" alt="{{ product.name }}" class="main-img">
-            <div class="img-hover-popup">
-              <img src="{{ product.image.url }}" alt="Full Preview of {{ product.name }}">
-            </div>
-          {% else %}
-            <i class="fa-solid fa-microchip" style="font-size: 4rem; color: #a5b4fc;"></i>
-          {% endif %}
-        </div>
-
-        <div class="product-info">
-          <h3 class="product-title">{{ product.name }}</h3>
-          <p class="product-desc">{{ product.description }}</p>
-          
-          <div class="product-meta">
-            <span class="product-price">₱{{ product.price }}</span>
-            {% if product.stock > 0 %}
-              <span class="stock-badge" style="color: #16a34a;"><i class="fa-solid fa-check"></i> {{ product.stock }} Available</span>
-            {% else %}
-              <span class="stock-badge" style="color: #ef4444;"><i class="fa-solid fa-times"></i> Out of Stock</span>
-            {% endif %}
+  <main class="ep-shop-main" id="main-content">
+    {% if messages %}
+      <div class="ep-messages" role="status" aria-live="polite">
+        {% for message in messages %}
+          <div class="ep-message {% if 'error' in message.tags %}ep-message--error{% endif %}">
+            <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+            <span>{{ message }}</span>
           </div>
-          
-          {% if product.stock > 0 %}
-            <a href="{% url 'app:checkout' product.id %}" class="buy-btn">
-              <i class="fa-solid fa-cart-shopping"></i> Purchase Hardware
-            </a>
-          {% else %}
-            <!-- This is the updated Request Build button pointing to the new page -->
-            <a href="{% url 'app:request_build' product.id %}" class="request-btn">
-              <i class="fa-solid fa-clipboard-list"></i> Request Hardware Build
-            </a>
-          {% endif %}
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <header class="ep-page-heading">
+      <div class="ep-heading-icon"><i class="fa-solid fa-microchip" aria-hidden="true"></i></div>
+      <div>
+        <span class="ep-eyebrow">ENVIROPLUS HARDWARE</span>
+        <h1>Deploy a U-Node</h1>
+        <p>Expand your monitoring network with EnviroPlus air-quality hardware.</p>
+      </div>
+    </header>
+
+    <section class="ep-panel ep-intro" aria-labelledby="intro-heading">
+      <div class="ep-panel-heading">
+        <div>
+          <span class="ep-eyebrow">HARDWARE OVERVIEW</span>
+          <h2 id="intro-heading">What is inside a U-Node?</h2>
+          <p>Core components used to collect and transmit environmental readings.</p>
         </div>
       </div>
-      
-      {% empty %}
-      <div class="product-card empty-catalog">
-        <i class="fa-solid fa-microchip"></i>
-        <h3>No Nodes Currently Available</h3>
-        <p>Our inventory is currently empty. Please contact us directly for custom build requests.</p>
-        <a href="mailto:admin@enviroplus.com" class="request-btn">
-          <i class="fa-solid fa-envelope"></i> Email Us to Request
-        </a>
+      <div class="ep-spec-grid">
+        <article class="ep-spec">
+          <div class="ep-spec-icon"><i class="fa-solid fa-microchip" aria-hidden="true"></i></div>
+          <h3>ESP8266 Microcontroller</h3>
+          <p>Provides Wi-Fi connectivity and onboard processing for transmitting readings.</p>
+        </article>
+        <article class="ep-spec">
+          <div class="ep-spec-icon"><i class="fa-solid fa-wind" aria-hidden="true"></i></div>
+          <h3>PMS5003 Sensor</h3>
+          <p>Monitors airborne particulate matter, including PM2.5 and PM10.</p>
+        </article>
+        <article class="ep-spec">
+          <div class="ep-spec-icon"><i class="fa-solid fa-temperature-half" aria-hidden="true"></i></div>
+          <h3>SGP40 &amp; BME280</h3>
+          <p>Supports VOC-related sensing, temperature, humidity, and pressure measurements.</p>
+        </article>
       </div>
-      {% endfor %}
-    </div>
+    </section>
 
-    <div class="info-banner">
-      <div class="info-item">
-        <i class="fa-solid fa-truck-fast"></i>
-        <h4>Priority Deployment</h4>
-        <p>Orders are processed and prepared for deployment within 48 hours.</p>
+    <section class="ep-catalog" aria-labelledby="catalog-heading">
+      <div class="ep-section-title">
+        <div>
+          <span class="ep-eyebrow">AVAILABLE HARDWARE</span>
+          <h2 id="catalog-heading">Choose your U-Node</h2>
+          <p>Select a product to provide deployment details and continue to checkout.</p>
+        </div>
+        <span class="ep-list-count"><i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i> {{ products|length }} product{{ products|length|pluralize }}</span>
       </div>
-      <div class="info-item">
-        <i class="fa-solid fa-shield-halved"></i>
-        <h4>Hardware Warranty</h4>
-        <p>Includes a 1-year replacement guarantee on all core sensor components.</p>
-      </div>
-      <div class="info-item">
-        <i class="fa-solid fa-headset"></i>
-        <h4>Technical Support</h4>
-        <p>Full onboarding and network integration assistance provided.</p>
-      </div>
-    </div>
-  </div>
 
+      <div class="ep-products">
+        {% for product in products %}
+          <article class="ep-product ep-panel">
+            <div class="ep-product-visual">
+              <span class="ep-image-kicker">U-NODE HARDWARE</span>
+              {% if product.image %}
+                <img src="{{ product.image.url }}" alt="{{ product.name }}" loading="lazy">
+              {% else %}
+                <div class="ep-no-image">
+                  <i class="fa-solid fa-microchip" aria-hidden="true"></i>
+                  <span>Product image unavailable</span>
+                </div>
+              {% endif %}
+            </div>
+            <div class="ep-product-content">
+              <div class="ep-product-topline">
+                <span class="ep-eyebrow">AIR-QUALITY MONITORING</span>
+                {% if product.stock > 0 %}
+                  <span class="ep-stock ep-stock--yes"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> In stock</span>
+                {% else %}
+                  <span class="ep-stock ep-stock--no"><i class="fa-solid fa-circle-xmark" aria-hidden="true"></i> Out of stock</span>
+                {% endif %}
+              </div>
+              <h3>{{ product.name }}</h3>
+              <p class="ep-product-description">{{ product.description|default:'EnviroPlus environmental monitoring hardware.' }}</p>
+              <div class="ep-price-block">
+                <div>
+                  <span class="ep-field-caption">Price per unit</span>
+                  <strong class="ep-price">₱{{ product.price|floatformat:2 }}</strong>
+                </div>
+                <span class="ep-stock-detail">
+                  <i class="fa-solid fa-box" aria-hidden="true"></i>
+                  {{ product.stock }} unit{{ product.stock|pluralize }} available
+                </span>
+              </div>
+              {% if product.stock > 0 %}
+                <a class="ep-action ep-action--primary ep-action--wide" href="{% url 'app:checkout' product.id %}">
+                  <i class="fa-solid fa-cart-shopping" aria-hidden="true"></i>
+                  Purchase hardware
+                  <i class="fa-solid fa-arrow-right ep-end-icon" aria-hidden="true"></i>
+                </a>
+              {% else %}
+                <a class="ep-action ep-action--secondary ep-action--wide" href="{% url 'app:request_build' product.id %}">
+                  <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
+                  Request hardware build
+                  <i class="fa-solid fa-arrow-right ep-end-icon" aria-hidden="true"></i>
+                </a>
+              {% endif %}
+            </div>
+          </article>
+        {% empty %}
+          <div class="ep-empty ep-panel">
+            <i class="fa-solid fa-box-open" aria-hidden="true"></i>
+            <h3>No U-Nodes listed</h3>
+            <p>There are no active products in the hardware catalog right now.</p>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <div class="ep-page-bottom">
+      <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+      <span>Order details and payment are confirmed during checkout.</span>
+    </div>
+  </main>
 </body>
 </html>

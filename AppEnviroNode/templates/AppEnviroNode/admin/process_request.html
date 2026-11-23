@@ -1,76 +1,1543 @@
+
 {% extends 'AppEnviroNode/Index.html' %}
-{% load static %}
+{% load static l10n %}
+
+{% block title %}Process Hardware Request | EnviroPlus{% endblock %}
 
 {% block content %}
 <style>
-  /* Increased max-width to 850px to accommodate a wider layout */
-  .process-container { max-width: 850px; margin: 60px auto; padding: 0 20px; font-family: inherit; }
-  .process-card { background: white; border-radius: 14px; padding: 40px; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.1); border: 1px solid #e2e8f0; }
-  .process-card h2 { margin-top: 0; color: #0f172a; font-size: 1.6rem; }
-  .process-card p { color: #64748b; font-size: 0.95rem; margin-bottom: 30px; }
-  
-  /* Added CSS Grid to place inputs side-by-side */
-  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-  
-  .form-group { margin-bottom: 20px; }
-  .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #334155; font-size: 0.9rem; }
-  .form-input { width: 100%; padding: 14px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 1rem; box-sizing: border-box; font-family: inherit; }
-  
-  .locked-input { background-color: #f1f5f9; color: #475569; border-color: #e2e8f0; pointer-events: none; }
-  
-  .btn-submit { width: 100%; padding: 15px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 1.05rem; font-weight: 600; cursor: pointer; margin-top: 10px; transition: background 0.2s; }
-  .btn-submit:hover { background: #1d4ed8; }
-  .btn-cancel { display: block; text-align: center; margin-top: 20px; color: #64748b; text-decoration: none; font-weight: 600; }
-  .btn-cancel:hover { color: #0f172a; }
+  /* EnviroPlus Process Request
+     Preserves existing navbar, animated background and theme. */
 
-  /* Ensure it stacks vertically on small mobile screens */
-  @media (max-width: 768px) {
-    .form-row { grid-template-columns: 1fr; gap: 0; }
+  .main-container:has(> .pr-page) {
+    width: min(1240px, calc(100% - 48px));
+    max-width: none;
+    display: block;
+    margin: 148px auto 0;
+    padding: 0;
+  }
+
+  .pr-page {
+    --pr-blue: var(--cyber-blue, #2d5bbe);
+    --pr-navy: var(--deep-navy, #0b1120);
+    --pr-amber: var(--warning-amber, #f59e0b);
+    --pr-line: #e2eaf4;
+    --pr-muted: #60728b;
+    --pr-card: var(--card-bg, rgba(255, 255, 255, .97));
+    font-family: 'Inter', sans-serif;
+    color: #203653;
+    padding-bottom: 42px;
+    min-width: 0;
+  }
+
+  .pr-page *,
+  .pr-page *::before,
+  .pr-page *::after {
+    box-sizing: border-box;
+  }
+
+  .pr-page :is(button, input, select) {
+    font: inherit;
+  }
+
+  .pr-page :is(a, button, input, select, summary):focus-visible {
+    outline: 3px solid #fbbf24;
+    outline-offset: 3px;
+  }
+
+  .pr-page a {
+    text-decoration: none;
+  }
+
+  /* Breadcrumb */
+
+  .pr-breadcrumb {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 19px;
+    color: #d3e0f3;
+    font-size: .78rem;
+    font-weight: 650;
+  }
+
+  .pr-breadcrumb a {
+    color: #f8fbff;
+  }
+
+  .pr-breadcrumb a:hover {
+    color: #fbbf24;
+  }
+
+  .pr-breadcrumb i {
+    font-size: .65rem;
+    color: #a9c0de;
+  }
+
+  /* Page header */
+
+  .pr-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 22px;
+    margin-bottom: 23px;
+  }
+
+  .pr-header-main {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+  }
+
+  .pr-header-icon {
+    width: 55px;
+    height: 55px;
+    flex: 0 0 55px;
+    display: grid;
+    place-items: center;
+    border-radius: 13px;
+    background: linear-gradient(135deg, #0b1120, #2d5bbe);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, .22);
+    box-shadow: 0 6px 21px rgba(5, 15, 35, .22);
+    font-size: 1.3rem;
+  }
+
+  .pr-eyebrow {
+    font-size: .7rem;
+    letter-spacing: .12em;
+    font-weight: 800;
+    color: var(--pr-blue);
+  }
+
+  .pr-header .pr-eyebrow {
+    color: #fbbf24;
+  }
+
+  .pr-header h1 {
+    font-family: 'Poppins', 'Inter', sans-serif;
+    color: #fff;
+    font-size: clamp(1.45rem, 2.6vw, 2rem);
+    line-height: 1.25;
+    margin: 4px 0 5px;
+  }
+
+  .pr-header p {
+    color: #e3ebf7;
+    font-size: .88rem;
+    line-height: 1.6;
+    max-width: 680px;
+  }
+
+  .pr-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 13px;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 800;
+    white-space: nowrap;
+    background: #fff2d9;
+    border: 1px solid #f1cd8b;
+    color: #9d610c;
+  }
+
+  .pr-status--done {
+    background: #e5f7ec;
+    border-color: #b6e4c7;
+    color: #137448;
+  }
+
+  /* Request statistics */
+
+  .pr-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 13px;
+    margin-bottom: 21px;
+  }
+
+  .pr-fact {
+    display: flex;
+    gap: 11px;
+    align-items: center;
+    padding: 14px 17px;
+    background: rgba(11, 17, 32, .83);
+    border: 1px solid rgba(255, 255, 255, .18);
+    border-radius: 11px;
+    backdrop-filter: blur(9px);
+  }
+
+  .pr-fact i {
+    color: #9cc1ff;
+    width: 22px;
+    text-align: center;
+    font-size: 1rem;
+  }
+
+  .pr-fact span {
+    display: block;
+    color: #bfcee3;
+    font-size: .72rem;
+    margin-bottom: 3px;
+  }
+
+  .pr-fact strong {
+    display: block;
+    color: #fff;
+    font-size: .84rem;
+    font-weight: 750;
+    overflow-wrap: anywhere;
+  }
+
+  /* Main layout */
+
+  .pr-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(315px, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+
+  .pr-left {
+    display: grid;
+    gap: 19px;
+    min-width: 0;
+  }
+
+  .pr-card {
+    min-width: 0;
+    background: var(--pr-card);
+    border: 1px solid var(--pr-line);
+    border-radius: 13px;
+    box-shadow: 0 8px 28px rgba(11, 17, 32, .14);
+    overflow: hidden;
+  }
+
+  .pr-card-header {
+    padding: 19px 22px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #f8faff;
+    border-bottom: 1px solid var(--pr-line);
+  }
+
+  .pr-section-icon {
+    width: 39px;
+    height: 39px;
+    flex: 0 0 39px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    color: var(--pr-blue);
+    background: #e8effd;
+    font-size: .95rem;
+  }
+
+  .pr-section-icon--amber {
+    color: #a3680c;
+    background: #fff1d8;
+  }
+
+  .pr-card-header h2 {
+    font-family: 'Poppins', 'Inter', sans-serif;
+    font-size: 1rem;
+    line-height: 1.3;
+    color: #14243d;
+    margin: 0;
+  }
+
+  .pr-card-header p {
+    font-size: .76rem;
+    margin-top: 4px;
+    line-height: 1.5;
+    color: var(--pr-muted);
+  }
+
+  .pr-card-body {
+    padding: 21px 22px 23px;
+  }
+
+  /* Customer details */
+
+  .pr-info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 15px;
+  }
+
+  .pr-info-label {
+    color: #526784;
+    font-size: .75rem;
+    font-weight: 750;
+    margin-bottom: 7px;
+    display: block;
+  }
+
+  .pr-readonly {
+    display: flex;
+    align-items: center;
+    min-height: 45px;
+    width: 100%;
+    border: 1px solid #dce5f1;
+    background: #f3f6fa;
+    border-radius: 8px;
+    padding: 11px 12px;
+    color: #2c405f;
+    font-weight: 650;
+    font-size: .84rem;
+    overflow-wrap: anywhere;
+  }
+
+  .pr-readonly a {
+    color: #2b59a8;
+    overflow-wrap: anywhere;
+  }
+
+  .pr-readonly a:hover {
+    text-decoration: underline;
+  }
+
+  .pr-info-note {
+    font-size: .75rem;
+    color: #77879c;
+    margin-top: 12px;
+    line-height: 1.5;
+  }
+
+  /* Deployment details */
+
+  .pr-detail-block + .pr-detail-block {
+    border-top: 1px solid #e9edf5;
+    margin-top: 18px;
+    padding-top: 18px;
+  }
+
+  .pr-detail-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #283e5a;
+    font-size: .82rem;
+    font-weight: 800;
+    margin-bottom: 9px;
+  }
+
+  .pr-detail-heading i {
+    color: var(--pr-blue);
+  }
+
+  .pr-detail-text {
+    font-size: .84rem;
+    color: #425976;
+    background: #f7f9fd;
+    border: 1px solid #e3eaf4;
+    border-radius: 9px;
+    padding: 12px 14px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.65;
+    min-height: 45px;
+  }
+
+  .pr-original-notes {
+    margin-top: 17px;
+    font-size: .75rem;
+  }
+
+  .pr-original-notes summary {
+    font-weight: 750;
+    color: #2d5bbe;
+    cursor: pointer;
+  }
+
+  .pr-original-content {
+    color: #63748b;
+    background: #f8faff;
+    padding: 12px;
+    border-radius: 8px;
+    margin-top: 8px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.65;
+  }
+
+  /* Product selection */
+
+  .pr-select-label {
+    display: block;
+    margin-bottom: 8px;
+    color: #283e5a;
+    font-size: .83rem;
+    font-weight: 800;
+  }
+
+  .pr-select-wrap {
+    position: relative;
+  }
+
+  .pr-select-wrap select {
+    width: 100%;
+    min-height: 48px;
+    background: #fff;
+    border: 1px solid #cbd8eb;
+    border-radius: 9px;
+    padding: 12px 35px 12px 13px;
+    color: #1d3555;
+    font-size: .88rem;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
+  .pr-select-wrap select:focus {
+    border-color: var(--pr-blue);
+    outline: 0;
+    box-shadow: 0 0 0 3px rgba(45, 91, 190, .13);
+  }
+
+  .pr-product-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: .76rem;
+    color: #657790;
+    line-height: 1.6;
+    margin-top: 11px;
+  }
+
+  .pr-product-hint i {
+    color: #3767b2;
+    margin-top: 3px;
+  }
+
+  .pr-match-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #e6f0fd;
+    color: #2854a4;
+    border-radius: 999px;
+    font-size: .7rem;
+    font-weight: 800;
+    padding: 6px 9px;
+    margin-bottom: 12px;
+  }
+
+  /* Order summary */
+
+  .pr-summary {
+    position: sticky;
+    top: 142px;
+  }
+
+  .pr-summary .pr-card-header {
+    background: #f8faff;
+  }
+
+  .pr-product-preview {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 19px;
+    border-bottom: 1px solid #e9eef5;
+  }
+
+  .pr-product-art {
+    flex: 0 0 56px;
+    height: 56px;
+    border-radius: 11px;
+    display: grid;
+    place-items: center;
+    background: #e9f0fe;
+    color: #2d5bbe;
+    font-size: 1.35rem;
+  }
+
+  .pr-product-preview span {
+    display: block;
+    font-size: .68rem;
+    letter-spacing: .09em;
+    font-weight: 800;
+    color: #5877a7;
+  }
+
+  .pr-product-preview strong {
+    display: block;
+    color: #132943;
+    font-size: .96rem;
+    margin-top: 4px;
+    overflow-wrap: anywhere;
+  }
+
+  .pr-summary-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+    padding-top: 15px;
+    font-size: .84rem;
+  }
+
+  .pr-summary-row span {
+    color: #63748b;
+  }
+
+  .pr-summary-row strong {
+    color: #263e5c;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .pr-summary-total {
+    border-top: 1px dashed #c6d4e7;
+    margin-top: 18px;
+    padding: 20px 0 19px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .pr-summary-total span {
+    font-size: .86rem;
+    font-weight: 800;
+    color: #18304e;
+  }
+
+  .pr-summary-total strong {
+    font-size: 1.6rem;
+    line-height: 1.2;
+    font-weight: 800;
+    color: var(--pr-blue);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pr-stock-status {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 11px 12px;
+    background: #ecf8f0;
+    color: #176e43;
+    border-radius: 9px;
+    font-size: .76rem;
+    line-height: 1.5;
+  }
+
+  .pr-stock-status--low {
+    background: #fff5df;
+    color: #9b5e0c;
+  }
+
+  .pr-stock-status--empty {
+    background: #eff3f9;
+    color: #61738a;
+  }
+
+  .pr-stock-status i {
+    margin-top: 2px;
+  }
+
+  /* Workflow information */
+
+  .pr-workflow {
+    margin-top: 18px;
+    padding: 14px;
+    background: #f5f8fe;
+    border: 1px solid #dde7f6;
+    border-radius: 10px;
+  }
+
+  .pr-workflow strong {
+    color: #273d5c;
+    font-size: .78rem;
+    display: block;
+    margin-bottom: 12px;
+  }
+
+  .pr-workflow-step {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: .76rem;
+    color: #526783;
+    line-height: 1.4;
+  }
+
+  .pr-workflow-step + .pr-workflow-step {
+    margin-top: 10px;
+  }
+
+  .pr-workflow-step i {
+    color: #2d5bbe;
+    width: 15px;
+    text-align: center;
+  }
+
+  /* Main page buttons */
+
+  .pr-page .pr-action {
+    min-height: 46px;
+    border: 0;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 11px 15px;
+    font-size: .84rem;
+    font-weight: 800;
+    cursor: pointer;
+    text-align: center;
+  }
+
+  .pr-page .pr-action--primary {
+    background: linear-gradient(
+      135deg,
+      var(--pr-navy),
+      var(--pr-blue)
+    );
+    color: #fff;
+    width: 100%;
+    margin-top: 19px;
+  }
+
+  .pr-page .pr-action--primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #20365e, #3b82f6);
+    box-shadow: 0 5px 17px rgba(45, 91, 190, .2);
+  }
+
+  .pr-page .pr-action--primary:disabled {
+    background: #94a3b8;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  .pr-page .pr-action--secondary {
+    background: #eef3fb;
+    color: #2d5594;
+    border: 1px solid #cfdbeb;
+  }
+
+  .pr-page .pr-action--secondary:hover {
+    background: #e3ecfa;
+  }
+
+  .pr-payment-note {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    justify-content: center;
+    color: #6f8098;
+    font-size: .73rem;
+    line-height: 1.6;
+    margin-top: 13px;
+    text-align: center;
+  }
+
+  .pr-payment-note i {
+    color: #148251;
+    margin-top: 3px;
+  }
+
+  .pr-summary-footer {
+    text-align: center;
+    padding: 15px 19px;
+    background: #f8faff;
+    border-top: 1px solid #e4eaf3;
+  }
+
+  .pr-summary-footer a {
+    color: #456594;
+    font-weight: 750;
+    font-size: .8rem;
+  }
+
+  .pr-summary-footer a:hover {
+    color: #2d5bbe;
+    text-decoration: underline;
+  }
+
+  /* Confirmation dialog */
+
+  .pr-dialog {
+    border: 0;
+    border-radius: 15px;
+    background: #fff;
+    color: #203653;
+    padding: 0;
+    width: min(450px, calc(100% - 32px));
+    max-height: calc(100vh - 32px);
+    margin: auto;
+    box-shadow: 0 20px 65px rgba(4, 16, 37, .34);
+  }
+
+  .pr-dialog::backdrop {
+    background: rgba(6, 15, 32, .68);
+    backdrop-filter: blur(3px);
+  }
+
+  .pr-dialog-head {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 23px 24px 15px;
+  }
+
+  .pr-dialog-icon {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    border-radius: 11px;
+    display: grid;
+    place-items: center;
+    background: #e7effd;
+    color: #2d5bbe;
+    font-size: 1.2rem;
+  }
+
+  .pr-dialog h2 {
+    font-family: 'Poppins', 'Inter', sans-serif;
+    font-size: 1.1rem;
+    line-height: 1.3;
+    color: #14243d;
+  }
+
+  .pr-dialog-body {
+    padding: 0 24px 20px;
+  }
+
+  .pr-dialog-body > p {
+    color: #64748b;
+    font-size: .82rem;
+    line-height: 1.65;
+  }
+
+  .pr-confirm-data {
+    display: grid;
+    gap: 10px;
+    background: #f6f9fd;
+    border-radius: 10px;
+    border: 1px solid #e0e9f4;
+    padding: 14px;
+    margin-top: 17px;
+  }
+
+  .pr-confirm-data div {
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    font-size: .81rem;
+  }
+
+  .pr-confirm-data span {
+    color: #63748b;
+  }
+
+  .pr-confirm-data strong {
+    color: #1b3351;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  .pr-dialog-actions {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 10px;
+    padding: 16px 24px 24px;
+    border-top: 1px solid #ebeff5;
+  }
+
+  /*
+    CONFIRM BUTTON VISIBILITY FIX
+
+    The dialog is outside .pr-page.
+    Styles defined with .pr-page .pr-action do not apply inside it.
+
+    These explicit selectors give the modal its own button styling
+    for normal, hover, focus and disabled states.
+  */
+
+  #pr-confirm-dialog .pr-dialog-actions .pr-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    width: 100%;
+    min-height: 43px;
+    margin-top: 0;
+    padding: 11px 14px;
+    border-radius: 9px;
+    font-family: 'Inter', sans-serif;
+    font-size: .84rem;
+    font-weight: 800;
+    line-height: 1.25;
+    cursor: pointer;
+    opacity: 1;
+    visibility: visible;
+    transition: background .15s ease, box-shadow .15s ease;
+  }
+
+  /* Cancel button */
+
+  #pr-confirm-dialog #pr-cancel-confirm {
+    background: #eef3fb;
+    border: 1px solid #cfdbeb;
+    color: #2d5594;
+  }
+
+  #pr-confirm-dialog #pr-cancel-confirm:hover {
+    background: #e3ecfa;
+    color: #20497f;
+  }
+
+  /* Primary confirm button — always visible */
+
+  #pr-confirm-dialog #pr-approve-confirm {
+    background: linear-gradient(135deg, #0b1120, #2d5bbe);
+    border: 1px solid #2d5bbe;
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(45, 91, 190, .18);
+  }
+
+  #pr-confirm-dialog #pr-approve-confirm:hover:not(:disabled) {
+    background: linear-gradient(135deg, #20365e, #3b82f6);
+    border-color: #3b82f6;
+    color: #ffffff;
+    box-shadow: 0 6px 17px rgba(45, 91, 190, .28);
+  }
+
+  #pr-confirm-dialog .pr-action:focus-visible {
+    outline: 3px solid #fbbf24;
+    outline-offset: 3px;
+  }
+
+  #pr-confirm-dialog #pr-approve-confirm:disabled {
+    background: #94a3b8;
+    border-color: #94a3b8;
+    color: #ffffff;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  /* Responsive */
+
+  @media (max-width: 1000px) {
+    .pr-grid {
+      grid-template-columns: minmax(0, 1.3fr) minmax(290px, 1fr);
+      gap: 15px;
+    }
+
+    .pr-summary .pr-card-body,
+    .pr-card-body {
+      padding: 19px;
+    }
+  }
+
+  @media (max-width: 850px) {
+    .main-container:has(> .pr-page) {
+      margin-top: 178px;
+    }
+
+    .pr-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .pr-summary {
+      position: static;
+    }
+  }
+
+  @media (max-width: 620px) {
+    .main-container:has(> .pr-page) {
+      width: calc(100% - 28px);
+      margin-top: 220px;
+    }
+
+    .pr-header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .pr-header-icon {
+      width: 46px;
+      height: 46px;
+      flex-basis: 46px;
+    }
+
+    .pr-facts {
+      grid-template-columns: 1fr;
+      gap: 9px;
+    }
+
+    .pr-info-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .pr-card-header {
+      padding: 16px;
+    }
+
+    .pr-card-body,
+    .pr-summary .pr-card-body {
+      padding: 17px;
+    }
+
+    .pr-dialog-actions {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pr-page :is(button, a, select),
+    .pr-dialog .pr-action {
+      transition: none;
+    }
   }
 </style>
 
-<div class="process-container">
-  <div class="process-card">
-    <h2><i class="fa-solid fa-clipboard-check" style="color: #2563eb;"></i> Process Requested Order</h2>
-    <p>Convert <strong>{{ req.customer_name }}'s</strong> request into a tracked inventory order. An automated payment link will be sent to their email.</p>
-    
-    <form method="POST" action="">
-      {% csrf_token %}
-      
-      <!-- First Row: Name and Email -->
-      <div class="form-row">
-        <div class="form-group">
-          <label>Client / Organization Name</label>
-          <input type="text" value="{{ req.customer_name }}" class="form-input locked-input" readonly>
-        </div>
+<section class="pr-page" aria-labelledby="pr-title">
 
-        <div class="form-group">
-          <label>Contact Email</label>
-          <input type="text" value="{{ req.customer_email }}" class="form-input locked-input" readonly>
-        </div>
+  <nav class="pr-breadcrumb" aria-label="Breadcrumb">
+    <a href="{% url 'app:hardware_inventory' %}">
+      <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+      Hardware
+    </a>
+    <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+    <span aria-current="page">Review build request</span>
+  </nav>
+
+  <header class="pr-header">
+    <div class="pr-header-main">
+      <span class="pr-header-icon">
+        <i class="fa-solid fa-clipboard-check" aria-hidden="true"></i>
+      </span>
+
+      <div>
+        <span class="pr-eyebrow">ENVIROPLUS / HARDWARE MANAGEMENT</span>
+        <h1 id="pr-title">Process Hardware Request</h1>
+        <p>
+          Verify the customer's request, confirm the hardware model,
+          and create an order for payment.
+        </p>
       </div>
+    </div>
 
-      <!-- Second Row: Quantity and Hardware -->
-      <div class="form-row">
-        <div class="form-group">
-          <label>Requested Quantity</label>
-          <input type="number" name="quantity" value="{{ parsed_qty }}" class="form-input locked-input" readonly>
-        </div>
+    {% if req.is_processed %}
+      <span class="pr-status pr-status--done">
+        <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+        Already processed
+      </span>
+    {% else %}
+      <span class="pr-status">
+        <i class="fa-solid fa-clock" aria-hidden="true"></i>
+        Awaiting review
+      </span>
+    {% endif %}
+  </header>
 
-        <div class="form-group">
-          <label>Hardware Variant</label>
-          <select name="product_id" class="form-input {% if detected_product_id %}locked-input{% endif %}" {% if detected_product_id %}readonly tabindex="-1"{% endif %} required>
-            <option value="" disabled {% if not detected_product_id %}selected{% endif %}>Select hardware configuration...</option>
-            {% for product in products %}
-              <option value="{{ product.id }}" {% if product.id == detected_product_id %}selected{% endif %}>{{ product.name }} (₱{{ product.price }})</option>
-            {% endfor %}
-          </select>
-        </div>
+  <div class="pr-facts" aria-label="Request information">
+    <div class="pr-fact">
+      <i class="fa-solid fa-hashtag" aria-hidden="true"></i>
+      <div>
+        <span>Request reference</span>
+        <strong>#{{ req.id }}</strong>
       </div>
-      
-      <button type="submit" class="btn-submit">Create Order & Email Client</button>
-      <a href="{% url 'app:hardware_inventory' %}" class="btn-cancel">Cancel and Return</a>
-    </form>
+    </div>
+
+    <div class="pr-fact">
+      <i class="fa-regular fa-calendar" aria-hidden="true"></i>
+      <div>
+        <span>Submitted on</span>
+        <strong>{{ req.created_at|date:'M d, Y · h:i A' }}</strong>
+      </div>
+    </div>
+
+    <div class="pr-fact">
+      <i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i>
+      <div>
+        <span>Requested units</span>
+        <strong>{{ parsed_qty }} unit{{ parsed_qty|pluralize }}</strong>
+      </div>
+    </div>
   </div>
-</div>
+
+  <form method="post" id="pr-form" action="">
+    {% csrf_token %}
+
+    <input
+      type="hidden"
+      name="quantity"
+      id="pr-quantity"
+      value="{{ parsed_qty }}"
+    >
+
+    <div class="pr-grid">
+
+      <div class="pr-left">
+
+        <!-- Customer information -->
+        <section class="pr-card" aria-labelledby="pr-customer-heading">
+          <div class="pr-card-header">
+            <span class="pr-section-icon">
+              <i class="fa-solid fa-user" aria-hidden="true"></i>
+            </span>
+            <div>
+              <h2 id="pr-customer-heading">Customer Information</h2>
+              <p>Original details from the submitted build request</p>
+            </div>
+          </div>
+
+          <div class="pr-card-body">
+            <div class="pr-info-grid">
+              <div>
+                <span class="pr-info-label">Client / Organization</span>
+                <div class="pr-readonly" id="pr-customer-name">
+                  {{ req.customer_name }}
+                </div>
+              </div>
+
+              <div>
+                <span class="pr-info-label">Contact email</span>
+                <div class="pr-readonly">
+                  <a
+                    id="pr-customer-email"
+                    href="mailto:{{ req.customer_email }}"
+                  >
+                    {{ req.customer_email }}
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <p class="pr-info-note">
+              <i class="fa-solid fa-lock" aria-hidden="true"></i>
+              Customer information is taken from the original request
+              and cannot be changed here.
+            </p>
+          </div>
+        </section>
+
+        <!-- Deployment details -->
+        <section class="pr-card" aria-labelledby="pr-details-heading">
+          <div class="pr-card-header">
+            <span class="pr-section-icon">
+              <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+            </span>
+            <div>
+              <h2 id="pr-details-heading">
+                Deployment &amp; Request Details
+              </h2>
+              <p>
+                Review the customer's installation address
+                and special requirements
+              </p>
+            </div>
+          </div>
+
+          <div class="pr-card-body">
+            <div class="pr-detail-block">
+              <div class="pr-detail-heading">
+                <i
+                  class="fa-solid fa-map-location-dot"
+                  aria-hidden="true"
+                ></i>
+                Installation / Shipping Address
+              </div>
+              <div class="pr-detail-text" id="pr-address">
+                Refer to the original request notes below.
+              </div>
+            </div>
+
+            <div class="pr-detail-block">
+              <div class="pr-detail-heading">
+                <i class="fa-solid fa-file-lines" aria-hidden="true"></i>
+                Additional Notes
+              </div>
+              <div class="pr-detail-text" id="pr-extra-notes">
+                Refer to the original request notes below.
+              </div>
+            </div>
+
+            <details class="pr-original-notes">
+              <summary>View original request information</summary>
+              <div class="pr-original-content">
+                {{ req.notes|default:'No request notes provided.' }}
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <!-- Hardware selection -->
+        <section class="pr-card" aria-labelledby="pr-hardware-heading">
+          <div class="pr-card-header">
+            <span class="pr-section-icon pr-section-icon--amber">
+              <i class="fa-solid fa-microchip" aria-hidden="true"></i>
+            </span>
+            <div>
+              <h2 id="pr-hardware-heading">Hardware Configuration</h2>
+              <p>Choose the model that will be linked to the new order</p>
+            </div>
+          </div>
+
+          <div class="pr-card-body">
+            {% if detected_product_id %}
+              <span class="pr-match-badge">
+                <i
+                  class="fa-solid fa-wand-magic-sparkles"
+                  aria-hidden="true"
+                ></i>
+                Suggested model detected from request
+              </span>
+            {% endif %}
+
+            <label class="pr-select-label" for="pr-product">
+              Hardware variant
+              <span style="color:#dc2626">*</span>
+            </label>
+
+            <div class="pr-select-wrap">
+              <select
+                name="product_id"
+                id="pr-product"
+                required
+                {% if req.is_processed %}disabled{% endif %}
+              >
+                <option
+                  value=""
+                  data-price="0"
+                  data-stock="0"
+                  disabled
+                  {% if not detected_product_id %}selected{% endif %}
+                >
+                  Select a hardware model...
+                </option>
+
+                {% for product in products %}
+                  <option
+                    value="{{ product.id }}"
+                    data-name="{{ product.name }}"
+                    data-price="{{ product.price|unlocalize }}"
+                    data-stock="{{ product.stock }}"
+                    {% if product.id == detected_product_id %}selected{% endif %}
+                  >
+                    {{ product.name }} — ₱{{ product.price|floatformat:2 }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <p class="pr-product-hint">
+              <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+              <span>
+                Confirm that this matches the customer's request.
+                You can select a different model if the automatic
+                match is incorrect.
+              </span>
+            </p>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Order preview -->
+      <aside class="pr-card pr-summary" aria-labelledby="pr-summary-heading">
+        <div class="pr-card-header">
+          <span class="pr-section-icon">
+            <i class="fa-solid fa-receipt" aria-hidden="true"></i>
+          </span>
+          <div>
+            <h2 id="pr-summary-heading">Order Preview</h2>
+            <p>Review before generating a payment link</p>
+          </div>
+        </div>
+
+        <div class="pr-card-body">
+          <div class="pr-product-preview">
+            <div class="pr-product-art">
+              <i class="fa-solid fa-microchip" aria-hidden="true"></i>
+            </div>
+            <div>
+              <span>SELECTED HARDWARE</span>
+              <strong id="pr-selected-name">
+                Select a hardware model
+              </strong>
+            </div>
+          </div>
+
+          <div class="pr-summary-row">
+            <span>Unit price</span>
+            <strong id="pr-unit-price">—</strong>
+          </div>
+
+          <div class="pr-summary-row">
+            <span>Requested quantity</span>
+            <strong>
+              {{ parsed_qty }} unit{{ parsed_qty|pluralize }}
+            </strong>
+          </div>
+
+          <div class="pr-summary-total">
+            <span>Estimated total</span>
+            <strong id="pr-estimated-total" aria-live="polite">—</strong>
+          </div>
+
+          <div
+            class="pr-stock-status pr-stock-status--empty"
+            id="pr-stock-status"
+            role="status"
+            aria-live="polite"
+          >
+            <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+            <span>Select a hardware model to see the available stock.</span>
+          </div>
+
+          <div class="pr-workflow">
+            <strong>What happens after approval?</strong>
+
+            <div class="pr-workflow-step">
+              <i class="fa-solid fa-receipt" aria-hidden="true"></i>
+              <span>Create a tracked order in EnviroPlus</span>
+            </div>
+
+            <div class="pr-workflow-step">
+              <i class="fa-solid fa-link" aria-hidden="true"></i>
+              <span>Generate a PayMongo checkout link</span>
+            </div>
+
+            <div class="pr-workflow-step">
+              <i class="fa-solid fa-envelope" aria-hidden="true"></i>
+              <span>Send the payment link to the customer by email</span>
+            </div>
+          </div>
+
+          {% if req.is_processed %}
+            <button
+              type="button"
+              class="pr-action pr-action--primary"
+              disabled
+            >
+              <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+              Request already processed
+            </button>
+          {% else %}
+            <button
+              type="submit"
+              id="pr-submit"
+              class="pr-action pr-action--primary"
+            >
+              <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+              Create Order &amp; Email Client
+            </button>
+          {% endif %}
+
+          <p class="pr-payment-note">
+            <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+            <span>
+              No payment is collected on this screen.
+              The customer pays through the separate checkout link.
+            </span>
+          </p>
+        </div>
+
+        <div class="pr-summary-footer">
+          <a href="{% url 'app:hardware_inventory' %}">
+            <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+            Return to Hardware Management
+          </a>
+        </div>
+      </aside>
+
+    </div>
+  </form>
+</section>
+
+{{ req.notes|default_if_none:''|json_script:'pr-request-notes-json' }}
+
+<!-- Confirmation dialog -->
+<dialog
+  class="pr-dialog"
+  id="pr-confirm-dialog"
+  aria-labelledby="pr-confirm-title"
+>
+  <div class="pr-dialog-head">
+    <span class="pr-dialog-icon">
+      <i class="fa-solid fa-clipboard-check" aria-hidden="true"></i>
+    </span>
+    <h2 id="pr-confirm-title">Confirm Order Creation</h2>
+  </div>
+
+  <div class="pr-dialog-body">
+    <p>
+      This will create an order and attempt to send a PayMongo payment
+      link to the customer's email address. Check the details before
+      continuing.
+    </p>
+
+    <div class="pr-confirm-data">
+      <div>
+        <span>Customer</span>
+        <strong>{{ req.customer_name }}</strong>
+      </div>
+      <div>
+        <span>Email</span>
+        <strong>{{ req.customer_email }}</strong>
+      </div>
+      <div>
+        <span>Hardware</span>
+        <strong id="pr-confirm-product">—</strong>
+      </div>
+      <div>
+        <span>Quantity</span>
+        <strong>{{ parsed_qty }}</strong>
+      </div>
+      <div>
+        <span>Order total</span>
+        <strong id="pr-confirm-total">—</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="pr-dialog-actions">
+    <button
+      type="button"
+      class="pr-action pr-action--secondary"
+      id="pr-cancel-confirm"
+    >
+      Go back
+    </button>
+
+    <button
+      type="button"
+      class="pr-action pr-action--primary"
+      id="pr-approve-confirm"
+    >
+      <i class="fa-solid fa-check" aria-hidden="true"></i>
+      Confirm &amp; Create
+    </button>
+  </div>
+</dialog>
+
+<script>
+(() => {
+  'use strict';
+
+  // Keep Hardware highlighted in the admin navigation.
+
+  const hardwareNav = document.querySelector(
+    '.menubar a[href*="hardware-inventory"]'
+  );
+
+  if (hardwareNav) {
+    hardwareNav.classList.add('active');
+  }
+
+  // Decode stored request notes.
+
+  const rawNotesElement = document.getElementById(
+    'pr-request-notes-json'
+  );
+
+  if (rawNotesElement) {
+    try {
+      const rawNotes = JSON.parse(
+        rawNotesElement.textContent
+      ) || '';
+
+      const addressMatch = rawNotes.match(
+        /Shipping Address:\s*([\s\S]*)/i
+      );
+
+      const addressValue =
+        addressMatch && addressMatch[1].trim()
+          ? addressMatch[1].trim()
+          : 'No deployment address was included with the request.';
+
+      const requirements = rawNotes
+        .replace(/Shipping Address:\s*[\s\S]*$/i, '')
+        .replace(/Requested Quantity:\s*\d+/gi, '')
+        .replace(/Requesting build for\s+[^\n]*/gi, '')
+        .replace(/Selected Coordinates:\s*[^\n]*/gi, '')
+        .trim();
+
+      document.getElementById('pr-address').textContent =
+        addressValue;
+
+      document.getElementById('pr-extra-notes').textContent =
+        requirements || 'No additional configuration notes provided.';
+
+    } catch (error) {
+      // Original notes remain visible in the details element.
+    }
+  }
+
+  // Product selection and live order total.
+
+  const form = document.getElementById('pr-form');
+  const productSelect = document.getElementById('pr-product');
+  const quantityInput = document.getElementById('pr-quantity');
+
+  const productName = document.getElementById('pr-selected-name');
+  const unitPrice = document.getElementById('pr-unit-price');
+  const totalElement = document.getElementById('pr-estimated-total');
+  const stockStatus = document.getElementById('pr-stock-status');
+
+  const submitButton = document.getElementById('pr-submit');
+  const dialog = document.getElementById('pr-confirm-dialog');
+
+  const currency = new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    minimumFractionDigits: 2
+  });
+
+  const quantity = Number(quantityInput.value);
+
+  function currentProduct() {
+    const option = productSelect.selectedOptions[0];
+
+    if (!option || !option.value) {
+      return null;
+    }
+
+    return {
+      name: option.dataset.name || option.textContent.trim(),
+      price: Number(option.dataset.price),
+      stock: Number(option.dataset.stock)
+    };
+  }
+
+  function refreshSummary() {
+    const selected = currentProduct();
+
+    if (!selected) {
+      productName.textContent = 'Select a hardware model';
+      unitPrice.textContent = '—';
+      totalElement.textContent = '—';
+
+      stockStatus.className =
+        'pr-stock-status pr-stock-status--empty';
+
+      stockStatus.querySelector('span').textContent =
+        'Select a hardware model to see the available stock.';
+
+      if (submitButton) {
+        submitButton.disabled = true;
+      }
+
+      return;
+    }
+
+    productName.textContent = selected.name;
+    unitPrice.textContent = currency.format(selected.price);
+
+    totalElement.textContent = currency.format(
+      selected.price * quantity
+    );
+
+    const lowStock = selected.stock < quantity;
+
+    stockStatus.className =
+      'pr-stock-status' +
+      (lowStock ? ' pr-stock-status--low' : '');
+
+    stockStatus.querySelector('span').textContent =
+      lowStock
+        ? `${selected.stock} unit(s) currently in stock. Additional units require fulfillment or a hardware build.`
+        : `${selected.stock} unit(s) in stock; enough to cover the requested quantity.`;
+
+    if (submitButton) {
+      submitButton.disabled =
+        !Number.isSafeInteger(quantity) || quantity < 1;
+    }
+  }
+
+  productSelect.addEventListener('change', refreshSummary);
+  refreshSummary();
+
+  // Already processed requests cannot be resubmitted through this UI.
+
+  if (!submitButton) {
+    return;
+  }
+
+  // Confirmation flow.
+
+  let confirmed = false;
+  let submitting = false;
+
+  form.addEventListener('submit', event => {
+    if (submitting) {
+      event.preventDefault();
+      return;
+    }
+
+    if (!form.checkValidity()) {
+      event.preventDefault();
+      form.reportValidity();
+      return;
+    }
+
+    if (
+      !currentProduct() ||
+      !Number.isSafeInteger(quantity) ||
+      quantity < 1
+    ) {
+      event.preventDefault();
+      return;
+    }
+
+    if (!confirmed) {
+      event.preventDefault();
+
+      const selected = currentProduct();
+
+      document.getElementById('pr-confirm-product').textContent =
+        selected.name;
+
+      document.getElementById('pr-confirm-total').textContent =
+        currency.format(selected.price * quantity);
+
+      if (dialog && typeof dialog.showModal === 'function') {
+        dialog.showModal();
+
+      } else if (
+        window.confirm(
+          'Create this hardware order and email the customer a payment link?'
+        )
+      ) {
+        confirmed = true;
+        form.requestSubmit();
+      }
+
+      return;
+    }
+
+    submitting = true;
+    submitButton.disabled = true;
+
+    submitButton.innerHTML =
+      '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Creating order…';
+  });
+
+  document.getElementById('pr-cancel-confirm')
+    .addEventListener('click', () => {
+      dialog.close();
+    });
+
+  document.getElementById('pr-approve-confirm')
+    .addEventListener('click', () => {
+      dialog.close();
+
+      confirmed = true;
+      form.requestSubmit();
+    });
+
+})();
+</script>
 {% endblock %}
