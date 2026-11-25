@@ -215,4 +215,4 @@ GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 
 # Paymongo API Configuration test keys
 PAYMONGO_PUBLIC_KEY = 'pk_test_21HL3dop2nVwSBE7c8dJSWfp'
-PAYMONGO_SECRET_KEY = '***REMOVED***'
+PAYMONGO_SECRET_KEY = os.getenv("PAYMONGO_SECRET_KEY", "")

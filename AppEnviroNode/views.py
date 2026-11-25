@@ -6308,7 +6308,7 @@ def hardware_inventory_view(request):
             )
             
             try:
-                PAYMONGO_SECRET_KEY = getattr(settings, 'PAYMONGO_SECRET_KEY', '***REMOVED***')
+                PAYMONGO_SECRET_KEY = settings.PAYMONGO_SECRET_KEY
                 pm_url = "https://api.paymongo.com/v1/links"
                 pm_payload = {
                     "data": {
@@ -6532,7 +6532,7 @@ def dummy_checkout(request, product_id):
             "content-type": "application/json"
         }
 
-        PAYMONGO_SECRET_KEY = getattr(settings, 'PAYMONGO_SECRET_KEY', '***REMOVED***')
+        PAYMONGO_SECRET_KEY = settings.PAYMONGO_SECRET_KEY
 
         response = requests.post(
             url, json=payload, headers=headers, auth=(PAYMONGO_SECRET_KEY, '')
@@ -6869,7 +6869,7 @@ def process_request_view(request, request_id):
                 "content-type": "application/json"
             }
 
-            PAYMONGO_SECRET_KEY = getattr(settings, 'PAYMONGO_SECRET_KEY', '***REMOVED***')
+            PAYMONGO_SECRET_KEY = settings.PAYMONGO_SECRET_KEY
             
             response = requests.post(
                 url, json=payload, headers=headers, auth=HTTPBasicAuth(PAYMONGO_SECRET_KEY, ''), timeout=10
