@@ -2562,8 +2562,286 @@ def api_client_reports(request):
     return JsonResponse(response_data)
 
 @login_required(login_url='app:login')
+@require_http_methods(['GET', 'POST'])
 def client_settings(request):
-    return render(request, 'AppEnviroNode/admin/clientsettings.html')
+    """
+    EnviroPlus Backup & Recovery center.
+
+    Supports:
+    - Superuser-only access
+    - Password-confirmed PostgreSQL backup downloads
+    - Temporary backup generation
+    - Audit logging
+    - Links to managed recovery
+
+    Production restoration is handled separately by Render.
+    """
+    import hashlib
+    import os
+    import shutil
+    import subprocess
+    import tempfile
+
+    from pathlib import Path
+    from django.core.exceptions import PermissionDenied
+    from django.http import HttpResponse
+    from django.utils import timezone
+
+    if not (
+        request.user.is_active
+        and request.user.is_staff
+        and request.user.is_superuser
+    ):
+        raise PermissionDenied(
+            'Only active superusers can manage backups.'
+        )
+
+    database_config = settings.DATABASES['default']
+
+    is_postgres = database_config.get(
+        'ENGINE', ''
+    ).endswith('.postgresql')
+
+    pg_dump_path = (
+        shutil.which('pg_dump')
+        if is_postgres
+        else None
+    )
+
+    backup_available = bool(
+        is_postgres and pg_dump_path
+    )
+
+    if request.method == 'POST':
+
+        if not backup_available:
+            messages.error(
+                request,
+                'Manual backup download requires PostgreSQL '
+                'and pg_dump on the web server. Use the '
+                'database Recovery page in Render instead.'
+            )
+
+            return redirect('app:client_settings')
+
+        confirmation = request.POST.get(
+            'confirmation', ''
+        ).strip()
+
+        if confirmation != 'CREATE BACKUP':
+            messages.error(
+                request,
+                'Type CREATE BACKUP exactly to confirm.'
+            )
+
+            return redirect('app:client_settings')
+
+        password = request.POST.get(
+            'password', ''
+        )
+
+        if not request.user.check_password(password):
+            messages.error(
+                request,
+                'Your current password was incorrect. '
+                'No backup was generated.'
+            )
+
+            return redirect('app:client_settings')
+
+        # Prepare PostgreSQL's client environment.
+        # Database passwords are never placed in command arguments.
+
+        env = os.environ.copy()
+
+        env['PGPASSWORD'] = str(
+            database_config.get('PASSWORD') or ''
+        )
+
+        options = database_config.get(
+            'OPTIONS'
+        ) or {}
+
+        if options.get('sslmode'):
+            env['PGSSLMODE'] = str(
+                options['sslmode']
+            )
+
+        if options.get('sslrootcert'):
+            env['PGSSLROOTCERT'] = str(
+                options['sslrootcert']
+            )
+
+        if options.get('service'):
+            env['PGSERVICE'] = str(
+                options['service']
+            )
+
+        command = [
+            pg_dump_path,
+            '--format=custom',
+            '--no-owner',
+            '--no-privileges',
+            '--no-password',
+        ]
+
+        if database_config.get('HOST'):
+            command.extend([
+                '--host',
+                str(database_config['HOST'])
+            ])
+
+        if database_config.get('PORT'):
+            command.extend([
+                '--port',
+                str(database_config['PORT'])
+            ])
+
+        if database_config.get('USER'):
+            command.extend([
+                '--username',
+                str(database_config['USER'])
+            ])
+
+        db_name = str(
+            database_config.get('NAME') or ''
+        )
+
+        if not db_name:
+            messages.error(
+                request,
+                'Database configuration is incomplete; '
+                'backup was not created.'
+            )
+
+            return redirect('app:client_settings')
+
+        # Keep web downloads bounded.
+        # Larger databases should use Render's export workflow.
+
+        max_bytes = 64 * 1024 * 1024
+
+        try:
+            with tempfile.TemporaryDirectory(
+                prefix='enviroplus_backup_'
+            ) as temporary_dir:
+
+                backup_path = (
+                    Path(temporary_dir) / 'snapshot.dump'
+                )
+
+                command.extend([
+                    '--file',
+                    str(backup_path),
+                    db_name
+                ])
+
+                subprocess.run(
+                    command,
+                    env=env,
+                    capture_output=True,
+                    check=True,
+                    timeout=90
+                )
+
+                size = backup_path.stat().st_size
+
+                if size == 0 or size > max_bytes:
+                    messages.error(
+                        request,
+                        'Backup exceeded the 64 MB '
+                        'web-download limit or was empty. '
+                        'Export it directly from Render instead.'
+                    )
+
+                    return redirect('app:client_settings')
+
+                contents = backup_path.read_bytes()
+
+        except subprocess.TimeoutExpired:
+            messages.error(
+                request,
+                'The backup exceeded the 90-second limit. '
+                'Use Render database exports for larger backups.'
+            )
+
+            return redirect('app:client_settings')
+
+        except (
+            OSError,
+            subprocess.CalledProcessError
+        ):
+            logger.exception(
+                'Backup generation failed.'
+            )
+
+            messages.error(
+                request,
+                'Backup generation failed. Review server logs '
+                'or use the Render Recovery page.'
+            )
+
+            return redirect('app:client_settings')
+
+        # Create an integrity checksum.
+        digest = hashlib.sha256(
+            contents
+        ).hexdigest()
+
+        filename = (
+            f"EnviroPlus_"
+            f"{timezone.now():%Y%m%d_%H%M%S}.dump"
+        )
+
+        # Record the backup operation in the existing audit system.
+        SystemLog.objects.create(
+            event_type='admin',
+            severity='good',
+            message=(
+                f'Superuser {request.user.username} '
+                f'exported a manual database backup '
+                f'({size} bytes, SHA-256 {digest[:16]}...).'
+            )
+        )
+
+        response = HttpResponse(
+            contents,
+            content_type='application/octet-stream'
+        )
+
+        response['Content-Disposition'] = (
+            f'attachment; filename="{filename}"'
+        )
+
+        response['Cache-Control'] = (
+            'no-store, private'
+        )
+
+        response['Pragma'] = 'no-cache'
+
+        response['X-Content-Type-Options'] = 'nosniff'
+
+        response['X-Backup-SHA256'] = digest
+
+        return response
+
+    response = render(
+        request,
+        'AppEnviroNode/admin/clientsettings.html',
+        {
+            'backup_available': backup_available,
+            'database_label': (
+                'PostgreSQL'
+                if is_postgres
+                else 'Unsupported engine'
+            ),
+            'pg_dump_available': bool(pg_dump_path),
+        }
+    )
+
+    response['Cache-Control'] = 'no-store, private'
+
+    return response
 
 def _audit_filtered_queryset(request):
     """
@@ -4599,57 +4877,147 @@ def api_users_invite(request):
 @login_required(login_url='app:login')
 @require_http_methods(["PUT"])
 def api_users_update(request, user_id):
-    """Update user information."""
-    # ✅ ROLE-BASED ACCESS CONTROL
-    if not request.user.is_admin_user():
-        return JsonResponse({'status': 'error', 'message': 'Admin access required'}, status=403)
-    
+    """Update user details and role from the EnviroPlus admin panel."""
+
+    from django.core.validators import validate_email
+    from django.core.exceptions import ValidationError
+
+    if not (
+        request.user.is_admin_user()
+        or request.user.is_superuser
+    ):
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Administrator access required.'
+        }, status=403)
+
     user = get_object_or_404(User, id=user_id)
-    
+
     try:
-        import json
         data = json.loads(request.body)
-    except:
-        return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
-    
-    # Track changes for audit
+    except (ValueError, TypeError):
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Invalid request data.'
+        }, status=400)
+
+    allowed_roles = {'admin', 'official'}
+
+    new_role = data.get('role', user.role)
+
+    if new_role not in allowed_roles:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Invalid account role.'
+        }, status=400)
+
+    # Protect existing superuser privileges.
+    if user.is_superuser and new_role != user.role:
+        return JsonResponse({
+            'status': 'error',
+            'message': (
+                'Superuser roles cannot be changed '
+                'from this panel.'
+            )
+        }, status=403)
+
+    new_email = str(
+        data.get('email', user.email)
+    ).strip()
+
+    try:
+        validate_email(new_email)
+    except ValidationError:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Enter a valid email address.'
+        }, status=400)
+
+    if User.objects.filter(
+        email__iexact=new_email
+    ).exclude(pk=user.pk).exists():
+        return JsonResponse({
+            'status': 'error',
+            'message': 'This email address is already registered.'
+        }, status=400)
+
+    editable_fields = {
+        'first_name': str(
+            data.get('first_name', user.first_name)
+        ).strip(),
+
+        'last_name': str(
+            data.get('last_name', user.last_name)
+        ).strip(),
+
+        'email': new_email,
+
+        'organization': str(
+            data.get('organization', user.organization or '')
+        ).strip(),
+
+        'role': new_role,
+    }
+
     changes = []
-    
-    # Update fields
-    if 'first_name' in data and data['first_name'] != user.first_name:
-        changes.append(f"first_name: {user.first_name} → {data['first_name']}")
-        user.first_name = data['first_name']
-    if 'last_name' in data and data['last_name'] != user.last_name:
-        changes.append(f"last_name: {user.last_name} → {data['last_name']}")
-        user.last_name = data['last_name']
-    if 'email' in data and data['email'] != user.email:
-        changes.append(f"email: {user.email} → {data['email']}")
-        user.email = data['email']
-    if 'role' in data and data['role'] != user.role:
-        changes.append(f"role: {user.role} → {data['role']}")
-        user.role = data['role']
-    if 'organization' in data and data['organization'] != user.organization:
-        changes.append(f"organization: {user.organization} → {data['organization']}")
-        user.organization = data['organization']
-    
-    # ✅ ALERT SYSTEM: Log user update event if changes made
-    if changes:
+    fields_to_save = []
+
+    for field_name, new_value in editable_fields.items():
+        old_value = getattr(user, field_name)
+
+        if old_value != new_value:
+            changes.append(
+                f'{field_name}: {old_value} → {new_value}'
+            )
+
+            setattr(user, field_name, new_value)
+            fields_to_save.append(field_name)
+
+    if fields_to_save:
+        user.save(update_fields=fields_to_save)
+
+        AdminActionLog.objects.create(
+            user=request.user,
+            action='user_updated',
+            target_model='CustomUser',
+            target_id=user.id,
+            description=(
+                f'Updated user {user.email}. '
+                f'Changes: {" | ".join(changes)}'
+            )
+        )
+
         Alert.objects.create(
             node=None,
             severity='info',
             title='User Updated',
-            description=f'User {user.email} updated by {request.user.email}. Changes: {" | ".join(changes)}',
+            description=(
+                f'User {user.email} updated by '
+                f'{request.user.email}. '
+                f'Changes: {" | ".join(changes)}'
+            ),
             is_active=True
         )
-    
+
     return JsonResponse({
         'status': 'success',
-        'message': 'User updated successfully',
+        'message': (
+            'User updated successfully.'
+            if fields_to_save
+            else 'No changes were necessary.'
+        ),
         'data': {
             'id': user.id,
             'email': user.email,
+            'role': user.role,
+            'role_label': (
+                'Administrator'
+                if user.role == 'admin'
+                else 'User / Client'
+            ),
         }
     })
+
 
 
 @login_required(login_url='app:login')

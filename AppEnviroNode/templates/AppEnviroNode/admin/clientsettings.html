@@ -1,10 +1,760 @@
-{% extends 'AppEnviroNode/Index.html' %}
 
-{% block title %}Admin - Settings - EnviroPlus{% endblock %}
+{% extends 'AppEnviroNode/Index.html' %}
+{% load static %}
+
+{% block title %}Backup & Recovery | EnviroPlus{% endblock %}
 
 {% block content %}
-  <section class="section">
-    <h1>Admin - Settings</h1>
-    <p>Settings management interface - content coming soon...</p>
-  </section>
+<style>
+  .main-container:has(> .bk-page) {
+    display: block;
+    max-width: none;
+    width: min(1260px, calc(100% - 48px));
+    margin: 150px auto 0;
+    padding: 0;
+  }
+
+  .bk-page {
+    --bk-navy: var(--deep-navy, #0b1120);
+    --bk-blue: var(--cyber-blue, #2d5bbe);
+    --bk-border: #e0e8f3;
+    color: #203653;
+    font-family: Inter, sans-serif;
+    padding-bottom: 48px;
+  }
+
+  .bk-page *,
+  .bk-page *::before,
+  .bk-page *::after {
+    box-sizing: border-box;
+  }
+
+  .bk-page a {
+    text-decoration: none;
+  }
+
+  .bk-page :is(button, input, a):focus-visible {
+    outline: 3px solid #fbbf24;
+    outline-offset: 3px;
+  }
+
+  /* Page heading */
+
+  .bk-heading {
+    margin-bottom: 22px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .bk-eyebrow {
+    color: #fbbf24;
+    letter-spacing: .13em;
+    font-size: .71rem;
+    font-weight: 800;
+  }
+
+  .bk-heading h1 {
+    font: 800 clamp(1.6rem, 2.8vw, 2.15rem)/1.25
+      Poppins, Inter, sans-serif;
+    color: white;
+    margin: 7px 0;
+  }
+
+  .bk-heading p {
+    color: #dce8f7;
+    line-height: 1.65;
+    font-size: .87rem;
+  }
+
+  .bk-lock {
+    background: rgba(11, 17, 32, .8);
+    border: 1px solid #ffffff3d;
+    border-radius: 999px;
+    padding: 10px 13px;
+    color: #eff6ff;
+    font-size: .78rem;
+    font-weight: 750;
+    white-space: nowrap;
+  }
+
+  /* Summary */
+
+  .bk-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .bk-summary-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 18px;
+    border: 1px solid #ffffff2d;
+    border-radius: 12px;
+    background: rgba(11, 17, 32, .85);
+  }
+
+  .bk-summary-icon {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border-radius: 10px;
+    color: #a5c8ff;
+    background: #3b82f62b;
+  }
+
+  .bk-summary-item span {
+    display: block;
+    font-size: .73rem;
+    color: #c1d2e8;
+  }
+
+  .bk-summary-item strong {
+    display: block;
+    color: white;
+    font-size: 1rem;
+    font-weight: 800;
+    margin-top: 3px;
+    overflow-wrap: anywhere;
+  }
+
+  /* Main layout */
+
+  .bk-grid {
+    display: grid;
+    grid-template-columns:
+      minmax(0, 1.2fr) minmax(300px, .88fr);
+    gap: 18px;
+    align-items: start;
+  }
+
+  .bk-panel {
+    background: rgba(255, 255, 255, .985);
+    border: 1px solid var(--bk-border);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 8px 28px #0b112023;
+    min-width: 0;
+  }
+
+  .bk-panel-head {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 19px 21px;
+    border-bottom: 1px solid var(--bk-border);
+    background: #f8faff;
+  }
+
+  .bk-panel-icon {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border-radius: 10px;
+    background: #e8effd;
+    color: var(--bk-blue);
+    display: grid;
+    place-items: center;
+  }
+
+  .bk-panel-head h2 {
+    color: #152b48;
+    font-size: 1.07rem;
+    margin: 0;
+    font-weight: 800;
+  }
+
+  .bk-panel-head p {
+    font-size: .76rem;
+    color: #687d99;
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+
+  .bk-panel-body {
+    padding: 22px;
+  }
+
+  .bk-panel-body > p {
+    color: #516681;
+    font-size: .84rem;
+    line-height: 1.75;
+    margin-bottom: 15px;
+  }
+
+  /* Status indicators */
+
+  .bk-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    font-size: .73rem;
+    font-weight: 800;
+    background: #e7f6ed;
+    color: #167046;
+  }
+
+  .bk-status--limited {
+    background: #fff3de;
+    color: #91611b;
+  }
+
+  /* Information and warning notices */
+
+  .bk-note {
+    display: flex;
+    gap: 10px;
+    background: #f0f5fd;
+    border: 1px solid #dae6f7;
+    color: #445e82;
+    border-radius: 10px;
+    padding: 14px;
+    font-size: .78rem;
+    line-height: 1.65;
+    margin: 15px 0;
+  }
+
+  .bk-note i {
+    color: var(--bk-blue);
+    margin-top: 3px;
+  }
+
+  .bk-note--warning {
+    background: #fff7eb;
+    border-color: #f3dfbd;
+    color: #845a21;
+  }
+
+  .bk-note--warning i {
+    color: #bb771a;
+  }
+
+  /* Form fields */
+
+  .bk-label {
+    display: block;
+    font-size: .8rem;
+    font-weight: 800;
+    color: #2b405f;
+    margin-bottom: 7px;
+  }
+
+  .bk-input {
+    display: block;
+    width: 100%;
+    padding: 10px 12px;
+    min-height: 44px;
+    border: 1px solid #ccdaeb;
+    border-radius: 9px;
+    background: #fff;
+    font: inherit;
+    font-size: .83rem;
+    color: #203653;
+  }
+
+  .bk-input:focus {
+    border-color: var(--bk-blue);
+    outline: 0;
+    box-shadow: 0 0 0 3px #2d5bbe25;
+  }
+
+  .bk-field + .bk-field {
+    margin-top: 15px;
+  }
+
+  .bk-field small {
+    display: block;
+    color: #7587a0;
+    font-size: .73rem;
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+
+  /* Buttons */
+
+  .bk-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .bk-btn {
+    display: inline-flex;
+    gap: 9px;
+    align-items: center;
+    justify-content: center;
+    min-height: 43px;
+    padding: 10px 15px;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font: 800 .81rem/1.35 Inter, sans-serif;
+  }
+
+  .bk-page .bk-btn--primary {
+    color: #fff;
+    background: linear-gradient(
+      135deg,
+      #0b1120,
+      #2d5bbe
+    );
+    border-color: #2d5bbe;
+  }
+
+  .bk-page .bk-btn--primary:hover:not(:disabled) {
+    color: #fff;
+    background: linear-gradient(
+      135deg,
+      #1c3561,
+      #3b82f6
+    );
+  }
+
+  .bk-page .bk-btn--secondary {
+    color: #2b569d;
+    background: #edf3fc;
+    border-color: #cbdaec;
+  }
+
+  .bk-page .bk-btn--secondary:hover {
+    background: #e0eafa;
+    color: #21457f;
+  }
+
+  .bk-page .bk-btn:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+  }
+
+  .bk-divider {
+    border: 0;
+    border-top: 1px solid #e4ebf4;
+    margin: 21px 0;
+  }
+
+  /* Recovery instructions */
+
+  .bk-steps {
+    margin: 8px 0 0;
+    padding-left: 22px;
+    color: #4b627f;
+    font-size: .83rem;
+    line-height: 1.7;
+  }
+
+  .bk-steps li + li {
+    margin-top: 8px;
+  }
+
+  .bk-steps strong {
+    color: #1d395e;
+  }
+
+  /* Footer security notice */
+
+  .bk-bottom {
+    margin-top: 18px;
+    padding: 17px 20px;
+    background: rgba(11, 17, 32, .78);
+    border: 1px solid #ffffff2a;
+    border-radius: 12px;
+    color: #dfebfa;
+    font-size: .78rem;
+    line-height: 1.7;
+  }
+
+  .bk-bottom i {
+    color: #fbbf24;
+    margin-right: 7px;
+  }
+
+  @media (max-width: 870px) {
+    .bk-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 680px) {
+    .main-container:has(> .bk-page) {
+      width: calc(100% - 28px);
+      margin-top: 150px;
+    }
+
+    .bk-heading {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .bk-summary {
+      grid-template-columns: 1fr;
+      gap: 9px;
+    }
+
+    .bk-summary-item {
+      padding: 13px;
+    }
+
+    .bk-panel-body,
+    .bk-panel-head {
+      padding: 17px;
+    }
+  }
+</style>
+
+<section class="bk-page" aria-labelledby="bk-page-title">
+
+  <!-- PAGE HEADING -->
+
+  <header class="bk-heading">
+    <div>
+      <span class="bk-eyebrow">
+        ENVIROPLUS / SYSTEM ADMINISTRATION
+      </span>
+
+      <h1 id="bk-page-title">
+        Backup &amp; Recovery
+      </h1>
+
+      <p>
+        Protect your EnviroPlus data, export a database snapshot,
+        and use a validated recovery procedure.
+      </p>
+    </div>
+
+    <span class="bk-lock">
+      <i class="fa-solid fa-lock" aria-hidden="true"></i>
+      Superuser access
+    </span>
+  </header>
+
+  <!-- SYSTEM OVERVIEW -->
+
+  <div class="bk-summary" aria-label="Backup system overview">
+
+    <div class="bk-summary-item">
+      <span class="bk-summary-icon">
+        <i class="fa-solid fa-database" aria-hidden="true"></i>
+      </span>
+
+      <div>
+        <span>Database</span>
+        <strong>{{ database_label }}</strong>
+      </div>
+    </div>
+
+    <div class="bk-summary-item">
+      <span class="bk-summary-icon">
+        <i class="fa-solid fa-download" aria-hidden="true"></i>
+      </span>
+
+      <div>
+        <span>Manual export</span>
+
+        <strong>
+          {% if backup_available %}
+            Available
+          {% else %}
+            Server setup needed
+          {% endif %}
+        </strong>
+      </div>
+    </div>
+
+    <div class="bk-summary-item">
+      <span class="bk-summary-icon">
+        <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>
+      </span>
+
+      <div>
+        <span>Hosted recovery</span>
+        <strong>Managed in Render</strong>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="bk-grid">
+
+    <!-- MANUAL BACKUP -->
+
+    <section class="bk-panel" aria-labelledby="bk-export-title">
+
+      <div class="bk-panel-head">
+        <span class="bk-panel-icon">
+          <i class="fa-solid fa-box-archive" aria-hidden="true"></i>
+        </span>
+
+        <div>
+          <h2 id="bk-export-title">
+            Create Manual Backup
+          </h2>
+
+          <p>
+            Download a PostgreSQL snapshot to your computer.
+          </p>
+        </div>
+      </div>
+
+      <div class="bk-panel-body">
+
+        {% if backup_available %}
+          <span class="bk-status">
+            <i
+              class="fa-solid fa-circle-check"
+              aria-hidden="true"
+            ></i>
+
+            Database export utility detected
+          </span>
+
+        {% else %}
+          <span class="bk-status bk-status--limited">
+            <i
+              class="fa-solid fa-triangle-exclamation"
+              aria-hidden="true"
+            ></i>
+
+            Manual export unavailable on this server
+          </span>
+        {% endif %}
+
+        <p style="margin-top:15px">
+          This creates a <strong>.dump</strong> archive containing
+          PostgreSQL database records and schema. It is generated
+          temporarily and sent directly to your browser, without
+          keeping a copy in the web application's storage.
+        </p>
+
+        <div class="bk-note bk-note--warning">
+          <i
+            class="fa-solid fa-triangle-exclamation"
+            aria-hidden="true"
+          ></i>
+
+          <span>
+            Database backups can include user details and password
+            hashes. Store downloads in an encrypted private location.
+            Never commit them to GitHub or place them in public
+            media/static folders.
+          </span>
+        </div>
+
+        <form
+          method="post"
+          id="bk-export-form"
+          autocomplete="off"
+        >
+          {% csrf_token %}
+
+          <div class="bk-field">
+            <label class="bk-label" for="bk-password">
+              Confirm your admin password
+            </label>
+
+            <input
+              id="bk-password"
+              class="bk-input"
+              type="password"
+              name="password"
+              required
+              autocomplete="current-password"
+              {% if not backup_available %}disabled{% endif %}
+            >
+          </div>
+
+          <div class="bk-field">
+            <label class="bk-label" for="bk-confirmation">
+              Type CREATE BACKUP to confirm
+            </label>
+
+            <input
+              id="bk-confirmation"
+              class="bk-input"
+              type="text"
+              name="confirmation"
+              placeholder="CREATE BACKUP"
+              required
+              spellcheck="false"
+              autocapitalize="off"
+              {% if not backup_available %}disabled{% endif %}
+            >
+
+            <small>
+              Manual downloads are limited to 64 MB and 90 seconds;
+              larger databases should be exported through Render.
+            </small>
+          </div>
+
+          <div class="bk-actions">
+            <button
+              type="submit"
+              class="bk-btn bk-btn--primary"
+              id="bk-download"
+              {% if not backup_available %}disabled{% endif %}
+            >
+              <i
+                class="fa-solid fa-download"
+                aria-hidden="true"
+              ></i>
+
+              Create &amp; Download Backup
+            </button>
+          </div>
+
+        </form>
+
+        {% if not backup_available %}
+          <div class="bk-note">
+            <i
+              class="fa-solid fa-circle-info"
+              aria-hidden="true"
+            ></i>
+
+            <span>
+              This server needs PostgreSQL's
+              <code>pg_dump</code> client.
+              You can still create database exports using
+              Render's Recovery page.
+            </span>
+          </div>
+        {% endif %}
+
+      </div>
+    </section>
+
+    <!-- RESTORE & SNAPSHOTS -->
+
+    <section class="bk-panel" aria-labelledby="bk-restore-title">
+
+      <div class="bk-panel-head">
+        <span class="bk-panel-icon">
+          <i
+            class="fa-solid fa-rotate-left"
+            aria-hidden="true"
+          ></i>
+        </span>
+
+        <div>
+          <h2 id="bk-restore-title">
+            Restore &amp; Snapshots
+          </h2>
+
+          <p>
+            Recover safely using a separate database.
+          </p>
+        </div>
+      </div>
+
+      <div class="bk-panel-body">
+
+        <p>
+          For a hosted PostgreSQL database, restoration is managed
+          in <strong>Render → Database → Recovery</strong>.
+
+          You can inspect available recovery times there, and
+          recover into a new database without overwriting
+          production immediately.
+        </p>
+
+        <div class="bk-note">
+          <i
+            class="fa-solid fa-shield-halved"
+            aria-hidden="true"
+          ></i>
+
+          <span>
+            One-click live restore is intentionally disabled here.
+            Restoring directly inside a running web request could
+            interrupt purchases, sensor writes, logins, and other
+            data updates.
+          </span>
+        </div>
+
+        <ol class="bk-steps">
+          <li>
+            <strong>Open the Recovery page</strong>
+            for your EnviroPlus PostgreSQL database in Render.
+          </li>
+
+          <li>
+            <strong>Select a recovery point</strong>
+            or export a logical backup, depending on your database plan.
+          </li>
+
+          <li>
+            <strong>Restore to a separate database</strong>
+            and verify orders, users, hardware inventory,
+            and sensor readings.
+          </li>
+
+          <li>
+            <strong>Switch DATABASE_URL</strong>
+            only after the recovered data passes validation
+            and the application is ready for a controlled cutover.
+          </li>
+        </ol>
+
+        <hr class="bk-divider">
+
+        <div class="bk-actions">
+
+          <a
+            href="https://dashboard.render.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="bk-btn bk-btn--primary"
+          >
+            <i
+              class="fa-solid fa-arrow-up-right-from-square"
+              aria-hidden="true"
+            ></i>
+
+            Open Render Dashboard
+          </a>
+
+          <a
+            href="https://render.com/docs/postgresql-backups"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="bk-btn bk-btn--secondary"
+          >
+            <i
+              class="fa-solid fa-book-open"
+              aria-hidden="true"
+            ></i>
+
+            Recovery Guide
+          </a>
+
+        </div>
+
+      </div>
+    </section>
+
+  </div>
+
+  <p class="bk-bottom">
+    <i
+      class="fa-solid fa-shield-halved"
+      aria-hidden="true"
+    ></i>
+
+    A database backup does not automatically include uploaded
+    media files or your server's environment variables.
+    Back those up separately.
+
+    Render's recovery capabilities depend on your database plan
+    and must not be assumed available on free instances.
+  </p>
+
+</section>
 {% endblock %}

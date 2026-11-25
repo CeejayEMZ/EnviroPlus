@@ -541,34 +541,121 @@
   </style>
 </header>
 
-<nav class="menubar">
+
+<nav class="menubar" style="overflow-x:auto;scrollbar-width:thin;">
+
   <div class="menubar-group">
-    <a href="{% url 'app:client_dashboard' %}" class="menubar-link {% if 'dashboard/dashboard' in request.path %}active{% endif %}">Dashboard</a>
-    <a href="{% url 'app:client_realtime' %}" class="menubar-link {% if 'dashboard/realtime' in request.path %}active{% endif %}">Real-Time</a>
-    <a href="{% url 'app:client_map' %}" class="menubar-link {% if 'dashboard/map' in request.path %}active{% endif %}">Map View</a>
-    <a href="{% url 'app:hardware_inventory' %}" class="global-nav-link {% if 'hardware-inventory' in request.path %}active{% endif %}">Hardware</a>
-    <a href="{% url 'app:hardware_orders' %}" class="menubar-link {% if 'hardware-orders' in request.path %}active{% endif %}">Orders</a>
+
+    <a
+      href="{% url 'app:client_dashboard' %}"
+      class="menubar-link {% if 'dashboard/dashboard' in request.path %}active{% endif %}"
+    >
+      Dashboard
+    </a>
+
+    <a
+      href="{% url 'app:client_realtime' %}"
+      class="menubar-link {% if 'dashboard/realtime' in request.path %}active{% endif %}"
+    >
+      Real-Time
+    </a>
+
+    <a
+      href="{% url 'app:client_map' %}"
+      class="menubar-link {% if 'dashboard/map' in request.path %}active{% endif %}"
+    >
+      Map View
+    </a>
+
+    <a
+      href="{% url 'app:hardware_inventory' %}"
+      class="menubar-link {% if 'hardware-inventory' in request.path %}active{% endif %}"
+    >
+      Hardware
+    </a>
+
+    <a
+      href="{% url 'app:hardware_orders' %}"
+      class="menubar-link {% if 'hardware-orders' in request.path %}active{% endif %}"
+    >
+      Orders
+    </a>
+
   </div>
+
   <div class="menubar-group">
-    <a href="{% url 'app:client_analytics' %}" class="menubar-link {% if 'dashboard/analytics' in request.path %}active{% endif %}">Analytics</a>
-    <a href="{% url 'app:client_ai' %}" class="menubar-link {% if 'dashboard/ai' in request.path %}active{% endif %}">AI Insights</a>
+
+    <a
+      href="{% url 'app:client_analytics' %}"
+      class="menubar-link {% if 'dashboard/analytics' in request.path %}active{% endif %}"
+    >
+      Analytics
+    </a>
+
+    <a
+      href="{% url 'app:client_ai' %}"
+      class="menubar-link {% if 'dashboard/ai' in request.path %}active{% endif %}"
+    >
+      AI Insights
+    </a>
+
   </div>
+
   <div class="menubar-group">
+
     {% if user.role == 'admin' %}
-    <a href="{% url 'app:client_alerts' %}" class="menubar-link {% if 'dashboard/alerts' in request.path %}active{% endif %}">Alerts</a>
+
+      <a
+        href="{% url 'app:client_alerts' %}"
+        class="menubar-link {% if 'dashboard/alerts' in request.path %}active{% endif %}"
+      >
+        Alerts
+      </a>
+
+      <a
+        href="{% url 'app:client_devices' %}"
+        class="menubar-link {% if 'dashboard/devices' in request.path %}active{% endif %}"
+      >
+        Devices
+      </a>
+
+      <a
+        href="{% url 'app:client_users' %}"
+        class="menubar-link {% if 'dashboard/users' in request.path %}active{% endif %}"
+      >
+        Users
+      </a>
+
+      <a
+        href="{% url 'app:client_history' %}"
+        class="menubar-link {% if 'dashboard/history' in request.path %}active{% endif %}"
+      >
+        History
+      </a>
+
     {% endif %}
-    {% if user.role == 'admin' %}
-    <a href="{% url 'app:client_devices' %}" class="menubar-link {% if 'dashboard/devices' in request.path %}active{% endif %}">Devices</a>
+
+    {% if user.is_superuser %}
+
+      <a
+        href="{% url 'app:client_settings' %}"
+        class="menubar-link {% if 'dashboard/settings' in request.path %}active{% endif %}"
+        title="System Backup and Recovery"
+      >
+        <i
+          class="fa-solid fa-database"
+          aria-hidden="true"
+        ></i>
+
+        Backups
+      </a>
+
     {% endif %}
-    {% if user.role == 'admin' %}
-    <a href="{% url 'app:client_users' %}" class="menubar-link {% if 'dashboard/users' in request.path %}active{% endif %}">Users</a>
-    {% endif %}
-    <!-- ADDED: History / Audit Logs Link -->
-    {% if user.role == 'admin' %}
-    <a href="{% url 'app:client_history' %}" class="menubar-link {% if 'dashboard/history' in request.path %}active{% endif %}">History</a>
-    {% endif %}
+
   </div>
+
 </nav>
+
 
 <script>
 // Complete Notification System - Shows notifications IMMEDIATELY when bell is clicked
