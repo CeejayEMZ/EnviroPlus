@@ -1,228 +1,748 @@
+
 {% extends 'AppEnviroNode/Index.html' %}
 
 {% block title %}{{ action }} - EnviroPlus{% endblock %}
 
 {% block extra_head %}
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <style>
-    /* Layout styling for side-by-side */
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+
+<style>
+  /* ==========================================================
+     NODE LOCATION FORM
+     ========================================================== */
+
+  .form-grid-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    align-items: stretch;
+  }
+
+  @media (max-width: 850px) {
     .form-grid-container {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 32px;
-      align-items: stretch;
+      grid-template-columns: 1fr;
     }
+  }
 
-    @media (max-width: 850px) {
-      .form-grid-container {
-        grid-template-columns: 1fr;
-      }
-    }
+  /* ==========================================================
+     LEAFLET MAP CONTAINER
+     ========================================================== */
 
-    #map-container {
-      height: 450px;
-      margin: 12px 0;
-      border-radius: 4px;
-      border: 1px solid #ddd;
-      position: relative;
-      background: #f0f0f0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-    }
-    
-    .map-center-pin {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 30px;
-      height: 30px;
-      margin-left: -15px;
-      margin-top: -30px;
-      background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="red" width="30" height="30"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg>') center no-repeat;
-      pointer-events: none;
-      z-index: 999;
-    }
-    
-    .map-info {
-      background: rgba(255, 255, 255, 0.95);
-      padding: 10px 14px;
-      border-radius: 4px;
-      border: 1px solid #ddd;
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      font-size: 0.85rem;
-      z-index: 500;
-      font-weight: 600;
-    }
+  #map-container {
+    height: 450px;
+    width: 100%;
+    margin: 12px 0;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    position: relative;
+    background: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
 
-    .form-control {
-      width: 100%;
-      padding: 8px 12px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 1rem;
-    }
+  /* Keep Esri attribution visible */
 
-    .form-control:focus {
-      outline: none;
-      border-color: #0a2d5f;
-      box-shadow: 0 0 0 3px rgba(10, 45, 95, 0.1);
-    }
-  </style>
+  #map-container .leaflet-control-attribution {
+    background: rgba(255, 255, 255, 0.9);
+    color: #334155;
+    font-size: 10px;
+  }
+
+  /* ==========================================================
+     CENTER LOCATION PIN
+     ========================================================== */
+
+  .map-center-pin {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+
+    width: 30px;
+    height: 30px;
+
+    margin-left: -15px;
+    margin-top: -30px;
+
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="red" width="30" height="30"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg>') center no-repeat;
+
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* ==========================================================
+     COORDINATE INFORMATION DISPLAY
+     ========================================================== */
+
+  .map-info {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+
+    background: rgba(255, 255, 255, 0.95);
+    padding: 10px 14px;
+
+    border-radius: 4px;
+    border: 1px solid #ddd;
+
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #0a2d5f;
+
+    z-index: 500;
+    pointer-events: none;
+  }
+
+  /* ==========================================================
+     FORM CONTROLS
+     ========================================================== */
+
+  .form-control {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+  }
+
+  .form-control:focus {
+    outline: none;
+    border-color: #0a2d5f;
+    box-shadow: 0 0 0 3px rgba(10, 45, 95, 0.1);
+  }
+</style>
 {% endblock %}
 
+
 {% block content %}
-  <div class="overlay">
-    <section class="section card-white" style="background: rgba(255, 255, 255, 0.95); border: 1px solid #d7dde4; padding: 24px; max-width: 1100px; margin: 20px auto; border-radius: 8px;">
-      
-      <form method="post" class="form-grid-container">
-        {% csrf_token %}
 
-        <div style="display: flex; flex-direction: column;">
-          <h3 style="color: #0a2d5f; font-size: 1.2rem; margin-top: 0; margin-bottom: 8px;">📍 Set Location on Map</h3>
-          <p style="font-size: 0.85rem; color: #666; margin-bottom: 12px;">Click, drag, or move the map. Center pin shows selected location.</p>
-          
-          <div id="map-container">
-            <div class="map-center-pin"></div>
-            <div class="map-info" id="map-info">Loading map...</div>
+<div class="overlay">
+
+  <section
+    class="section card-white"
+    style="
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid #d7dde4;
+      padding: 24px;
+      max-width: 1100px;
+      margin: 20px auto;
+      border-radius: 8px;
+    "
+  >
+
+    <form method="post" class="form-grid-container">
+      {% csrf_token %}
+
+      <!-- ====================================================
+           LEFT COLUMN — LOCATION PICKER
+           ==================================================== -->
+
+      <div style="display: flex; flex-direction: column;">
+
+        <h3
+          style="
+            color: #0a2d5f;
+            font-size: 1.2rem;
+            margin-top: 0;
+            margin-bottom: 8px;
+          "
+        >
+          📍 Set Location on Map
+        </h3>
+
+        <p
+          style="
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 12px;
+          "
+        >
+          Click, drag, or move the map.
+          Center pin shows selected location.
+        </p>
+
+        <!-- LEAFLET SATELLITE MAP -->
+
+        <div id="map-container">
+
+          <div class="map-center-pin"></div>
+
+          <div class="map-info" id="map-info">
+            Loading satellite map...
           </div>
-          
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
-            <div style="display: flex; flex-direction: column; gap: 6px;">
-              <label style="font-weight: 600; color: #0a2d5f; font-size: 0.9rem;">Latitude</label>
-              <input type="number" id="map_latitude_display" step="0.0001" value="{{ form.latitude.value|default:'' }}" placeholder="14.5631" class="form-control" style="font-size: 0.9rem; padding: 8px 10px;">
-              <small style="color: #999;">Range: -90 to 90</small>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 6px;">
-              <label style="font-weight: 600; color: #0a2d5f; font-size: 0.9rem;">Longitude</label>
-              <input type="number" id="map_longitude_display" step="0.0001" value="{{ form.longitude.value|default:'' }}" placeholder="121.0192" class="form-control" style="font-size: 0.9rem; padding: 8px 10px;">
-              <small style="color: #999;">Range: -180 to 180</small>
-            </div>
-          </div>
+
         </div>
 
-        <div style="display: flex; flex-direction: column;">
-          <h2 style="color: #0a2d5f; margin-top: 0; margin-bottom: 24px;">{{ action }}</h2>
+        <!-- LATITUDE AND LONGITUDE -->
 
-          <div style="display: flex; flex-direction: column; gap: 16px; flex-grow: 1;">
-            {% for field in form %}
-              {% if field.name == 'latitude' or field.name == 'longitude' or field.label == "Mac address" %}
-                <div style="display: none;">
-                  {{ field }}
-                </div>
-              {% else %}
-                <div style="display: flex; flex-direction: column; gap: 6px;">
-                  <label for="{{ field.id_for_label }}" style="font-weight: 600; color: #0a2d5f;">{{ field.label }}</label>
-                  
-                  {% if field.field.widget.input_type == 'checkbox' %}
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                      {{ field }}
-                      <span style="color: #6b7480;">{{ field.help_text|safe }}</span>
-                    </div>
-                  {% else %}
+        <div
+          style="
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 12px;
+          "
+        >
+
+          <div
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 6px;
+            "
+          >
+
+            <label
+              for="map_latitude_display"
+              style="
+                font-weight: 600;
+                color: #0a2d5f;
+                font-size: 0.9rem;
+              "
+            >
+              Latitude
+            </label>
+
+            <input
+              type="number"
+              id="map_latitude_display"
+              step="0.0001"
+              min="-90"
+              max="90"
+              value="{{ form.latitude.value|default:'' }}"
+              placeholder="14.5631"
+              class="form-control"
+              style="
+                font-size: 0.9rem;
+                padding: 8px 10px;
+              "
+            >
+
+            <small style="color: #999;">
+              Range: -90 to 90
+            </small>
+
+          </div>
+
+          <div
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 6px;
+            "
+          >
+
+            <label
+              for="map_longitude_display"
+              style="
+                font-weight: 600;
+                color: #0a2d5f;
+                font-size: 0.9rem;
+              "
+            >
+              Longitude
+            </label>
+
+            <input
+              type="number"
+              id="map_longitude_display"
+              step="0.0001"
+              min="-180"
+              max="180"
+              value="{{ form.longitude.value|default:'' }}"
+              placeholder="121.0192"
+              class="form-control"
+              style="
+                font-size: 0.9rem;
+                padding: 8px 10px;
+              "
+            >
+
+            <small style="color: #999;">
+              Range: -180 to 180
+            </small>
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <!-- ====================================================
+           RIGHT COLUMN — CREATE / EDIT NODE
+           ==================================================== -->
+
+      <div style="display: flex; flex-direction: column;">
+
+        <h2
+          style="
+            color: #0a2d5f;
+            margin-top: 0;
+            margin-bottom: 24px;
+          "
+        >
+          {{ action }}
+        </h2>
+
+        <div
+          style="
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            flex-grow: 1;
+          "
+        >
+
+          {% for field in form %}
+
+            {% if field.name == 'latitude' or field.name == 'longitude' or field.label == "Mac address" %}
+
+              <div style="display: none;">
+                {{ field }}
+              </div>
+
+            {% else %}
+
+              <div
+                style="
+                  display: flex;
+                  flex-direction: column;
+                  gap: 6px;
+                "
+              >
+
+                <label
+                  for="{{ field.id_for_label }}"
+                  style="
+                    font-weight: 600;
+                    color: #0a2d5f;
+                  "
+                >
+                  {{ field.label }}
+                </label>
+
+                {% if field.field.widget.input_type == 'checkbox' %}
+
+                  <div
+                    style="
+                      display: flex;
+                      align-items: center;
+                      gap: 8px;
+                    "
+                  >
                     {{ field }}
-                  {% endif %}
-                  
-                  {% if field.errors %}
-                    <div style="color: #d9534f; font-size: 0.9rem;">
-                      {% for error in field.errors %}
-                        <div>{{ error }}</div>
-                      {% endfor %}
-                    </div>
-                  {% endif %}
-                </div>
-              {% endif %}
-            {% endfor %}
-          </div>
 
-          <div style="display: flex; gap: 12px; margin-top: 24px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
-            <button type="submit" style="flex: 1; padding: 12px 16px; background: #0a2d5f; color: white; border: none; border-radius: 4px; font-size: 1rem; font-weight: 600; cursor: pointer;">
-              {% if action == 'Create Node' %}Create Node{% else %}Update Node{% endif %}
-            </button>
-            <a href="{% url 'app:client_devices' %}" style="flex: 1; padding: 12px 16px; background: #6b7480; color: white; text-decoration: none; border-radius: 4px; font-size: 1rem; font-weight: 600; text-align: center;">Cancel</a>
-          </div>
+                    <span style="color: #6b7480;">
+                      {{ field.help_text|safe }}
+                    </span>
+                  </div>
+
+                {% else %}
+
+                  {{ field }}
+
+                {% endif %}
+
+                {% if field.errors %}
+
+                  <div
+                    style="
+                      color: #d9534f;
+                      font-size: 0.9rem;
+                    "
+                  >
+
+                    {% for error in field.errors %}
+                      <div>{{ error }}</div>
+                    {% endfor %}
+
+                  </div>
+
+                {% endif %}
+
+              </div>
+
+            {% endif %}
+
+          {% endfor %}
+
         </div>
 
-      </form>
-    </section>
-  </div>
+        <!-- ==================================================
+             FORM ACTIONS
+             ================================================== -->
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    if (typeof L === 'undefined') {
-      console.error('❌ Leaflet failed to load');
-    } else {
-      document.addEventListener('DOMContentLoaded', function() {
-        try {
-          console.log('📍 Initializing CRUD map...');
-          
-          const latField = document.querySelector('input[name="latitude"]');
-          const lngField = document.querySelector('input[name="longitude"]');
-          const displayLatField = document.getElementById('map_latitude_display');
-          const displayLngField = document.getElementById('map_longitude_display');
-          const mapInfo = document.getElementById('map-info');
-          
-          const defaultLat = parseFloat(latField.value) || 14.5631;
-          const defaultLng = parseFloat(lngField.value) || 121.0192;
-          
-          const map = L.map('map-container', {
-            center: [defaultLat, defaultLng],
-            zoom: 16,
-            attributionControl: true
-          });
-          
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
-            maxZoom: 19,
-          }).addTo(map);
-          
-          function updateCoordinates() {
-            const center = map.getCenter();
-            const lat = center.lat.toFixed(4);
-            const lng = center.lng.toFixed(4);
-            
-            latField.value = lat;
-            lngField.value = lng;
-            displayLatField.value = lat;
-            displayLngField.value = lng;
-            mapInfo.textContent = `Lat: ${lat} | Lng: ${lng}`;
-            console.log(`📍 Updated: ${lat}, ${lng}`);
-          }
-          
-          map.on('moveend', updateCoordinates);
-          
-          displayLatField.addEventListener('change', function() {
-            const lat = parseFloat(this.value);
-            const lng = parseFloat(displayLngField.value);
-            if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-              latField.value = lat;
-              lngField.value = lng;
-              map.setView([lat, lng], map.getZoom());
-            }
-          });
-          
-          displayLngField.addEventListener('change', function() {
-            const lng = parseFloat(this.value);
-            const lat = parseFloat(displayLatField.value);
-            if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-              latField.value = lat;
-              lngField.value = lng;
-              map.setView([lat, lng], map.getZoom());
-            }
-          });
-          
-          setTimeout(() => map.invalidateSize(), 100);
-          updateCoordinates();
-          console.log('✓ CRUD map initialized');
-          
-        } catch (e) {
-          console.error('Map initialization error:', e);
-          mapInfo.textContent = 'Map error - check console';
-        }
-      });
+        <div
+          style="
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid #e0e0e0;
+          "
+        >
+
+          <button
+            type="submit"
+            style="
+              flex: 1;
+              padding: 12px 16px;
+              background: #0a2d5f;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              font-size: 1rem;
+              font-weight: 600;
+              cursor: pointer;
+            "
+          >
+            {% if action == 'Create Node' %}
+              Create Node
+            {% else %}
+              Update Node
+            {% endif %}
+          </button>
+
+          <a
+            href="{% url 'app:client_devices' %}"
+            style="
+              flex: 1;
+              padding: 12px 16px;
+              background: #6b7480;
+              color: white;
+              text-decoration: none;
+              border-radius: 4px;
+              font-size: 1rem;
+              font-weight: 600;
+              text-align: center;
+            "
+          >
+            Cancel
+          </a>
+
+        </div>
+
+      </div>
+
+    </form>
+
+  </section>
+
+</div>
+
+
+<!-- ==========================================================
+     LEAFLET LIBRARY
+     ========================================================== -->
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ==========================================================
+     NODE LOCATION MAP INITIALIZATION
+     ========================================================== */
+
+  function initializeNodeLocationMap() {
+
+    const mapInfo =
+      document.getElementById('map-info');
+
+    const latField =
+      document.querySelector('input[name="latitude"]');
+
+    const lngField =
+      document.querySelector('input[name="longitude"]');
+
+    const displayLatField =
+      document.getElementById('map_latitude_display');
+
+    const displayLngField =
+      document.getElementById('map_longitude_display');
+
+    const mapContainer =
+      document.getElementById('map-container');
+
+    /* ========================================================
+       CHECK REQUIRED ELEMENTS
+       ======================================================== */
+
+    if (
+      !mapInfo ||
+      !latField ||
+      !lngField ||
+      !displayLatField ||
+      !displayLngField ||
+      !mapContainer
+    ) {
+      console.error(
+        '[EnviroPlus] Location map fields were not found.'
+      );
+
+      return;
     }
-  </script>
+
+    if (typeof L === 'undefined') {
+      mapInfo.textContent =
+        'Map library unavailable. Please refresh the page.';
+
+      console.error(
+        '[EnviroPlus] Leaflet failed to load.'
+      );
+
+      return;
+    }
+
+    try {
+
+      /* ======================================================
+         INITIAL LOCATION
+         ====================================================== */
+
+      const savedLat =
+        Number.parseFloat(latField.value);
+
+      const savedLng =
+        Number.parseFloat(lngField.value);
+
+      const defaultLat = (
+        Number.isFinite(savedLat) &&
+        savedLat >= -90 &&
+        savedLat <= 90
+      )
+        ? savedLat
+        : 14.5631;
+
+      const defaultLng = (
+        Number.isFinite(savedLng) &&
+        savedLng >= -180 &&
+        savedLng <= 180
+      )
+        ? savedLng
+        : 121.0192;
+
+      /* ======================================================
+         INITIALIZE LEAFLET
+         ====================================================== */
+
+      const map = L.map(mapContainer, {
+        center: [defaultLat, defaultLng],
+        zoom: 16,
+        minZoom: 2,
+        maxZoom: 19,
+        attributionControl: true,
+        scrollWheelZoom: true
+      });
+
+      /* ======================================================
+         ESRI SATELLITE IMAGERY
+
+         Replaces blocked OpenStreetMap tiles.
+         Same satellite source as Admin Map View.
+         ====================================================== */
+
+      const satelliteLayer = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {
+          maxZoom: 19,
+          tileSize: 256,
+          attribution:
+            'Tiles &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+        }
+      );
+
+      satelliteLayer.addTo(map);
+
+      /* ======================================================
+         SATELLITE TILE ERROR HANDLING
+         ====================================================== */
+
+      let tileErrorReported = false;
+
+      satelliteLayer.on(
+        'tileerror',
+        function (event) {
+
+          if (tileErrorReported) {
+            return;
+          }
+
+          tileErrorReported = true;
+
+          console.warn(
+            '[EnviroPlus] Satellite imagery tile request failed:',
+            event.error || event
+          );
+
+          mapInfo.textContent =
+            'Satellite tiles unavailable. Check connection.';
+        }
+      );
+
+      /* ======================================================
+         COORDINATE SYNCHRONIZATION
+         ====================================================== */
+
+      function updateCoordinates() {
+
+        const center = map.getCenter();
+
+        const lat = center.lat.toFixed(4);
+        const lng = center.lng.toFixed(4);
+
+        // Django form fields
+
+        latField.value = lat;
+        lngField.value = lng;
+
+        // Visible input fields
+
+        displayLatField.value = lat;
+        displayLngField.value = lng;
+
+        // Current center coordinates
+
+        mapInfo.textContent =
+          `Lat: ${lat} | Lng: ${lng}`;
+      }
+
+      /* ======================================================
+         UPDATE LOCATION WHEN MAP MOVES
+         ====================================================== */
+
+      map.on(
+        'moveend',
+        updateCoordinates
+      );
+
+      /* ======================================================
+         CLICK MAP TO SELECT LOCATION
+         ====================================================== */
+
+      map.on(
+        'click',
+        function (event) {
+
+          map.panTo(event.latlng);
+
+        }
+      );
+
+      /* ======================================================
+         MANUAL LATITUDE / LONGITUDE ENTRY
+         ====================================================== */
+
+      function applyTypedCoordinates() {
+
+        const lat = Number.parseFloat(
+          displayLatField.value
+        );
+
+        const lng = Number.parseFloat(
+          displayLngField.value
+        );
+
+        const validCoordinates = (
+          Number.isFinite(lat) &&
+          Number.isFinite(lng) &&
+          lat >= -90 &&
+          lat <= 90 &&
+          lng >= -180 &&
+          lng <= 180
+        );
+
+        if (!validCoordinates) {
+
+          mapInfo.textContent =
+            'Enter valid latitude and longitude.';
+
+          return;
+        }
+
+        // Synchronize Django fields
+
+        latField.value = lat.toFixed(4);
+        lngField.value = lng.toFixed(4);
+
+        // Center map on typed coordinates
+
+        map.setView(
+          [lat, lng],
+          map.getZoom()
+        );
+
+        updateCoordinates();
+      }
+
+      displayLatField.addEventListener(
+        'change',
+        applyTypedCoordinates
+      );
+
+      displayLngField.addEventListener(
+        'change',
+        applyTypedCoordinates
+      );
+
+      /* ======================================================
+         FIX LEAFLET SIZE AFTER PAGE LOAD
+         ====================================================== */
+
+      setTimeout(
+        function () {
+
+          map.invalidateSize({
+            pan: false
+          });
+
+          updateCoordinates();
+
+        },
+        150
+      );
+
+      console.log(
+        '[EnviroPlus] Node location satellite map initialized.'
+      );
+
+    } catch (error) {
+
+      console.error(
+        '[EnviroPlus] Node location map error:',
+        error
+      );
+
+      mapInfo.textContent =
+        'Map could not initialize. Check browser console.';
+
+    }
+  }
+
+  /* ==========================================================
+     BOOTSTRAP
+     ========================================================== */
+
+  if (document.readyState === 'loading') {
+
+    document.addEventListener(
+      'DOMContentLoaded',
+      initializeNodeLocationMap
+    );
+
+  } else {
+
+    initializeNodeLocationMap();
+
+  }
+
+})();
+</script>
+
 {% endblock %}
